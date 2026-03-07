@@ -2,16 +2,15 @@
 
 import { useState, useMemo } from 'react'
 import { Search } from 'lucide-react'
-import { PROJETS, MOIS_LABELS, type Projet } from '@/lib/data'
-import { fmt, fmtK, getStatut, objectifMois, MOIS_COURANT_INDEX, PONDERATIONS } from '@/lib/utils'
+import { PROJETS, MOIS_LABELS } from '@/lib/data'
+import { fmtK, fmtPct, getStatut, objectifMois, MOIS_COURANT_INDEX, PONDERATIONS } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import SourceTag from '@/components/SourceTag'
 import SparkLine from '@/components/SparkLine'
-import ProjetDetail from '@/components/ProjetDetail'
+import ProjetTooltip from '@/components/ProjetTooltip'
 
 export default function ForecastPage() {
   const [search, setSearch] = useState('')
-  const [selectedProjet, setSelectedProjet] = useState<Projet | null>(null)
 
   const projetsActifs = useMemo(() => {
     const list = PROJETS.filter((p) => p.total_2026 > 0).sort((a, b) => b.total_2026 - a.total_2026)
@@ -42,40 +41,24 @@ export default function ForecastPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] font-mono">
-                <th className="text-left px-3 py-2.5 sticky left-0 bg-[var(--bg-card)] z-10 min-w-[200px]">Projet</th>
-                <th className="text-left px-2 py-2.5 min-w-[90px]">Statut</th>
+                <th className="text-left px-2 py-2.5 sticky left-0 bg-[var(--bg-card)] z-10 min-w-[90px]">Projet</th>
                 {MOIS_LABELS.map((m, i) => (
-                  <th key={i} className={`text-right px-2 py-2.5 min-w-[65px] ${i === MOIS_COURANT_INDEX ? 'text-[var(--accent)]' : ''}`}>
+                  <th key={i} className={`text-right px-2 py-2.5 min-w-[58px] ${i === MOIS_COURANT_INDEX ? 'text-[var(--accent)]' : ''}`}>
                     {m}
                     <br />
                     <span className="text-[9px] opacity-50">&times;{PONDERATIONS[i]}</span>
                   </th>
                 ))}
-                <th className="text-right px-3 py-2.5 min-w-[80px] text-[var(--accent)]">Total</th>
-                <th className="text-center px-2 py-2.5 min-w-[60px]">12m</th>
+                <th className="text-right px-2 py-2.5 min-w-[65px] text-[var(--accent)]">Total</th>
+                <th className="text-center px-2 py-2.5 min-w-[50px]">12m</th>
               </tr>
             </thead>
             <tbody>
               {projetsActifs.map((p) => {
-                const statut = getStatut(p.etat)
                 return (
                   <tr key={p.id} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">
-                    <td className="px-3 py-2 sticky left-0 bg-[var(--bg-card)] z-10">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSelectedProjet(p)}
-                          className="font-mono text-[10px] font-bold bg-[var(--accent)] text-white px-1.5 py-0.5 rounded hover:opacity-80 transition-opacity shrink-0"
-                          title={p.projet}
-                        >
-                          {p.code}
-                        </button>
-                        <p className="font-sans text-[var(--text-primary)] truncate max-w-[160px]">{p.projet}</p>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono whitespace-nowrap ${statut.color}`}>
-                        {statut.icon} {statut.label}
-                      </span>
+                    <td className="px-2 py-1.5 sticky left-0 bg-[var(--bg-card)] z-10">
+                      <ProjetTooltip projet={p} />
                     </td>
                     {p.mois.map((v, i) => {
                       const isPast = i < MOIS_COURANT_INDEX
@@ -92,15 +75,15 @@ export default function ForecastPage() {
                         cellClass = 'text-[var(--border)]'
                       }
                       return (
-                        <td key={i} className={`px-2 py-2 font-mono text-right ${cellClass}`}>
+                        <td key={i} className={`px-2 py-1.5 font-mono text-right ${cellClass}`}>
                           {v === 0 ? '—' : fmtK(v)}
                         </td>
                       )
                     })}
-                    <td className="px-3 py-2 font-mono text-right text-[var(--accent)] font-semibold">
+                    <td className="px-2 py-1.5 font-mono text-right text-[var(--accent)] font-semibold">
                       {fmtK(p.total_2026)}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-1.5">
                       <div className="flex justify-center">
                         <SparkLine data={p.mois} />
                       </div>
@@ -111,7 +94,7 @@ export default function ForecastPage() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-[var(--border)] font-semibold">
-                <td className="px-3 py-2.5 font-mono text-[var(--text-primary)] sticky left-0 bg-[var(--bg-card)] z-10" colSpan={2}>TOTAL</td>
+                <td className="px-2 py-2.5 font-mono text-[var(--text-primary)] sticky left-0 bg-[var(--bg-card)] z-10">TOTAL</td>
                 {MOIS_LABELS.map((_, i) => {
                   const total = projetsActifs.reduce((sum, p) => sum + p.mois[i], 0)
                   const obj = objectifMois(i)
@@ -126,28 +109,26 @@ export default function ForecastPage() {
                     </td>
                   )
                 })}
-                <td className="px-3 py-2.5 font-mono text-right text-[var(--accent)]">
+                <td className="px-2 py-2.5 font-mono text-right text-[var(--accent)]">
                   {fmtK(projetsActifs.reduce((sum, p) => sum + p.total_2026, 0))}
                 </td>
                 <td />
               </tr>
               <tr className="text-[var(--text-secondary)]">
-                <td className="px-3 py-1 font-mono text-[10px] italic sticky left-0 bg-[var(--bg-card)] z-10" colSpan={2}>Objectif</td>
+                <td className="px-2 py-1 font-mono text-[10px] italic sticky left-0 bg-[var(--bg-card)] z-10">Objectif</td>
                 {MOIS_LABELS.map((_, i) => (
                   <td key={i} className="px-2 py-1 font-mono text-right text-[10px] italic">{fmtK(Math.round(objectifMois(i)))}</td>
                 ))}
-                <td className="px-3 py-1 font-mono text-right text-[10px] italic">{fmtK(400000)}</td>
+                <td className="px-2 py-1 font-mono text-right text-[10px] italic">{fmtK(400000)}</td>
                 <td />
               </tr>
             </tfoot>
           </table>
         </div>
         <div className="px-4 py-2 border-t border-[var(--border)]">
-          <SourceTag source="PREVISIONNEL · toutes colonnes" detail="Couleurs : Vert >= objectif, Orange 80-100%, Rouge < 80%. Pondération ×0.5 pour Jul/Aoû/Déc." />
+          <SourceTag source="PREVISIONNEL · toutes colonnes" detail="Survolez un trigramme pour voir le détail du projet. Couleurs : Vert ≥ objectif, Orange 80-100%, Rouge < 80%." />
         </div>
       </div>
-
-      {selectedProjet && <ProjetDetail projet={selectedProjet} onClose={() => setSelectedProjet(null)} />}
     </>
   )
 }

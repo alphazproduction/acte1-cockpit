@@ -436,6 +436,83 @@ function creerOngletCharges(ss) {
 //   Accès : Tout le monde
 // ═══════════════════════════════════════════════════════════════
 
+// ── ÉCRITURE — doPost ─────────────────────────────────────────────
+// Accepte un JSON body avec { action, data }
+// Actions supportées :
+//   - update_previsionnel : { projet_id, annee, mois_index (0-11), montant }
+//   - update_projet       : { projet_id, champ, valeur }
+//   - update_facture      : { projet_id, numero, champ, valeur }
+
+function doPost(e) {
+  try {
+    var body = JSON.parse(e.postData.contents);
+    var action = body.action;
+    var data = body.data;
+    var result;
+
+    switch (action) {
+      case 'update_previsionnel':
+        result = updatePrevisionnel(data.projet_id, data.annee, data.mois_index, data.montant);
+        break;
+      case 'update_projet':
+        result = updateProjet(data.projet_id, data.champ, data.valeur);
+        break;
+      default:
+        result = { ok: false, error: 'Action inconnue: ' + action };
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function updatePrevisionnel(projetId, annee, moisIndex, montant) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('PREVISIONNEL');
+  if (!sh) return { ok: false, error: 'Feuille PREVISIONNEL introuvable' };
+
+  var data = sh.getDataRange().getValues();
+  for (var r = 1; r < data.length; r++) {
+    if (Number(data[r][0]) === Number(annee) && String(data[r][1]) === String(projetId)) {
+      // Mois = colonnes D-O = index 3+moisIndex
+      sh.getRange(r + 1, 4 + moisIndex).setValue(Number(montant));
+      SpreadsheetApp.flush();
+      return { ok: true, row: r + 1, col: 4 + moisIndex, value: Number(montant) };
+    }
+  }
+  return { ok: false, error: 'Ligne introuvable pour ' + projetId + ' / ' + annee };
+}
+
+function updateProjet(projetId, champ, valeur) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('PROJETS');
+  if (!sh) return { ok: false, error: 'Feuille PROJETS introuvable' };
+
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var colIndex = -1;
+  for (var c = 0; c < headers.length; c++) {
+    if (String(headers[c]).trim() === champ) { colIndex = c; break; }
+  }
+  if (colIndex === -1) return { ok: false, error: 'Colonne ' + champ + ' introuvable' };
+
+  var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+  for (var r = 0; r < ids.length; r++) {
+    if (String(ids[r][0]) === String(projetId)) {
+      sh.getRange(r + 2, colIndex + 1).setValue(valeur);
+      SpreadsheetApp.flush();
+      return { ok: true, row: r + 2, col: colIndex + 1, value: valeur };
+    }
+  }
+  return { ok: false, error: 'Projet ' + projetId + ' introuvable' };
+}
+
+// ── LECTURE — doGet ──────────────────────────────────────────────
+
 function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
   var action = params.action || 'all';

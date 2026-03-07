@@ -1,16 +1,72 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { Check, Link2 } from 'lucide-react'
 import { MOIS_LABELS } from '@/lib/data'
 import { PONDERATIONS, OBJECTIF_ANNUEL, objectifMois, fmt } from '@/lib/utils'
+import { getGasUrl, setGasUrl, isApiConfigured } from '@/lib/api'
 import Topbar from '@/components/Topbar'
 import SourceTag from '@/components/SourceTag'
 
 export default function ParametresPage() {
+  const [apiUrl, setApiUrl] = useState('')
+  const [connected, setConnected] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    const url = getGasUrl()
+    if (url) {
+      setApiUrl(url)
+      setConnected(true)
+    }
+  }, [])
+
+  const handleSaveUrl = () => {
+    if (apiUrl.trim()) {
+      setGasUrl(apiUrl.trim())
+      setConnected(true)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
+  }
+
   return (
     <>
       <Topbar title="Paramètres" subtitle="Configuration du cockpit de pilotage" />
 
       <div className="grid lg:grid-cols-2 gap-6">
+        {/* Connexion API */}
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-4">
+            <Link2 size={18} className="text-[var(--accent)]" />
+            <h3 className="font-serif text-lg text-[var(--text-primary)]">Connexion Google Sheets</h3>
+            {connected && (
+              <span className="font-mono text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/30">
+                Connecté
+              </span>
+            )}
+          </div>
+          <p className="font-sans text-sm text-[var(--text-secondary)] mb-4">
+            Collez l'URL du déploiement Web App de votre Google Apps Script. Les modifications dans le cockpit seront synchronisées avec le Google Sheet.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              placeholder="https://script.google.com/macros/s/.../exec"
+              className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 font-mono text-xs text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--accent)]"
+            />
+            <button
+              onClick={handleSaveUrl}
+              className="px-4 py-2.5 rounded-lg bg-[var(--accent)] text-white font-mono text-xs hover:opacity-90 transition-opacity flex items-center gap-2"
+            >
+              {saved ? <><Check size={14} /> Enregistré</> : 'Connecter'}
+            </button>
+          </div>
+          <SourceTag source="CONFIG · URL Apps Script Web App" detail="Déployer > Nouveau déploiement > Application Web > Accès : Tout le monde" />
+        </div>
+
         {/* Objectif */}
         <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5">
           <h3 className="font-serif text-lg text-[var(--text-primary)] mb-4">Objectif annuel</h3>
@@ -95,25 +151,6 @@ export default function ParametresPage() {
             ))}
           </div>
           <SourceTag source="CONFIG · pondérations mensuelles" detail="Jul=0.5, Aoû=0.5, Déc=0.5. Objectif mois = 400K × (poids / 10.5)" />
-        </div>
-
-        {/* Source de données */}
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5 lg:col-span-2">
-          <h3 className="font-serif text-lg text-[var(--text-primary)] mb-4">Source de données</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-[var(--border)]">
-              <span className="font-sans text-sm text-[var(--text-primary)]">Mode actuel</span>
-              <span className="font-mono text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded">POC — Données statiques</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-[var(--border)]">
-              <span className="font-sans text-sm text-[var(--text-primary)]">Cible</span>
-              <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded">Google Sheets via Apps Script API</span>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="font-sans text-sm text-[var(--text-primary)]">Google Sheet ID</span>
-              <span className="font-mono text-[11px] text-[var(--text-secondary)]">13S1qoigMo79Znnr...cK_yDPE</span>
-            </div>
-          </div>
         </div>
       </div>
     </>
