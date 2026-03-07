@@ -93,7 +93,7 @@ export default function ForecastPage() {
                       }
                       return (
                         <td key={i} className={`px-2 py-2 font-mono text-right ${cellClass}`}>
-                          {v === 0 ? '\u2014' : fmtK(v)}
+                          {v === 0 ? '—' : fmtK(v)}
                         </td>
                       )
                     })}

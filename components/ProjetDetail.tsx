@@ -79,7 +79,7 @@ export default function ProjetDetail({ projet, onClose }: ProjetDetailProps) {
               <div key={i} className={`text-center rounded p-1.5 ${i === MOIS_COURANT_INDEX ? 'bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]' : 'bg-[var(--bg-primary)]'}`}>
                 <p className="font-mono text-[9px] text-[var(--text-secondary)]">{m}</p>
                 <p className={`font-mono text-[11px] mt-0.5 ${projet.mois[i] > 0 ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--border)]'}`}>
-                  {projet.mois[i] > 0 ? `${Math.round(projet.mois[i] / 1000)}k` : '\u2014'}
+                  {projet.mois[i] > 0 ? `${Math.round(projet.mois[i] / 1000)}k` : '—'}
                 </p>
               </div>
             ))}

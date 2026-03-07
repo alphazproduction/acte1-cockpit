@@ -86,7 +86,7 @@ export default function BarChartMensuel() {
           </span>
         ))}
       </div>
-      <SourceTag source="PREVISIONNEL · colonnes Jan\u2013Déc" detail="Barres violettes semi-transparentes = objectif pondéré. Barres pleines = prévu. Vert >= 100%, Orange 80-100%, Rouge < 80%." />
+      <SourceTag source="PREVISIONNEL · colonnes Jan–Déc" detail="Barres violettes semi-transparentes = objectif pondéré. Barres pleines = prévu. Vert >= 100%, Orange 80-100%, Rouge < 80%." />
     </div>
   )
 }

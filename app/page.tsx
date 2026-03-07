@@ -25,19 +25,19 @@ export default function DashboardPage() {
 
   const ecart = tauxRealisation - tempsEcoule
   const ecartLabel = ecart >= 0
-    ? `Vous \u00eates en avance de ${Math.round(ecart)} points`
-    : `Vous \u00eates en retard de ${Math.round(Math.abs(ecart))} points`
+    ? `Vous êtes en avance de ${Math.round(ecart)} points`
+    : `Vous êtes en retard de ${Math.round(Math.abs(ecart))} points`
 
   return (
     <>
-      <Topbar title="Dashboard" subtitle="Vue synth\u00e9tique \u00b7 Cockpit de pilotage ACTE 1" />
+      <Topbar title="Dashboard" subtitle="Vue synthétique · Cockpit de pilotage ACTE 1" />
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="CA pr\u00e9vu YTD" value={fmt(prevuCumule)} source="PREVISIONNEL \u00b7 cumul Jan\u2013Mar" accent="success" />
-        <KpiCard label="Objectif YTD" value={fmt(Math.round(objCumule))} source="CONFIG \u00b7 objectif \u00d7 pond\u00e9ration cumul\u00e9e" accent="default" />
-        <KpiCard label="Projection annuelle" value={fmt(projection)} source="Taux r\u00e9alisation \u00d7 objectif annuel" accent={projection >= OBJECTIF_ANNUEL * 0.8 ? 'warning' : 'danger'} />
-        <KpiCard label="Reste \u00e0 facturer" value={fmt(STATS_GLOBALES.total_reste_facturer)} source="PROJETS \u00b7 col. honoraires_ht" accent="info" />
+        <KpiCard label="CA prévu YTD" value={fmt(prevuCumule)} source="PREVISIONNEL · cumul Jan–Mar" accent="success" />
+        <KpiCard label="Objectif YTD" value={fmt(Math.round(objCumule))} source="CONFIG · objectif × pondération cumulée" accent="default" />
+        <KpiCard label="Projection annuelle" value={fmt(projection)} source="Taux réalisation × objectif annuel" accent={projection >= OBJECTIF_ANNUEL * 0.8 ? 'warning' : 'danger'} />
+        <KpiCard label="Reste à facturer" value={fmt(STATS_GLOBALES.total_reste_facturer)} source="PROJETS · col. honoraires_ht" accent="info" />
       </div>
 
       {/* Progression annuelle */}
@@ -69,7 +69,7 @@ export default function DashboardPage() {
         <p className="mt-3 font-sans text-sm text-[var(--text-secondary)]">
           {ecartLabel}. Projection : <span className="font-mono text-[var(--accent)]">{fmt(projection)}</span> sur {fmt(OBJECTIF_ANNUEL)} ({fmtPct(projection / OBJECTIF_ANNUEL * 100)})
         </p>
-        <SourceTag source="CONFIG \u00b7 objectif 400 000 \u20ac + pond\u00e9rations mensuelles" detail="Pond\u00e9ration : \u00d71 pour mois normaux, \u00d70.5 pour Jul/Ao\u00fb/D\u00e9c. Somme poids = 10.5" />
+        <SourceTag source="CONFIG · objectif 400 000 € + pondérations mensuelles" detail="Pondération : ×1 pour mois normaux, ×0.5 pour Jul/Aoû/Déc. Somme poids = 10.5" />
       </div>
 
       {/* Alertes */}
@@ -126,7 +126,7 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
-        <SourceTag source="PROJETS \u00b7 col. honoraires_ht, tri\u00e9 d\u00e9croissant" />
+        <SourceTag source="PROJETS · col. honoraires_ht, trié décroissant" />
       </div>
 
       {selectedProjet && <ProjetDetail projet={selectedProjet} onClose={() => setSelectedProjet(null)} />}
