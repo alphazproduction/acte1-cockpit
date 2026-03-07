@@ -87,7 +87,7 @@ export default function PlanningPage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-center">
                       {p.delta === 0 ? (
-                        <span className="text-[var(--text-secondary)]">\u2014</span>
+                        <span className="text-[var(--text-secondary)]">&mdash;</span>
                       ) : p.delta > 0 ? (
                         <span className="text-[var(--danger)]">+{p.delta} mois</span>
                       ) : (

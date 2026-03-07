@@ -136,12 +136,12 @@ function fmtPourcent(sheet, colonne, ligneDebut, ligneFin) {
 }
 
 function ajouterVlookupNom(sheet, colNom, colId, ligneDebut, ligneFin) {
+  var formulas = [];
   for (var r = ligneDebut; r <= ligneFin; r++) {
     var idRef = String.fromCharCode(64 + colId) + r;
-    sheet.getRange(r, colNom).setFormula(
-      '=IF(' + idRef + '="","",VLOOKUP(' + idRef + ',PROJETS!A:B,2,FALSE))'
-    );
+    formulas.push(['=IF(' + idRef + '="","",IFERROR(VLOOKUP(' + idRef + ',PROJETS!A:B,2,FALSE),"??"))']);
   }
+  sheet.getRange(ligneDebut, colNom, ligneFin - ligneDebut + 1, 1).setFormulas(formulas);
   sheet.getRange(1, colNom).setFontStyle('italic').setNote('Auto — VLOOKUP depuis PROJETS');
 }
 

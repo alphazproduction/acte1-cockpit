@@ -95,7 +95,6 @@ function importerProjets(ss) {
   var sh = ss.getSheetByName('PROJETS');
   if (!sh) return;
 
-  // Écrire toutes les lignes d'un coup (performant)
   sh.getRange(2, 1, DONNEES_PROJETS.length, DONNEES_PROJETS[0].length)
     .setValues(DONNEES_PROJETS);
 
@@ -108,30 +107,33 @@ function importerPrevisionnel2026(ss) {
   var sh = ss.getSheetByName('PREVISIONNEL');
   if (!sh) return;
 
-  // Construire les lignes : [année, projet_id, (vlookup laissé vide), Jan..Déc]
-  // La colonne projet_nom (col 3) a déjà un VLOOKUP, on ne touche pas
-  // On écrit : col A (année), col B (projet_id), cols D-O (mois)
-  var rows = [];
-  for (var i = 0; i < DONNEES_PREV_2026.length; i++) {
+  var nbRows = DONNEES_PREV_2026.length;
+
+  // Construire les données en batch : [année, projet_id, '', Jan..Déc]
+  // Col C (projet_nom) est laissée vide car elle a un VLOOKUP
+  var fullRows = [];
+  for (var i = 0; i < nbRows; i++) {
     var d = DONNEES_PREV_2026[i];
-    // d[0] = projet_id, d[1..12] = Jan..Déc
-    rows.push(d[0]); // on va écrire colonne par colonne
+    var row = [2026, d[0], '']; // année, id, nom (vide = VLOOKUP)
+    for (var m = 1; m <= 12; m++) {
+      row.push(d[m]);
+    }
+    fullRows.push(row);
   }
 
-  // Écrire année (col A) et projet_id (col B)
-  for (var i = 0; i < DONNEES_PREV_2026.length; i++) {
-    var row = 2 + i;
-    sh.getRange(row, 1).setValue(2026);                    // année
-    sh.getRange(row, 2).setValue(DONNEES_PREV_2026[i][0]); // projet_id
-    // Col C (projet_nom) = VLOOKUP déjà en place, on ne touche pas
+  // Écrire colonnes A (année) et B (projet_id) en batch
+  var abData = [];
+  for (var i = 0; i < nbRows; i++) {
+    abData.push([2026, DONNEES_PREV_2026[i][0]]);
   }
+  sh.getRange(2, 1, nbRows, 2).setValues(abData);
 
-  // Écrire les 12 mois d'un coup (cols D à O = cols 4 à 15)
+  // Écrire les 12 mois en batch (cols D à O = cols 4 à 15)
   var moisData = [];
-  for (var i = 0; i < DONNEES_PREV_2026.length; i++) {
-    moisData.push(DONNEES_PREV_2026[i].slice(1)); // 12 valeurs
+  for (var i = 0; i < nbRows; i++) {
+    moisData.push(DONNEES_PREV_2026[i].slice(1));
   }
-  sh.getRange(2, 4, moisData.length, 12).setValues(moisData);
+  sh.getRange(2, 4, nbRows, 12).setValues(moisData);
 
-  Logger.log(DONNEES_PREV_2026.length + ' lignes importées dans PREVISIONNEL (2026)');
+  Logger.log(nbRows + ' lignes importées dans PREVISIONNEL (2026)');
 }

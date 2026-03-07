@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { STATS_GLOBALES, TOTAUX_MOIS_2026 } from '@/lib/data'
+import { STATS_GLOBALES, TOTAUX_MOIS_2026, type Projet } from '@/lib/data'
 import { fmt, fmtPct, getAlertes, getTop5Projets, MOIS_COURANT_INDEX, OBJECTIF_ANNUEL, objectifCumule, tempsEcoulePondere } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import KpiCard from '@/components/KpiCard'
@@ -9,9 +9,11 @@ import SourceTag from '@/components/SourceTag'
 import AlertBanner from '@/components/AlertBanner'
 import BarChartMensuel from '@/components/BarChartMensuel'
 import ChartYTD from '@/components/ChartYTD'
+import ProjetDetail from '@/components/ProjetDetail'
 
 export default function DashboardPage() {
   const [chartView, setChartView] = useState<'mensuel' | 'ytd'>('mensuel')
+  const [selectedProjet, setSelectedProjet] = useState<Projet | null>(null)
   const alertes = getAlertes()
   const top5 = getTop5Projets()
 
@@ -23,19 +25,19 @@ export default function DashboardPage() {
 
   const ecart = tauxRealisation - tempsEcoule
   const ecartLabel = ecart >= 0
-    ? `Vous êtes en avance de ${Math.round(ecart)} points`
-    : `Vous êtes en retard de ${Math.round(Math.abs(ecart))} points`
+    ? `Vous \u00eates en avance de ${Math.round(ecart)} points`
+    : `Vous \u00eates en retard de ${Math.round(Math.abs(ecart))} points`
 
   return (
     <>
-      <Topbar title="Dashboard" subtitle="Vue synthétique · Cockpit de pilotage ACTE 1" />
+      <Topbar title="Dashboard" subtitle="Vue synth\u00e9tique \u00b7 Cockpit de pilotage ACTE 1" />
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="CA prévu YTD" value={fmt(prevuCumule)} source='PREVISIONNEL · cumul Jan\u2013Mar' accent="success" />
-        <KpiCard label="Objectif YTD" value={fmt(Math.round(objCumule))} source="CONFIG · objectif × pondération cumulée" accent="default" />
-        <KpiCard label="Projection annuelle" value={fmt(projection)} source="Taux réalisation × objectif annuel" accent={projection >= OBJECTIF_ANNUEL * 0.8 ? 'warning' : 'danger'} />
-        <KpiCard label="Reste à facturer" value={fmt(STATS_GLOBALES.total_reste_facturer)} source='PROJETS · col. honoraires_ht' accent="info" />
+        <KpiCard label="CA pr\u00e9vu YTD" value={fmt(prevuCumule)} source="PREVISIONNEL \u00b7 cumul Jan\u2013Mar" accent="success" />
+        <KpiCard label="Objectif YTD" value={fmt(Math.round(objCumule))} source="CONFIG \u00b7 objectif \u00d7 pond\u00e9ration cumul\u00e9e" accent="default" />
+        <KpiCard label="Projection annuelle" value={fmt(projection)} source="Taux r\u00e9alisation \u00d7 objectif annuel" accent={projection >= OBJECTIF_ANNUEL * 0.8 ? 'warning' : 'danger'} />
+        <KpiCard label="Reste \u00e0 facturer" value={fmt(STATS_GLOBALES.total_reste_facturer)} source="PROJETS \u00b7 col. honoraires_ht" accent="info" />
       </div>
 
       {/* Progression annuelle */}
@@ -67,7 +69,7 @@ export default function DashboardPage() {
         <p className="mt-3 font-sans text-sm text-[var(--text-secondary)]">
           {ecartLabel}. Projection : <span className="font-mono text-[var(--accent)]">{fmt(projection)}</span> sur {fmt(OBJECTIF_ANNUEL)} ({fmtPct(projection / OBJECTIF_ANNUEL * 100)})
         </p>
-        <SourceTag source="CONFIG · objectif 400 000 € + pondérations mensuelles" detail="Pondération : ×1 pour mois normaux, ×0.5 pour Jul/Aoû/Déc. Somme poids = 10.5" />
+        <SourceTag source="CONFIG \u00b7 objectif 400 000 \u20ac + pond\u00e9rations mensuelles" detail="Pond\u00e9ration : \u00d71 pour mois normaux, \u00d70.5 pour Jul/Ao\u00fb/D\u00e9c. Somme poids = 10.5" />
       </div>
 
       {/* Alertes */}
@@ -107,16 +109,27 @@ export default function DashboardPage() {
         <div className="space-y-3">
           {top5.map((p) => (
             <div key={p.id} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
-              <div className="min-w-0">
-                <p className="font-sans text-sm text-[var(--text-primary)] truncate">{p.projet}</p>
-                <p className="font-mono text-[11px] text-[var(--text-secondary)]">{p.etat}</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  onClick={() => setSelectedProjet(p)}
+                  className="font-mono text-[10px] font-bold bg-[var(--accent)] text-white px-1.5 py-0.5 rounded hover:opacity-80 transition-opacity shrink-0"
+                  title={p.projet}
+                >
+                  {p.code}
+                </button>
+                <div className="min-w-0">
+                  <p className="font-sans text-sm text-[var(--text-primary)] truncate">{p.projet}</p>
+                  <p className="font-mono text-[11px] text-[var(--text-secondary)]">{p.etat}</p>
+                </div>
               </div>
               <p className="font-mono text-sm text-[var(--accent)] shrink-0 ml-4">{fmt(p.reste)}</p>
             </div>
           ))}
         </div>
-        <SourceTag source="PROJETS · col. honoraires_ht, trié décroissant" />
+        <SourceTag source="PROJETS \u00b7 col. honoraires_ht, tri\u00e9 d\u00e9croissant" />
       </div>
+
+      {selectedProjet && <ProjetDetail projet={selectedProjet} onClose={() => setSelectedProjet(null)} />}
     </>
   )
 }

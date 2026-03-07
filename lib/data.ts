@@ -1,5 +1,6 @@
 export interface Projet {
   id: string
+  code: string
   projet: string
   etat: string
   honoraire: number
@@ -41,7 +42,7 @@ export const TOTAUX_MOIS_2026 = [
 
 export const PROJETS: Projet[] = [
   {
-    id: 'palc-chalons',
+    id: 'palc-chalons', code: 'PAL',
     projet: 'PALC - Chalons - Moatti',
     etat: 'En cours',
     honoraire: 118750, facture_n1: 0, reste: 118750,
@@ -49,7 +50,7 @@ export const PROJETS: Projet[] = [
     total_2026: 50655,
   },
   {
-    id: 'roanne-dechelette',
+    id: 'roanne-dechelette', code: 'RMD',
     projet: 'Roanne - Musée Dechelette',
     etat: 'En cours',
     honoraire: 47851, facture_n1: 0, reste: 47851,
@@ -57,7 +58,7 @@ export const PROJETS: Projet[] = [
     total_2026: 27101,
   },
   {
-    id: 'rte-base-avenant',
+    id: 'rte-base-avenant', code: 'RTE',
     projet: 'RTE : Base et Avenant',
     etat: 'En cours',
     honoraire: 42000, facture_n1: 0, reste: 42000,
@@ -65,7 +66,7 @@ export const PROJETS: Projet[] = [
     total_2026: 24675,
   },
   {
-    id: 'oradour',
+    id: 'oradour', code: 'ORA',
     projet: "Centre de la Mémoire d'Oradour",
     etat: 'En cours',
     honoraire: 43650, facture_n1: 0, reste: 43650,
@@ -73,7 +74,7 @@ export const PROJETS: Projet[] = [
     total_2026: 21076,
   },
   {
-    id: 'airbus-b25',
+    id: 'airbus-b25', code: 'AIR',
     projet: 'AIRBUS - B25 - MOE',
     etat: 'En cours',
     honoraire: 69750, facture_n1: 0, reste: 69750,
@@ -81,7 +82,7 @@ export const PROJETS: Projet[] = [
     total_2026: 20900,
   },
   {
-    id: 'insight-act2',
+    id: 'insight-act2', code: 'INS',
     projet: 'Insight : ACT2 + DET + AOR',
     etat: 'Attente signature contrat',
     honoraire: 19950, facture_n1: 0, reste: 19950,
@@ -89,7 +90,7 @@ export const PROJETS: Projet[] = [
     total_2026: 19950,
   },
   {
-    id: 'tour-first-n27',
+    id: 'tour-first-n27', code: 'TFN',
     projet: 'Tour First N27&N44',
     etat: 'En cours',
     honoraire: 29820, facture_n1: 0, reste: 29820,
@@ -97,7 +98,7 @@ export const PROJETS: Projet[] = [
     total_2026: 19320,
   },
   {
-    id: '26h-chantier',
+    id: '26h-chantier', code: '26H',
     projet: '26H - partie Chantier',
     etat: 'En cours',
     honoraire: 28975, facture_n1: 0, reste: 28975,
@@ -105,7 +106,7 @@ export const PROJETS: Projet[] = [
     total_2026: 17860,
   },
   {
-    id: 'opus12-avenant',
+    id: 'opus12-avenant', code: 'OP12',
     projet: 'OPUS12 - Phase Etude sur avenant',
     etat: 'Vérification avenant + ACT',
     honoraire: 9500, facture_n1: 0, reste: 9500,
@@ -113,7 +114,7 @@ export const PROJETS: Projet[] = [
     total_2026: 16250,
   },
   {
-    id: 'goodlife-1',
+    id: 'goodlife-1', code: 'GL1',
     projet: 'GoodLife 1',
     etat: 'Reste le DET etc…',
     honoraire: 37525, facture_n1: 0, reste: 37525,
@@ -121,7 +122,7 @@ export const PROJETS: Projet[] = [
     total_2026: 15675,
   },
   {
-    id: 'ajn-falcon',
+    id: 'ajn-falcon', code: 'AJN',
     projet: 'AJN Falcon Nest',
     etat: 'En cours',
     honoraire: 0, facture_n1: 0, reste: 0,
@@ -129,7 +130,7 @@ export const PROJETS: Projet[] = [
     total_2026: 15325,
   },
   {
-    id: 'cc-notaires',
+    id: 'cc-notaires', code: 'CCN',
     projet: 'CC Notaires',
     etat: 'Attente contrat',
     honoraire: 35500, facture_n1: 0, reste: 35500,
@@ -137,7 +138,7 @@ export const PROJETS: Projet[] = [
     total_2026: 13000,
   },
   {
-    id: 'sgp-ardoines',
+    id: 'sgp-ardoines', code: 'SGA',
     projet: 'SGP - Gare des Ardoines',
     etat: 'En cours',
     honoraire: 12825, facture_n1: 0, reste: 12825,
@@ -145,7 +146,7 @@ export const PROJETS: Projet[] = [
     total_2026: 11590,
   },
   {
-    id: 'cheval-blanc-v2',
+    id: 'cheval-blanc-v2', code: 'CHB',
     projet: 'Cheval Blanc v2',
     etat: 'Validé par mail',
     honoraire: 29400, facture_n1: 0, reste: 29400,
@@ -153,7 +154,7 @@ export const PROJETS: Projet[] = [
     total_2026: 11025,
   },
   {
-    id: 'sg-29h',
+    id: 'sg-29h', code: 'S29',
     projet: 'SG - 29H - Eclairage + DET',
     etat: 'En cours',
     honoraire: 10920, facture_n1: 0, reste: 10920,
@@ -161,7 +162,7 @@ export const PROJETS: Projet[] = [
     total_2026: 10920,
   },
   {
-    id: 'cinema-bobigny',
+    id: 'cinema-bobigny', code: 'BOB',
     projet: 'Cinéma Bobigny - Suite',
     etat: 'En cours',
     honoraire: 93196, facture_n1: 43434, reste: 49762,
@@ -169,7 +170,7 @@ export const PROJETS: Projet[] = [
     total_2026: 9450,
   },
   {
-    id: 'nausicaa',
+    id: 'nausicaa', code: 'NAU',
     projet: 'Nausicaa',
     etat: 'En cours',
     honoraire: 98766, facture_n1: 0, reste: 98766,
@@ -177,7 +178,7 @@ export const PROJETS: Projet[] = [
     total_2026: 7901,
   },
   {
-    id: 'summit-affichage',
+    id: 'summit-affichage', code: 'SUM',
     projet: 'SUMMIT : Affichage dynamique',
     etat: 'En cours',
     honoraire: 18800, facture_n1: 0, reste: 18800,
@@ -185,7 +186,7 @@ export const PROJETS: Projet[] = [
     total_2026: 6200,
   },
   {
-    id: 'caudalie',
+    id: 'caudalie', code: 'CAU',
     projet: 'Caudalie Base ERP + avenant SdR',
     etat: 'Mise à jour forecast',
     honoraire: 38400, facture_n1: 0, reste: 38400,
@@ -193,7 +194,7 @@ export const PROJETS: Projet[] = [
     total_2026: 5775,
   },
   {
-    id: 'oceanopolis',
+    id: 'oceanopolis', code: 'OCE',
     projet: 'Océanopolis - tranche ferme + cond.',
     etat: 'En cours',
     honoraire: 43650, facture_n1: 0, reste: 43650,
@@ -201,7 +202,7 @@ export const PROJETS: Projet[] = [
     total_2026: 5545,
   },
   {
-    id: 'cinematheque-toulouse',
+    id: 'cinematheque-toulouse', code: 'CTL',
     projet: 'Cinémathèque de Toulouse',
     etat: 'En cours',
     honoraire: 21017, facture_n1: 0, reste: 21017,
@@ -209,7 +210,7 @@ export const PROJETS: Projet[] = [
     total_2026: 4354,
   },
   {
-    id: 'pb-complement-audito',
+    id: 'pb-complement-audito', code: 'PBA',
     projet: 'Palais Bourbon - complément audito',
     etat: 'Vérifier les montants',
     honoraire: 34359, facture_n1: 0, reste: 34359,
@@ -217,7 +218,7 @@ export const PROJETS: Projet[] = [
     total_2026: 4853,
   },
   {
-    id: 'pb-museo',
+    id: 'pb-museo', code: 'PBM',
     projet: 'Palais Bourbon Moatti - muséo',
     etat: 'Attente OS avenant',
     honoraire: 136000, facture_n1: 0, reste: 136000,
@@ -225,7 +226,7 @@ export const PROJETS: Projet[] = [
     total_2026: 3600,
   },
   {
-    id: 'pace-rennes',
+    id: 'pace-rennes', code: 'PAC',
     projet: 'PACE - Médiathèque de Rennes',
     etat: 'Attente GPA',
     honoraire: 23750, facture_n1: 0, reste: 23750,
@@ -233,7 +234,7 @@ export const PROJETS: Projet[] = [
     total_2026: 550,
   },
   {
-    id: 'nantes-histoire-naturelle',
+    id: 'nantes-histoire-naturelle', code: 'MHN',
     projet: "Musée d'Histoire naturelle de Nantes",
     etat: 'Attente signature contrat',
     honoraire: 7300, facture_n1: 0, reste: 7300,
@@ -241,7 +242,7 @@ export const PROJETS: Projet[] = [
     total_2026: 1900,
   },
   {
-    id: 'tour-first-cbre',
+    id: 'tour-first-cbre', code: 'TFC',
     projet: 'Tour Fisrt CBRE',
     etat: 'En attente fin AOR / réserves',
     honoraire: 17575, facture_n1: 0, reste: 17575,
@@ -249,7 +250,7 @@ export const PROJETS: Projet[] = [
     total_2026: 1425,
   },
   {
-    id: 'cheval-blanc-avenant',
+    id: 'cheval-blanc-avenant', code: 'CBA',
     projet: 'Cheval Blanc v2 - avenant serrurerie',
     etat: 'En cours',
     honoraire: 6300, facture_n1: 0, reste: 6300,
@@ -257,7 +258,7 @@ export const PROJETS: Projet[] = [
     total_2026: 1050,
   },
   {
-    id: 'musee-armee',
+    id: 'musee-armee', code: 'MDA',
     projet: "Musée de l'Armée - Phase 1",
     etat: 'Gelé. Dernière facture ??',
     honoraire: 30508, facture_n1: 0, reste: 30508,
@@ -265,7 +266,7 @@ export const PROJETS: Projet[] = [
     total_2026: 1200,
   },
   {
-    id: 'manitou-suite',
+    id: 'manitou-suite', code: 'MAN',
     projet: 'Manitou Suite',
     etat: 'Attente paiement',
     honoraire: 0, facture_n1: 0, reste: 30625,
@@ -273,7 +274,7 @@ export const PROJETS: Projet[] = [
     total_2026: 0,
   },
   {
-    id: 'sgp-blanc-mesnil',
+    id: 'sgp-blanc-mesnil', code: 'SBM',
     projet: 'SGP Gare de Blanc-Mesnil',
     etat: 'Possiblement stoppé en 2024',
     honoraire: 7600, facture_n1: 0, reste: 7600,
@@ -281,7 +282,7 @@ export const PROJETS: Projet[] = [
     total_2026: 0,
   },
   {
-    id: 'sg-renovation-auditoriums',
+    id: 'sg-renovation-auditoriums', code: 'SRA',
     projet: 'SG - Rénovation des auditoriums MOE',
     etat: 'En cours',
     honoraire: 23800, facture_n1: 0, reste: 23800,
@@ -289,7 +290,7 @@ export const PROJETS: Projet[] = [
     total_2026: 0,
   },
   {
-    id: 'sg-valmy',
+    id: 'sg-valmy', code: 'SGV',
     projet: 'SG - Complément Valmy écran fond de salle',
     etat: 'En cours',
     honoraire: 950, facture_n1: 0, reste: 950,
@@ -297,7 +298,7 @@ export const PROJETS: Projet[] = [
     total_2026: 0,
   },
   {
-    id: 'bus-palladium',
+    id: 'bus-palladium', code: 'BPL',
     projet: 'Bus Palladium',
     etat: 'En cours',
     honoraire: 0, facture_n1: 0, reste: 32000,
@@ -305,7 +306,7 @@ export const PROJETS: Projet[] = [
     total_2026: 0,
   },
   {
-    id: 'sceaux',
+    id: 'sceaux', code: 'SCX',
     projet: 'Sceaux',
     etat: 'En cours',
     honoraire: 0, facture_n1: 0, reste: 13000,
@@ -313,7 +314,7 @@ export const PROJETS: Projet[] = [
     total_2026: 0,
   },
   {
-    id: 'sgp-blanc-mesnil-prog',
+    id: 'sgp-blanc-mesnil-prog', code: 'SBP',
     projet: 'SGP Gare Blanc-Mesnil - Phase programme',
     etat: 'Possiblement stoppé en 2024',
     honoraire: 7600, facture_n1: 0, reste: 7600,
@@ -321,7 +322,7 @@ export const PROJETS: Projet[] = [
     total_2026: 0,
   },
   {
-    id: 'propositions-en-cours',
+    id: 'propositions-en-cours', code: 'PEC',
     projet: 'Montant des propositions en cours',
     etat: 'En cours',
     honoraire: 0, facture_n1: 0, reste: 45000,

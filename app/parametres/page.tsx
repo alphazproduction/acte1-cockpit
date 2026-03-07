@@ -24,7 +24,7 @@ export default function ParametresPage() {
                   readOnly
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 font-mono text-sm text-[var(--text-primary)]"
                 />
-                <span className="font-mono text-sm text-[var(--text-secondary)] shrink-0">\u20AC HT</span>
+                <span className="font-mono text-sm text-[var(--text-secondary)] shrink-0">&euro; HT</span>
               </div>
             </div>
             <div className="flex items-center justify-between pt-2">
@@ -86,7 +86,7 @@ export default function ParametresPage() {
               <div key={i} className={`rounded-lg border p-3 text-center ${PONDERATIONS[i] < 1 ? 'border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5' : 'border-[var(--border)] bg-[var(--bg-primary)]'}`}>
                 <p className="font-mono text-xs text-[var(--text-secondary)]">{m}</p>
                 <p className={`font-mono text-lg font-semibold mt-1 ${PONDERATIONS[i] < 1 ? 'text-[var(--warning)]' : 'text-[var(--text-primary)]'}`}>
-                  \u00D7{PONDERATIONS[i]}
+                  &times;{PONDERATIONS[i]}
                 </p>
                 <p className="font-mono text-[10px] text-[var(--text-secondary)] mt-1">
                   {fmt(Math.round(objectifMois(i)))}

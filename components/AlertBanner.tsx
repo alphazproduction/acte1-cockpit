@@ -33,7 +33,7 @@ export default function AlertBanner({ niveau, projet, montant, message, action, 
           {montant > 0 && <span className="font-mono text-xs text-[var(--text-secondary)]">{fmt(montant)}</span>}
         </div>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">{message}</p>
-        <p className="mt-1.5 text-xs font-mono text-[var(--accent)]">\u2192 {action}</p>
+        <p className="mt-1.5 text-xs font-mono text-[var(--accent)]">&rarr; {action}</p>
         <SourceTag source={source} />
       </div>
     </div>

@@ -82,7 +82,7 @@ export default function BarChartMensuel() {
       <div className="flex justify-around px-12 -mt-4 mb-2">
         {data.map((d, i) => (
           <span key={i} className="font-mono text-[9px] text-[var(--text-secondary)] opacity-60">
-            \u00D7{d.poids}
+            &times;{d.poids}
           </span>
         ))}
       </div>

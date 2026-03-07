@@ -2,20 +2,22 @@
 
 import { useState, useMemo } from 'react'
 import { Search } from 'lucide-react'
-import { PROJETS, MOIS_LABELS } from '@/lib/data'
+import { PROJETS, MOIS_LABELS, type Projet } from '@/lib/data'
 import { fmt, fmtK, getStatut, objectifMois, MOIS_COURANT_INDEX, PONDERATIONS } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import SourceTag from '@/components/SourceTag'
 import SparkLine from '@/components/SparkLine'
+import ProjetDetail from '@/components/ProjetDetail'
 
 export default function ForecastPage() {
   const [search, setSearch] = useState('')
+  const [selectedProjet, setSelectedProjet] = useState<Projet | null>(null)
 
   const projetsActifs = useMemo(() => {
     const list = PROJETS.filter((p) => p.total_2026 > 0).sort((a, b) => b.total_2026 - a.total_2026)
     if (!search) return list
     const q = search.toLowerCase()
-    return list.filter((p) => p.projet.toLowerCase().includes(q) || p.etat.toLowerCase().includes(q))
+    return list.filter((p) => p.projet.toLowerCase().includes(q) || p.etat.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
   }, [search])
 
   return (
@@ -27,7 +29,7 @@ export default function ForecastPage() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" size={16} />
         <input
           type="text"
-          placeholder="Rechercher..."
+          placeholder="Rechercher par nom, code ou statut..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] pl-10 pr-4 py-2.5 font-sans text-sm text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--accent)]"
@@ -46,7 +48,7 @@ export default function ForecastPage() {
                   <th key={i} className={`text-right px-2 py-2.5 min-w-[65px] ${i === MOIS_COURANT_INDEX ? 'text-[var(--accent)]' : ''}`}>
                     {m}
                     <br />
-                    <span className="text-[9px] opacity-50">\u00D7{PONDERATIONS[i]}</span>
+                    <span className="text-[9px] opacity-50">&times;{PONDERATIONS[i]}</span>
                   </th>
                 ))}
                 <th className="text-right px-3 py-2.5 min-w-[80px] text-[var(--accent)]">Total</th>
@@ -59,7 +61,16 @@ export default function ForecastPage() {
                 return (
                   <tr key={p.id} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">
                     <td className="px-3 py-2 sticky left-0 bg-[var(--bg-card)] z-10">
-                      <p className="font-sans text-[var(--text-primary)] truncate max-w-[200px]">{p.projet}</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedProjet(p)}
+                          className="font-mono text-[10px] font-bold bg-[var(--accent)] text-white px-1.5 py-0.5 rounded hover:opacity-80 transition-opacity shrink-0"
+                          title={p.projet}
+                        >
+                          {p.code}
+                        </button>
+                        <p className="font-sans text-[var(--text-primary)] truncate max-w-[160px]">{p.projet}</p>
+                      </div>
                     </td>
                     <td className="px-2 py-2">
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono whitespace-nowrap ${statut.color}`}>
@@ -69,7 +80,6 @@ export default function ForecastPage() {
                     {p.mois.map((v, i) => {
                       const isPast = i < MOIS_COURANT_INDEX
                       const isCurrent = i === MOIS_COURANT_INDEX
-                      const obj = objectifMois(i)
                       let cellClass = 'text-[var(--text-secondary)]'
                       if (v > 0) {
                         if (isCurrent) cellClass = 'text-[var(--accent)] font-semibold'
@@ -136,6 +146,8 @@ export default function ForecastPage() {
           <SourceTag source="PREVISIONNEL · toutes colonnes" detail="Couleurs : Vert >= objectif, Orange 80-100%, Rouge < 80%. Pondération ×0.5 pour Jul/Aoû/Déc." />
         </div>
       </div>
+
+      {selectedProjet && <ProjetDetail projet={selectedProjet} onClose={() => setSelectedProjet(null)} />}
     </>
   )
 }
