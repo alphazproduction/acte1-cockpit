@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, CalendarRange, GanttChart, Receipt, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LayoutDashboard, CalendarRange, GanttChart, Receipt, Settings, HelpCircle, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { href: '/planning', label: 'Planning', icon: GanttChart },
   { href: '/creances', label: 'Créances', icon: Receipt },
   { href: '/parametres', label: 'Paramètres', icon: Settings },
+  { href: '/aide', label: 'Aide', icon: HelpCircle },
 ] as const
 
 export default function Sidebar() {
