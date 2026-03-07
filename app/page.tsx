@@ -1,84 +1,121 @@
+'use client'
+
+import { useState } from 'react'
 import { STATS_GLOBALES, TOTAUX_MOIS_2026 } from '@/lib/data'
-import { fmt, getAlertes, MOIS_COURANT_INDEX } from '@/lib/utils'
+import { fmt, fmtPct, getAlertes, getTop5Projets, MOIS_COURANT_INDEX, OBJECTIF_ANNUEL, objectifCumule, tempsEcoulePondere } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import KpiCard from '@/components/KpiCard'
 import SourceTag from '@/components/SourceTag'
 import AlertBanner from '@/components/AlertBanner'
 import BarChartMensuel from '@/components/BarChartMensuel'
+import ChartYTD from '@/components/ChartYTD'
 
 export default function DashboardPage() {
+  const [chartView, setChartView] = useState<'mensuel' | 'ytd'>('mensuel')
   const alertes = getAlertes()
-  const moisCourant = TOTAUX_MOIS_2026[MOIS_COURANT_INDEX]
-  const prevu = STATS_GLOBALES.total_prevu_2026
-  const objectif = STATS_GLOBALES.objectif_annuel
-  const pct = ((prevu / objectif) * 100).toFixed(1)
-  const restant = objectif - prevu
+  const top5 = getTop5Projets()
+
+  const prevuCumule = TOTAUX_MOIS_2026.slice(0, MOIS_COURANT_INDEX + 1).reduce((a, b) => a + b.montant, 0)
+  const objCumule = objectifCumule(MOIS_COURANT_INDEX)
+  const tauxRealisation = objCumule > 0 ? (prevuCumule / objCumule) * 100 : 0
+  const projection = Math.round((tauxRealisation / 100) * OBJECTIF_ANNUEL)
+  const tempsEcoule = tempsEcoulePondere(MOIS_COURANT_INDEX)
+
+  const ecart = tauxRealisation - tempsEcoule
+  const ecartLabel = ecart >= 0
+    ? `Vous êtes en avance de ${Math.round(ecart)} points`
+    : `Vous êtes en retard de ${Math.round(Math.abs(ecart))} points`
 
   return (
     <>
-      <Topbar title="Dashboard" subtitle="Vue d'ensemble · Forecast 2026" />
+      <Topbar title="Dashboard" subtitle="Vue synthétique · Cockpit de pilotage ACTE 1" />
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard
-          label="Reste à facturer"
-          value={fmt(STATS_GLOBALES.total_reste_facturer)}
-          source='FORECAST 2026 · col. "Reste à Facturer"'
-          accent="green"
-        />
-        <KpiCard
-          label="Prévu 2026"
-          value={fmt(prevu)}
-          source='FORECAST 2026 · col. "TOTAL 2026"'
-          accent="gold"
-        />
-        <KpiCard
-          label={`${moisCourant.mois} (mois courant)`}
-          value={fmt(moisCourant.montant)}
-          source={`FORECAST 2026 · col. ${moisCourant.mois}`}
-          accent="blue"
-        />
-        <KpiCard
-          label="Alertes actives"
-          value={String(alertes.length)}
-          source="Détection auto états"
-          accent="red"
-        />
+        <KpiCard label="CA prévu YTD" value={fmt(prevuCumule)} source='PREVISIONNEL · cumul Jan\u2013Mar' accent="success" />
+        <KpiCard label="Objectif YTD" value={fmt(Math.round(objCumule))} source="CONFIG · objectif × pondération cumulée" accent="default" />
+        <KpiCard label="Projection annuelle" value={fmt(projection)} source="Taux réalisation × objectif annuel" accent={projection >= OBJECTIF_ANNUEL * 0.8 ? 'warning' : 'danger'} />
+        <KpiCard label="Reste à facturer" value={fmt(STATS_GLOBALES.total_reste_facturer)} source='PROJETS · col. honoraires_ht' accent="info" />
       </div>
 
-      {/* Objectif */}
-      <div className="rounded-lg border border-border-custom bg-bg-card p-5 mb-8">
-        <div className="flex items-baseline justify-between mb-3">
-          <h3 className="font-serif text-lg text-text-main">Objectif annuel</h3>
-          <span className="font-mono text-sm text-gold">{pct}%</span>
+      {/* Progression annuelle */}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5 mb-8">
+        <h3 className="font-serif text-lg text-[var(--text-primary)] mb-4">Progression annuelle</h3>
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-mono text-xs text-[var(--text-secondary)]">Temps écoulé (pondéré)</span>
+              <span className="font-mono text-xs text-[var(--accent)]">{fmtPct(tempsEcoule)}</span>
+            </div>
+            <div className="h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+              <div className="h-full rounded-full bg-[var(--accent)] opacity-30" style={{ width: `${Math.min(tempsEcoule, 100)}%` }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-mono text-xs text-[var(--text-secondary)]">Objectif prévu</span>
+              <span className="font-mono text-xs text-[var(--success)]">{fmtPct(tauxRealisation)}</span>
+            </div>
+            <div className="h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+              <div
+                className={`h-full rounded-full ${tauxRealisation >= 100 ? 'bg-emerald-500' : tauxRealisation >= 80 ? 'bg-amber-500' : 'bg-red-500'}`}
+                style={{ width: `${Math.min(tauxRealisation, 100)}%` }}
+              />
+            </div>
+          </div>
         </div>
-        <div className="h-3 rounded-full bg-border-custom overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-gold/60 to-gold"
-            style={{ width: `${Math.min(parseFloat(pct), 100)}%` }}
-          />
-        </div>
-        <p className="mt-2 font-sans text-sm text-text-muted">
-          Il reste <span className="text-gold font-mono">{fmt(restant)}</span> à sécuriser
+        <p className="mt-3 font-sans text-sm text-[var(--text-secondary)]">
+          {ecartLabel}. Projection : <span className="font-mono text-[var(--accent)]">{fmt(projection)}</span> sur {fmt(OBJECTIF_ANNUEL)} ({fmtPct(projection / OBJECTIF_ANNUEL * 100)})
         </p>
-        <SourceTag source="FORECAST 2026 · TOTAL 2026 vs objectif 800 000 €" />
-      </div>
-
-      {/* Chart */}
-      <div className="rounded-lg border border-border-custom bg-bg-card p-5 mb-8">
-        <h3 className="font-serif text-lg text-text-main mb-4">Facturation mensuelle 2026</h3>
-        <BarChartMensuel />
+        <SourceTag source="CONFIG · objectif 400 000 € + pondérations mensuelles" detail="Pondération : ×1 pour mois normaux, ×0.5 pour Jul/Aoû/Déc. Somme poids = 10.5" />
       </div>
 
       {/* Alertes */}
       <div className="mb-8">
-        <h3 className="font-serif text-lg text-text-main mb-4">Alertes</h3>
+        <h3 className="font-serif text-lg text-[var(--text-primary)] mb-4">Alertes actives ({alertes.length})</h3>
         <div className="space-y-3">
-          {alertes.map((a, i) => (
-            <AlertBanner key={i} {...a} />
+          {alertes.map((a, i) => <AlertBanner key={i} {...a} />)}
+        </div>
+      </div>
+
+      {/* Chart toggle */}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-serif text-lg text-[var(--text-primary)]">Facturation 2026</h3>
+          <div className="flex gap-1">
+            {(['mensuel', 'ytd'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setChartView(v)}
+                className={`px-3 py-1.5 rounded-md font-mono text-xs transition-colors ${
+                  chartView === v
+                    ? 'bg-[var(--accent)] text-white'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                }`}
+              >
+                {v === 'mensuel' ? 'Mensuel' : 'Consolidé'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {chartView === 'mensuel' ? <BarChartMensuel /> : <ChartYTD />}
+      </div>
+
+      {/* Top 5 */}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5">
+        <h3 className="font-serif text-lg text-[var(--text-primary)] mb-4">Top 5 projets par CA restant</h3>
+        <div className="space-y-3">
+          {top5.map((p) => (
+            <div key={p.id} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
+              <div className="min-w-0">
+                <p className="font-sans text-sm text-[var(--text-primary)] truncate">{p.projet}</p>
+                <p className="font-mono text-[11px] text-[var(--text-secondary)]">{p.etat}</p>
+              </div>
+              <p className="font-mono text-sm text-[var(--accent)] shrink-0 ml-4">{fmt(p.reste)}</p>
+            </div>
           ))}
         </div>
-        <SourceTag source='FORECAST 2026 · col. "Etat"' />
+        <SourceTag source="PROJETS · col. honoraires_ht, trié décroissant" />
       </div>
     </>
   )

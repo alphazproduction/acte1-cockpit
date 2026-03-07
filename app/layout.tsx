@@ -30,8 +30,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${dmSerif.variable} ${dmMono.variable} ${outfit.variable}`}>
-      <body className="bg-bg-primary font-sans antialiased">
+    <html lang="fr" data-theme="light" className={`${dmSerif.variable} ${dmMono.variable} ${outfit.variable}`} suppressHydrationWarning>
+      <body className="bg-[var(--bg-primary)] font-sans antialiased text-[var(--text-primary)]">
         <Sidebar />
         <main className="md:ml-[220px] min-h-screen px-4 py-6 md:px-8 md:py-8 pb-24 md:pb-8">
           {children}
