@@ -3,17 +3,38 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, CalendarRange, GanttChart, Receipt, Settings, HelpCircle, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { LayoutDashboard, CalendarRange, GanttChart, Receipt, Settings, HelpCircle, PanelLeftClose, PanelLeftOpen, CalendarClock, PlusCircle, ExternalLink } from 'lucide-react'
+import { getSheetUrl } from '@/lib/config'
 import ThemeToggle from './ThemeToggle'
 
 const NAV = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/forecast', label: 'Forecast', icon: CalendarRange },
   { href: '/planning', label: 'Planning', icon: GanttChart },
+  { href: '/echeances', label: 'Échéances', icon: CalendarClock },
   { href: '/creances', label: 'Créances', icon: Receipt },
+  { href: '/projets/nouveau', label: 'Nouveau projet', icon: PlusCircle },
   { href: '/parametres', label: 'Paramètres', icon: Settings },
   { href: '/aide', label: 'Aide', icon: HelpCircle },
 ] as const
+
+function SheetLink({ collapsed }: { collapsed: boolean }) {
+  const [url, setUrl] = useState('')
+  useEffect(() => { setUrl(getSheetUrl()) }, [])
+  if (!url) return null
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-mono text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors ${collapsed ? 'justify-center' : ''}`}
+      title="Ouvrir le Google Sheet"
+    >
+      <ExternalLink size={14} className="shrink-0" />
+      {!collapsed && 'Google Sheet'}
+    </a>
+  )
+}
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -81,7 +102,8 @@ export default function Sidebar() {
             )
           })}
         </nav>
-        <div className={`p-4 border-t border-[var(--border)] ${collapsed ? 'flex justify-center' : ''}`}>
+        <div className={`p-4 border-t border-[var(--border)] space-y-2 ${collapsed ? 'flex flex-col items-center' : ''}`}>
+          <SheetLink collapsed={collapsed} />
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />

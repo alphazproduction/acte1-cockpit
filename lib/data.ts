@@ -8,6 +8,9 @@ export interface Projet {
   reste: number
   mois: number[]
   total_2026: number
+  debut?: string
+  fin_initiale?: string
+  fin_revisee?: string
 }
 
 export const STATS_GLOBALES = {
@@ -48,6 +51,7 @@ export const PROJETS: Projet[] = [
     honoraire: 118750, facture_n1: 0, reste: 118750,
     mois: [0, 9565, 0, 7515, 0, 12525, 0, 0, 0, 21050, 0, 0],
     total_2026: 50655,
+    debut: '2025-06', fin_initiale: '2027-03', fin_revisee: '2027-03',
   },
   {
     id: 'roanne-dechelette', code: 'RMD',
@@ -56,6 +60,7 @@ export const PROJETS: Projet[] = [
     honoraire: 47851, facture_n1: 0, reste: 47851,
     mois: [0, 0, 5575, 11551, 0, 0, 0, 0, 0, 0, 9975, 0],
     total_2026: 27101,
+    debut: '2025-09', fin_initiale: '2026-11', fin_revisee: '2026-11',
   },
   {
     id: 'rte-base-avenant', code: 'RTE',
@@ -64,6 +69,7 @@ export const PROJETS: Projet[] = [
     honoraire: 42000, facture_n1: 0, reste: 42000,
     mois: [0, 0, 3675, 5250, 7875, 3150, 3150, 1575, 0, 0, 0, 0],
     total_2026: 24675,
+    debut: '2026-01', fin_initiale: '2026-08', fin_revisee: '2026-08',
   },
   {
     id: 'oradour', code: 'ORA',
@@ -72,6 +78,7 @@ export const PROJETS: Projet[] = [
     honoraire: 43650, facture_n1: 0, reste: 43650,
     mois: [1627, 2826, 2709, 0, 7846, 0, 0, 0, 0, 0, 6068, 0],
     total_2026: 21076,
+    debut: '2025-03', fin_initiale: '2026-11', fin_revisee: '2026-11',
   },
   {
     id: 'airbus-b25', code: 'AIR',
@@ -80,6 +87,7 @@ export const PROJETS: Projet[] = [
     honoraire: 69750, facture_n1: 0, reste: 69750,
     mois: [0, 0, 12255, 0, 8645, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 20900,
+    debut: '2025-11', fin_initiale: '2026-05', fin_revisee: '2026-05',
   },
   {
     id: 'insight-act2', code: 'INS',
@@ -168,6 +176,7 @@ export const PROJETS: Projet[] = [
     honoraire: 93196, facture_n1: 43434, reste: 49762,
     mois: [0, 1850, 0, 3800, 3800, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 9450,
+    debut: '2023-09', fin_initiale: '2026-04', fin_revisee: '2026-06',
   },
   {
     id: 'nausicaa', code: 'NAU',
@@ -176,6 +185,7 @@ export const PROJETS: Projet[] = [
     honoraire: 98766, facture_n1: 0, reste: 98766,
     mois: [0, 0, 0, 0, 7901, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 7901,
+    debut: '2024-06', fin_initiale: '2026-05', fin_revisee: '2026-05',
   },
   {
     id: 'summit-affichage', code: 'SUM',
@@ -224,6 +234,7 @@ export const PROJETS: Projet[] = [
     honoraire: 136000, facture_n1: 0, reste: 136000,
     mois: [1800, 900, 900, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 3600,
+    debut: '2024-01', fin_initiale: '2026-06', fin_revisee: '2026-12',
   },
   {
     id: 'pace-rennes', code: 'PAC',

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Info } from 'lucide-react'
-import { STATS_GLOBALES, TOTAUX_MOIS_2026, type Projet } from '@/lib/data'
+import { PROJETS, TOTAUX_MOIS_2026, type Projet } from '@/lib/data'
 import { fmt, fmtK, fmtPct, getAlertes, getTop5Projets, MOIS_COURANT_INDEX, OBJECTIF_ANNUEL, objectifCumule, tempsEcoulePondere } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import KpiCard from '@/components/KpiCard'
@@ -41,6 +41,11 @@ export default function DashboardPage() {
   const alertes = getAlertes()
   const top5 = getTop5Projets()
 
+  // Reste à facturer = somme des restes des projets avec honoraires > 0 (exclut pipeline/propositions)
+  const resteFacturer = PROJETS
+    .filter((p) => p.honoraire > 0)
+    .reduce((sum, p) => sum + p.reste, 0)
+
   const prevuCumule = TOTAUX_MOIS_2026.slice(0, MOIS_COURANT_INDEX + 1).reduce((a, b) => a + b.montant, 0)
   const objCumule = objectifCumule(MOIS_COURANT_INDEX)
   const tauxRealisation = objCumule > 0 ? (prevuCumule / objCumule) * 100 : 0
@@ -59,7 +64,7 @@ export default function DashboardPage() {
         <KpiCard label="CA prévu YTD" value={fmt(prevuCumule)} source="PREVISIONNEL · cumul Jan–Mar" accent="success" />
         <KpiCard label="Objectif YTD" value={fmt(Math.round(objCumule))} source="CONFIG · objectif × pondération cumulée" accent="default" />
         <KpiCard label="Projection annuelle" value={fmt(projection)} source="Taux réalisation × objectif annuel" accent={projection >= OBJECTIF_ANNUEL * 0.8 ? 'warning' : 'danger'} />
-        <KpiCard label="Reste à facturer" value={fmt(STATS_GLOBALES.total_reste_facturer)} source="PROJETS · col. honoraires_ht" accent="info" />
+        <KpiCard label="Reste à facturer" value={fmt(resteFacturer)} source="PROJETS · somme reste (hors pipeline)" accent="info" />
       </div>
 
       {/* Progression annuelle */}

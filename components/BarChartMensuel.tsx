@@ -57,6 +57,7 @@ export default function BarChartMensuel() {
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139,92,246,0.05)' }} />
           <ReferenceLine y={0} stroke="var(--border)" />
+          <ReferenceLine x={data[MOIS_COURANT_INDEX]?.mois} stroke="#8b5cf6" strokeWidth={2} strokeDasharray="4 4" label={{ value: 'Aujourd\'hui', position: 'top', fill: '#8b5cf6', fontSize: 10, fontFamily: 'var(--font-dm-mono)' }} />
           <Bar dataKey="objectif" radius={[4, 4, 0, 0]} maxBarSize={40} opacity={0.2}>
             {data.map((_, index) => <Cell key={index} fill="#8b5cf6" />)}
           </Bar>

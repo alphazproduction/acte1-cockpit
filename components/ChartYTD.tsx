@@ -1,6 +1,6 @@
 'use client'
 
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart, ReferenceLine } from 'recharts'
 import { TOTAUX_MOIS_2026, MOIS_LABELS } from '@/lib/data'
 import { fmt, objectifMois, MOIS_COURANT_INDEX } from '@/lib/utils'
 import SourceTag from './SourceTag'
@@ -58,6 +58,7 @@ export default function ChartYTD() {
           <XAxis dataKey="mois" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-dm-mono)' }} />
           <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10, fontFamily: 'var(--font-dm-mono)' }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
           <Tooltip content={<CustomTooltip />} />
+          <ReferenceLine x={MOIS_LABELS[MOIS_COURANT_INDEX]} stroke="#8b5cf6" strokeWidth={2} strokeDasharray="4 4" label={{ value: 'Aujourd\'hui', position: 'top', fill: '#8b5cf6', fontSize: 10, fontFamily: 'var(--font-dm-mono)' }} />
           <Area type="monotone" dataKey="objectifCumule" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="6 4" fill="#8b5cf610" />
           <Area type="monotone" dataKey="prevuCumule" stroke="#10b981" strokeWidth={2.5} fill="#10b98115" />
           {data.some((d) => d.projectionCumule !== null) && (
