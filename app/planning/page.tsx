@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { PROJETS } from '@/lib/data'
 import { fmt, getStatut } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import SourceTag from '@/components/SourceTag'
 
-interface PlanningProjet {
+interface PlanningRow {
   id: string
+  code: string
   nom: string
   etat: string
   honoraires: number
@@ -17,28 +18,39 @@ interface PlanningProjet {
   delta: number
 }
 
-const PLANNING_DATA: PlanningProjet[] = [
-  { id: 'palc-chalons', nom: 'PALC - Chalons - Moatti', etat: 'En cours', honoraires: 118750, dateDebut: '2025-06', dateFinInitiale: '2027-03', dateFinRevisee: '2027-03', delta: 0 },
-  { id: 'roanne-dechelette', nom: 'Roanne - Musée Dechelette', etat: 'En cours', honoraires: 47851, dateDebut: '2025-09', dateFinInitiale: '2026-11', dateFinRevisee: '2026-11', delta: 0 },
-  { id: 'rte-base-avenant', nom: 'RTE : Base et Avenant', etat: 'En cours', honoraires: 42000, dateDebut: '2026-01', dateFinInitiale: '2026-08', dateFinRevisee: '2026-08', delta: 0 },
-  { id: 'airbus-b25', nom: 'AIRBUS - B25 - MOE', etat: 'En cours', honoraires: 69750, dateDebut: '2025-11', dateFinInitiale: '2026-05', dateFinRevisee: '2026-05', delta: 0 },
-  { id: 'oradour', nom: "Centre de la Mémoire d'Oradour", etat: 'En cours', honoraires: 43650, dateDebut: '2025-03', dateFinInitiale: '2026-11', dateFinRevisee: '2026-11', delta: 0 },
-  { id: 'nausicaa', nom: 'Nausicaa', etat: 'En cours', honoraires: 98766, dateDebut: '2024-06', dateFinInitiale: '2026-05', dateFinRevisee: '2026-05', delta: 0 },
-  { id: 'cinema-bobigny', nom: 'Cinéma Bobigny - Suite', etat: 'En cours', honoraires: 93196, dateDebut: '2023-09', dateFinInitiale: '2026-04', dateFinRevisee: '2026-06', delta: 2 },
-  { id: 'pb-museo', nom: 'Palais Bourbon Moatti - muséo', etat: 'Attente OS', honoraires: 136000, dateDebut: '2024-01', dateFinInitiale: '2026-06', dateFinRevisee: '2026-12', delta: 6 },
-]
+function computeDelta(initiale: string, revisee: string): number {
+  if (!initiale || !revisee) return 0
+  const init = new Date(initiale + '-01')
+  const rev = new Date(revisee + '-01')
+  return (rev.getFullYear() - init.getFullYear()) * 12 + (rev.getMonth() - init.getMonth())
+}
 
 export default function PlanningPage() {
-  const [data, setData] = useState(PLANNING_DATA)
+  const initialData = useMemo<PlanningRow[]>(() => {
+    return PROJETS
+      .filter((p) => p.total_2026 > 0 || p.debut || p.fin_initiale || p.fin_revisee)
+      .sort((a, b) => b.total_2026 - a.total_2026)
+      .map((p) => ({
+        id: p.id,
+        code: p.code,
+        nom: p.projet,
+        etat: p.etat,
+        honoraires: p.honoraire,
+        dateDebut: p.debut ?? '',
+        dateFinInitiale: p.fin_initiale ?? '',
+        dateFinRevisee: p.fin_revisee ?? p.fin_initiale ?? '',
+        delta: computeDelta(p.fin_initiale ?? '', p.fin_revisee ?? p.fin_initiale ?? ''),
+      }))
+  }, [])
+
+  const [data, setData] = useState(initialData)
 
   const updateDate = (id: string, newDate: string) => {
     setData((prev) =>
       prev.map((p) => {
         if (p.id !== id) return p
-        const init = new Date(p.dateFinInitiale + '-01')
-        const rev = new Date(newDate + '-01')
-        const deltaMonths = (rev.getFullYear() - init.getFullYear()) * 12 + (rev.getMonth() - init.getMonth())
-        return { ...p, dateFinRevisee: newDate, delta: deltaMonths }
+        const delta = computeDelta(p.dateFinInitiale, newDate)
+        return { ...p, dateFinRevisee: newDate, delta }
       })
     )
   }
@@ -52,6 +64,7 @@ export default function PlanningPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] font-mono text-xs">
+                <th className="text-left px-4 py-3">Code</th>
                 <th className="text-left px-4 py-3">Projet</th>
                 <th className="text-left px-4 py-3">Statut</th>
                 <th className="text-right px-4 py-3">Honoraires</th>
@@ -67,6 +80,9 @@ export default function PlanningPage() {
                 return (
                   <tr key={p.id} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">
                     <td className="px-4 py-3">
+                      <span className="font-mono text-[10px] font-bold bg-[var(--accent)] text-white px-1.5 py-0.5 rounded">{p.code}</span>
+                    </td>
+                    <td className="px-4 py-3">
                       <p className="font-sans text-[var(--text-primary)]">{p.nom}</p>
                     </td>
                     <td className="px-4 py-3">
@@ -75,8 +91,8 @@ export default function PlanningPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-mono text-right text-[var(--text-primary)]">{fmt(p.honoraires)}</td>
-                    <td className="px-4 py-3 font-mono text-center text-[var(--text-secondary)]">{p.dateDebut}</td>
-                    <td className="px-4 py-3 font-mono text-center text-[var(--text-secondary)]">{p.dateFinInitiale}</td>
+                    <td className="px-4 py-3 font-mono text-center text-[var(--text-secondary)]">{p.dateDebut || '—'}</td>
+                    <td className="px-4 py-3 font-mono text-center text-[var(--text-secondary)]">{p.dateFinInitiale || '—'}</td>
                     <td className="px-4 py-3 text-center">
                       <input
                         type="month"

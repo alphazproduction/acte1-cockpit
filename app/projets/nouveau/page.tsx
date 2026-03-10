@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Save, ArrowLeft } from 'lucide-react'
-import { MOIS_LABELS } from '@/lib/data'
+import { MOIS_LABELS, PROJETS } from '@/lib/data'
 import { fmt } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import Link from 'next/link'
@@ -20,6 +20,27 @@ const ETATS = [
 
 export default function NouveauProjetPage() {
   const router = useRouter()
+
+  const existingCodes = useMemo(() => new Set(PROJETS.map((p) => p.code.toUpperCase())), [])
+
+  const suggestCode = (nom: string): string => {
+    const words = nom.trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '').split(/\s+/).filter(Boolean)
+    if (words.length === 0) return ''
+    let candidate = ''
+    if (words.length >= 3) {
+      candidate = words.slice(0, 3).map((w) => w[0]).join('')
+    } else if (words.length === 2) {
+      candidate = words[0].slice(0, 2) + words[1][0]
+    } else {
+      candidate = words[0].slice(0, 3)
+    }
+    if (!existingCodes.has(candidate)) return candidate
+    for (let i = 1; i <= 9; i++) {
+      const alt = candidate.slice(0, 2) + i
+      if (!existingCodes.has(alt)) return alt
+    }
+    return candidate
+  }
 
   const [code, setCode] = useState('')
   const [projet, setProjet] = useState('')
@@ -57,6 +78,8 @@ export default function NouveauProjetPage() {
     const trimmedCode = code.trim().toUpperCase()
     if (!trimmedCode || trimmedCode.length < 2 || trimmedCode.length > 4) {
       newErrors.code = 'Le code doit contenir 2 à 4 caractères'
+    } else if (existingCodes.has(trimmedCode)) {
+      newErrors.code = `Le code "${trimmedCode}" existe déjà`
     }
     if (!projet.trim()) {
       newErrors.projet = 'Le nom du projet est requis'
@@ -148,6 +171,9 @@ export default function NouveauProjetPage() {
               {errors.code && (
                 <p className="font-mono text-[10px] text-[var(--danger)] mt-1">{errors.code}</p>
               )}
+              {!errors.code && code && existingCodes.has(code.toUpperCase()) && (
+                <p className="font-mono text-[10px] text-[var(--warning)] mt-1">Ce code existe déjà</p>
+              )}
             </div>
 
             {/* Nom du projet */}
@@ -159,8 +185,12 @@ export default function NouveauProjetPage() {
                 type="text"
                 value={projet}
                 onChange={(e) => {
-                  setProjet(e.target.value)
+                  const val = e.target.value
+                  setProjet(val)
                   setErrors((prev) => ({ ...prev, projet: '' }))
+                  if (!code || code === suggestCode(projet)) {
+                    setCode(suggestCode(val))
+                  }
                 }}
                 placeholder="Nom complet du projet"
                 className={`${inputClass} ${errors.projet ? 'border-[var(--danger)]' : ''}`}

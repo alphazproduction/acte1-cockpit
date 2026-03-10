@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { fmt } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import KpiCard from '@/components/KpiCard'
@@ -29,9 +30,29 @@ const STATUT_STYLES: Record<Creance['statut'], string> = {
   'Payé': 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30',
 }
 
+const STATUT_OPTIONS: Creance['statut'][] = ['En attente', 'Relancé', 'En retard', 'Payé']
+const LS_KEY = 'creances-data'
+
 export default function CreancesPage() {
-  const totalCreances = CREANCES.filter((c) => c.statut !== 'Payé').reduce((sum, c) => sum + c.montant, 0)
-  const enRetard = CREANCES.filter((c) => c.statut === 'En retard')
+  const [creances, setCreances] = useState<Creance[]>(CREANCES)
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LS_KEY)
+      if (stored) setCreances(JSON.parse(stored))
+    } catch { /* fallback to defaults */ }
+  }, [])
+
+  const updateStatut = (index: number, statut: Creance['statut']) => {
+    setCreances((prev) => {
+      const next = prev.map((c, i) => (i === index ? { ...c, statut } : c))
+      localStorage.setItem(LS_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
+  const totalCreances = creances.filter((c) => c.statut !== 'Payé').reduce((sum, c) => sum + c.montant, 0)
+  const enRetard = creances.filter((c) => c.statut === 'En retard')
   const totalRetard = enRetard.reduce((sum, c) => sum + c.montant, 0)
 
   return (
@@ -41,7 +62,7 @@ export default function CreancesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <KpiCard label="Créances en cours" value={fmt(totalCreances)} source="FACTURES · statut != Payé" accent="warning" />
         <KpiCard label="En retard (> 30j)" value={fmt(totalRetard)} source="FACTURES · ancienneté > 30 jours" accent="danger" />
-        <KpiCard label="Factures en attente" value={String(CREANCES.filter((c) => c.statut !== 'Payé').length)} source="FACTURES · count" accent="info" />
+        <KpiCard label="Factures en attente" value={String(creances.filter((c) => c.statut !== 'Payé').length)} source="FACTURES · count" accent="info" />
       </div>
 
       <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
@@ -58,7 +79,7 @@ export default function CreancesPage() {
               </tr>
             </thead>
             <tbody>
-              {CREANCES.map((c, i) => (
+              {creances.map((c, i) => (
                 <tr key={i} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">
                   <td className="px-4 py-3 font-sans text-[var(--text-primary)]">{c.projet}</td>
                   <td className="px-4 py-3 font-sans text-[var(--text-secondary)]">{c.client}</td>
@@ -68,9 +89,15 @@ export default function CreancesPage() {
                     {c.anciennete}j
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`inline-flex px-2 py-0.5 rounded border text-xs font-mono ${STATUT_STYLES[c.statut]}`}>
-                      {c.statut}
-                    </span>
+                    <select
+                      value={c.statut}
+                      onChange={(e) => updateStatut(i, e.target.value as Creance['statut'])}
+                      className={`appearance-none cursor-pointer px-2 py-0.5 rounded border text-xs font-mono text-center ${STATUT_STYLES[c.statut]}`}
+                    >
+                      {STATUT_OPTIONS.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
                   </td>
                 </tr>
               ))}

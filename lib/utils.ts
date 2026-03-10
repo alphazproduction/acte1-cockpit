@@ -11,7 +11,8 @@ export function fmt(n: number): string {
 export function fmtK(n: number): string {
   if (n === 0) return '—'
   if (n >= 1000000) return `${(n / 1000000).toFixed(1).replace('.', ',')}M`
-  if (n >= 1000) return `${Math.round(n / 1000)}k€`
+  if (n >= 10000) return `${(n / 1000).toFixed(1).replace('.', ',')}k€`
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace('.', ',')}k€`
   return `${n}€`
 }
 

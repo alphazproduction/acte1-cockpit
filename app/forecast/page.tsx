@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Search } from 'lucide-react'
 import { PROJETS, MOIS_LABELS } from '@/lib/data'
-import { fmtK, fmtPct, getStatut, objectifMois, MOIS_COURANT_INDEX, PONDERATIONS } from '@/lib/utils'
+import { fmtK, fmtPct, getStatut, objectifMois, MOIS_COURANT_INDEX, PONDERATIONS, OBJECTIF_ANNUEL } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import SourceTag from '@/components/SourceTag'
 import SparkLine from '@/components/SparkLine'
@@ -75,12 +75,12 @@ export default function ForecastPage() {
                         cellClass = 'text-[var(--border)]'
                       }
                       return (
-                        <td key={i} className={`px-2 py-1.5 font-mono text-right ${cellClass}`}>
+                        <td key={i} className={`px-2 py-1.5 font-mono text-right ${cellClass}`} title={v > 0 ? `${v.toLocaleString('fr-FR')} €` : undefined}>
                           {v === 0 ? '—' : fmtK(v)}
                         </td>
                       )
                     })}
-                    <td className="px-2 py-1.5 font-mono text-right text-[var(--accent)] font-semibold">
+                    <td className="px-2 py-1.5 font-mono text-right text-[var(--accent)] font-semibold" title={`${p.total_2026.toLocaleString('fr-FR')} €`}>
                       {fmtK(p.total_2026)}
                     </td>
                     <td className="px-2 py-1.5">
@@ -119,7 +119,7 @@ export default function ForecastPage() {
                 {MOIS_LABELS.map((_, i) => (
                   <td key={i} className="px-2 py-1 font-mono text-right text-[10px] italic">{fmtK(Math.round(objectifMois(i)))}</td>
                 ))}
-                <td className="px-2 py-1 font-mono text-right text-[10px] italic">{fmtK(400000)}</td>
+                <td className="px-2 py-1 font-mono text-right text-[10px] italic">{fmtK(OBJECTIF_ANNUEL)}</td>
                 <td />
               </tr>
             </tfoot>
