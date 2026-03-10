@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { Info } from 'lucide-react'
 import { STATS_GLOBALES, TOTAUX_MOIS_2026, type Projet } from '@/lib/data'
-import { fmt, fmtPct, getAlertes, getTop5Projets, MOIS_COURANT_INDEX, OBJECTIF_ANNUEL, objectifCumule, tempsEcoulePondere } from '@/lib/utils'
+import { fmt, fmtK, fmtPct, getAlertes, getTop5Projets, MOIS_COURANT_INDEX, OBJECTIF_ANNUEL, objectifCumule, tempsEcoulePondere } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
 import KpiCard from '@/components/KpiCard'
 import SourceTag from '@/components/SourceTag'
@@ -10,6 +11,29 @@ import AlertBanner from '@/components/AlertBanner'
 import BarChartMensuel from '@/components/BarChartMensuel'
 import ChartYTD from '@/components/ChartYTD'
 import ProjetDetail from '@/components/ProjetDetail'
+
+function InfoBulle({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-flex">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--bg-secondary)] hover:bg-[var(--accent)] hover:text-white text-[var(--text-secondary)] transition-colors"
+        title="En savoir plus"
+      >
+        <Info size={10} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-6 top-0 z-50 w-72 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] shadow-xl p-3">
+            <p className="font-sans text-xs text-[var(--text-secondary)] leading-relaxed">{text}</p>
+          </div>
+        </>
+      )}
+    </span>
+  )
+}
 
 export default function DashboardPage() {
   const [chartView, setChartView] = useState<'mensuel' | 'ytd'>('mensuel')
@@ -23,10 +47,8 @@ export default function DashboardPage() {
   const projection = Math.round((tauxRealisation / 100) * OBJECTIF_ANNUEL)
   const tempsEcoule = tempsEcoulePondere(MOIS_COURANT_INDEX)
 
-  const ecart = tauxRealisation - tempsEcoule
-  const ecartLabel = ecart >= 0
-    ? `Vous êtes en avance de ${Math.round(ecart)} points`
-    : `Vous êtes en retard de ${Math.round(Math.abs(ecart))} points`
+  const calendaire = Math.round(((MOIS_COURANT_INDEX + 1) / 12) * 100)
+  const ecartMontant = prevuCumule - objCumule
 
   return (
     <>
@@ -43,33 +65,48 @@ export default function DashboardPage() {
       {/* Progression annuelle */}
       <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5 mb-8">
         <h3 className="font-serif text-lg text-[var(--text-primary)] mb-4">Progression annuelle</h3>
-        <div className="space-y-3">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-mono text-xs text-[var(--text-secondary)]">Temps écoulé (pondéré)</span>
-              <span className="font-mono text-xs text-[var(--accent)]">{fmtPct(tempsEcoule)}</span>
-            </div>
-            <div className="h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
-              <div className="h-full rounded-full bg-[var(--accent)] opacity-30" style={{ width: `${Math.min(tempsEcoule, 100)}%` }} />
+
+        {/* Barre temps écoulé */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="font-sans text-sm text-[var(--text-secondary)]">
+                <strong className="text-[var(--text-primary)]">{calendaire}%</strong> de l'année écoulée
+                <span className="text-[var(--text-secondary)]"> (représentant <strong className="text-[var(--accent)]">{fmtPct(tempsEcoule)}</strong> de l'objectif de CA)</span>
+              </span>
+              <InfoBulle text="L'année n'est pas linéaire : les mois d'été (Jul, Aoû) et décembre sont pondérés à ×0.5 car l'activité y est réduite. Ainsi, 25% du calendrier peut représenter 29% de l'effort annuel." />
             </div>
           </div>
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-mono text-xs text-[var(--text-secondary)]">Objectif prévu</span>
-              <span className="font-mono text-xs text-[var(--success)]">{fmtPct(tauxRealisation)}</span>
-            </div>
-            <div className="h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
-              <div
-                className={`h-full rounded-full ${tauxRealisation >= 100 ? 'bg-emerald-500' : tauxRealisation >= 80 ? 'bg-amber-500' : 'bg-red-500'}`}
-                style={{ width: `${Math.min(tauxRealisation, 100)}%` }}
-              />
-            </div>
+          <div className="h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+            <div className="h-full rounded-full bg-[var(--accent)] opacity-30" style={{ width: `${Math.min(tempsEcoule, 100)}%` }} />
           </div>
         </div>
-        <p className="mt-3 font-sans text-sm text-[var(--text-secondary)]">
-          {ecartLabel}. Projection : <span className="font-mono text-[var(--accent)]">{fmt(projection)}</span> sur {fmt(OBJECTIF_ANNUEL)} ({fmtPct(projection / OBJECTIF_ANNUEL * 100)})
-        </p>
-        <SourceTag source="CONFIG · objectif 400 000 € + pondérations mensuelles" detail="Pondération : ×1 pour mois normaux, ×0.5 pour Jul/Aoû/Déc. Somme poids = 10.5" />
+
+        {/* À date */}
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="font-sans text-sm text-[var(--text-secondary)]">
+              À date : <strong className="text-[var(--text-primary)]">{fmt(prevuCumule)}</strong>
+              <span className="text-[var(--text-secondary)]"> (soit <strong className={tauxRealisation >= 100 ? 'text-[var(--success)]' : tauxRealisation >= 80 ? 'text-[var(--warning)]' : 'text-[var(--danger)]'}>{fmtPct(tauxRealisation)}</strong> de l'objectif, <strong className={ecartMontant >= 0 ? 'text-[var(--success)]' : 'text-[var(--danger)]'}>{ecartMontant >= 0 ? '+' : ''}{fmtK(Math.round(ecartMontant))}</strong>)</span>
+            </span>
+            <InfoBulle text={`L'objectif cumulé à date est de ${fmt(Math.round(objCumule))}, calculé en additionnant les objectifs pondérés de chaque mois écoulé. Le montant affiché est la somme du prévisionnel de facturation de janvier au mois en cours.`} />
+          </div>
+          <div className="h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+            <div
+              className={`h-full rounded-full ${tauxRealisation >= 100 ? 'bg-emerald-500' : tauxRealisation >= 80 ? 'bg-amber-500' : 'bg-red-500'}`}
+              style={{ width: `${Math.min(tauxRealisation, 100)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Projection */}
+        <div className="flex items-center gap-1.5">
+          <p className="font-sans text-sm text-[var(--text-secondary)]">
+            Projection = <strong className="text-[var(--accent)]">{fmt(projection)}</strong>
+            <span className="text-[var(--text-secondary)]"> (sur un objectif initial de {fmt(OBJECTIF_ANNUEL)})</span>
+          </p>
+          <InfoBulle text="La projection extrapole le rythme de facturation actuel sur l'ensemble de l'année. Si vous maintenez le même taux de réalisation, c'est le CA que vous atteindrez en fin d'exercice. Ce chiffre évolue chaque mois en fonction du réalisé." />
+        </div>
       </div>
 
       {/* Alertes */}
