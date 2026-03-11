@@ -29,16 +29,9 @@ const ROLES_INTERLOCUTEUR = [
   'Autre',
 ]
 
-const TYPES_ECHEANCE = [
-  'Acompte',
-  'Situation',
-  'Solde',
-  'Avance',
-  'Retenue de garantie',
-  'Autre',
+const PHASES_PROJET = [
+  'DIAG', 'APS', 'APD', 'PRO', 'DCE', 'ACT', 'DET', 'AOR',
 ] as const
-
-type TypeEcheance = typeof TYPES_ECHEANCE[number]
 
 interface Interlocuteur {
   id: string
@@ -49,12 +42,13 @@ interface Interlocuteur {
   tel: string
 }
 
-interface EcheancePrev {
-  id: string
-  type: TypeEcheance
+interface PhaseEcheance {
+  phase: string
   montant: number | ''
-  date: string
-  description: string
+  pourcentage: number | ''
+  moisPrevu: string      // YYYY-MM
+  facture: boolean
+  moisFacture: string    // YYYY-MM (si déjà facturé)
 }
 
 // Load saved sociétés from localStorage
@@ -119,8 +113,12 @@ export default function NouveauProjetPage() {
   const [architecteSociete, setArchitecteSociete] = useState('')
   const [interlocuteurs, setInterlocuteurs] = useState<Interlocuteur[]>([])
 
-  // Échéancier prévisionnel
-  const [echeances, setEcheances] = useState<EcheancePrev[]>([])
+  // Échéancier prévisionnel — phases métier
+  const [phases, setPhases] = useState<PhaseEcheance[]>(
+    PHASES_PROJET.map((p) => ({ phase: p, montant: '', pourcentage: '', moisPrevu: '', facture: false, moisFacture: '' }))
+  )
+  const [phaseCustom, setPhaseCustom] = useState('')
+  const [montantMode, setMontantMode] = useState<'€' | '%'>('€')
 
   const societesConnues = useMemo(() => getSocietesConnues(), [])
 
@@ -131,9 +129,15 @@ export default function NouveauProjetPage() {
     return h - f
   }, [honoraire, factureN1])
 
+  const honoraireNum = typeof honoraire === 'number' ? honoraire : 0
+
   const totalEcheances = useMemo(
-    () => echeances.reduce((s, e) => s + (typeof e.montant === 'number' ? e.montant : 0), 0),
-    [echeances],
+    () => phases.reduce((s, p) => {
+      if (typeof p.montant === 'number' && p.montant > 0) return s + p.montant
+      if (typeof p.pourcentage === 'number' && p.pourcentage > 0) return s + Math.round(honoraireNum * p.pourcentage / 100)
+      return s
+    }, 0),
+    [phases, honoraireNum],
   )
 
   const updateMois = (index: number, value: string) => {
@@ -166,23 +170,33 @@ export default function NouveauProjetPage() {
     setInterlocuteurs((prev) => prev.filter((i) => i.id !== id))
   }
 
-  // Échéancier handlers
-  const addEcheance = () => {
-    setEcheances((prev) => [...prev, {
-      id: `ech-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      type: 'Situation',
-      montant: '',
-      date: '',
-      description: '',
-    }])
+  // Phase handlers
+  const updatePhase = (index: number, field: keyof PhaseEcheance, value: string | number | boolean) => {
+    setPhases((prev) => {
+      const next = [...prev]
+      const updated = { ...next[index], [field]: value }
+      // Sync montant <-> pourcentage
+      if (field === 'montant' && typeof value === 'number' && honoraireNum > 0) {
+        updated.pourcentage = Math.round((value / honoraireNum) * 10000) / 100
+      } else if (field === 'pourcentage' && typeof value === 'number' && honoraireNum > 0) {
+        updated.montant = Math.round(honoraireNum * value / 100)
+      }
+      if (field === 'facture' && value === true && !updated.moisFacture) {
+        updated.moisFacture = updated.moisPrevu
+      }
+      next[index] = updated
+      return next
+    })
   }
 
-  const updateEcheance = (id: string, field: keyof EcheancePrev, value: string | number) => {
-    setEcheances((prev) => prev.map((e) => e.id === id ? { ...e, [field]: value } : e))
+  const removePhase = (index: number) => {
+    setPhases((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const removeEcheance = (id: string) => {
-    setEcheances((prev) => prev.filter((e) => e.id !== id))
+  const addCustomPhase = () => {
+    if (!phaseCustom.trim()) return
+    setPhases((prev) => [...prev, { phase: phaseCustom.trim().toUpperCase(), montant: '', pourcentage: '', moisPrevu: '', facture: false, moisFacture: '' }])
+    setPhaseCustom('')
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -229,11 +243,13 @@ export default function NouveauProjetPage() {
       architecte: architecte.trim() || null,
       architecte_societe: architecteSociete.trim() || null,
       interlocuteurs: interlocuteurs.filter((i) => i.nom.trim()),
-      echeances: echeances.filter((e) => typeof e.montant === 'number' && e.montant > 0).map((e) => ({
-        type: e.type,
-        montant: e.montant,
-        date: e.date,
-        description: e.description,
+      echeancier: phases.filter((p) => (typeof p.montant === 'number' && p.montant > 0) || (typeof p.pourcentage === 'number' && p.pourcentage > 0)).map((p) => ({
+        phase: p.phase,
+        montant: typeof p.montant === 'number' ? p.montant : Math.round(honoraireNum * (typeof p.pourcentage === 'number' ? p.pourcentage : 0) / 100),
+        pourcentage: typeof p.pourcentage === 'number' ? p.pourcentage : 0,
+        moisPrevu: p.moisPrevu,
+        facture: p.facture,
+        moisFacture: p.moisFacture,
       })),
     }
 
@@ -609,7 +625,7 @@ export default function NouveauProjetPage() {
           </div>
         </div>
 
-        {/* Échéancier prévisionnel */}
+        {/* Échéancier prévisionnel — par phases */}
         <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -617,101 +633,190 @@ export default function NouveauProjetPage() {
               <h3 className="font-serif text-lg text-[var(--text-primary)]">Échéancier prévisionnel</h3>
             </div>
             <div className="flex items-center gap-4">
-              {echeances.length > 0 && (
+              {totalEcheances > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-[var(--text-secondary)]">Total échéancier</span>
-                  <span className={`font-mono text-sm font-semibold px-2.5 py-1 rounded-lg border ${totalEcheances > 0 ? 'text-[var(--accent)] border-[var(--accent)]/20 bg-[var(--accent)]/5' : 'text-[var(--text-secondary)] border-[var(--border)] bg-[var(--bg-primary)]'}`}>
+                  <span className="font-mono text-xs text-[var(--text-secondary)]">Total</span>
+                  <span className={`font-mono text-sm font-semibold px-2.5 py-1 rounded-lg border text-[var(--accent)] border-[var(--accent)]/20 bg-[var(--accent)]/5`}>
                     {fmt(totalEcheances)}
                   </span>
                 </div>
               )}
-              <button
-                type="button"
-                onClick={addEcheance}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 font-mono text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
-              >
-                <Plus size={14} />
-                Ajouter
-              </button>
+              {/* Toggle €/% */}
+              <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setMontantMode('€')}
+                  className={`px-3 py-1.5 font-mono text-xs transition-colors ${montantMode === '€' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
+                >
+                  &euro;
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMontantMode('%')}
+                  className={`px-3 py-1.5 font-mono text-xs transition-colors ${montantMode === '%' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
+                >
+                  %
+                </button>
+              </div>
             </div>
           </div>
 
-          {echeances.length === 0 ? (
-            <p className="font-sans text-xs text-[var(--text-secondary)] italic">
-              Aucune échéance définie. Ajoutez les jalons de facturation prévisionnels.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {/* Header */}
-              <div className="grid grid-cols-[120px_1fr_140px_1fr_auto] gap-3 px-1">
-                <span className="font-mono text-[10px] text-[var(--text-secondary)] uppercase">Type</span>
-                <span className="font-mono text-[10px] text-[var(--text-secondary)] uppercase">Montant HT</span>
-                <span className="font-mono text-[10px] text-[var(--text-secondary)] uppercase">Date prévue</span>
-                <span className="font-mono text-[10px] text-[var(--text-secondary)] uppercase">Description</span>
-                <span className="w-[40px]" />
-              </div>
+          {/* Timeline table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="text-left px-2 py-2 font-mono text-[var(--text-secondary)] min-w-[70px]">Phase</th>
+                  <th className="text-right px-2 py-2 font-mono text-[var(--text-secondary)] min-w-[100px]">
+                    {montantMode === '€' ? 'Montant HT' : '% honoraires'}
+                  </th>
+                  <th className="text-center px-2 py-2 font-mono text-[var(--text-secondary)] min-w-[120px]">Mois prévu</th>
+                  <th className="text-center px-2 py-2 font-mono text-[var(--text-secondary)] min-w-[50px]">Facturé</th>
+                  <th className="text-center px-2 py-2 font-mono text-[var(--text-secondary)] min-w-[120px]">Mois facturé</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {phases.map((ph, idx) => {
+                  const isStandard = (PHASES_PROJET as readonly string[]).includes(ph.phase)
+                  const montantCalc = typeof ph.montant === 'number' && ph.montant > 0
+                    ? ph.montant
+                    : (typeof ph.pourcentage === 'number' && ph.pourcentage > 0 ? Math.round(honoraireNum * ph.pourcentage / 100) : 0)
+                  return (
+                    <tr key={`${ph.phase}-${idx}`} className={`border-b border-[var(--border)] ${ph.facture ? 'opacity-60' : ''}`}>
+                      {/* Phase name */}
+                      <td className="px-2 py-2">
+                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-mono font-semibold ${
+                          ph.facture
+                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30'
+                            : 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-400 dark:border-violet-500/30'
+                        }`}>
+                          {ph.phase}
+                        </span>
+                      </td>
+                      {/* Montant or % */}
+                      <td className="px-2 py-2">
+                        <div className="flex items-center justify-end gap-1">
+                          {montantMode === '€' ? (
+                            <>
+                              <input
+                                type="number"
+                                value={ph.montant === '' ? '' : ph.montant}
+                                onChange={(e) => updatePhase(idx, 'montant', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                placeholder="0"
+                                min={0}
+                                step={100}
+                                className="w-24 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 font-mono text-xs text-right text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                              />
+                              <span className="font-mono text-[10px] text-[var(--text-secondary)]">&euro;</span>
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type="number"
+                                value={ph.pourcentage === '' ? '' : ph.pourcentage}
+                                onChange={(e) => updatePhase(idx, 'pourcentage', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                placeholder="0"
+                                min={0}
+                                max={100}
+                                step={1}
+                                className="w-20 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 font-mono text-xs text-right text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                              />
+                              <span className="font-mono text-[10px] text-[var(--text-secondary)]">%</span>
+                              {montantCalc > 0 && (
+                                <span className="font-mono text-[10px] text-[var(--text-secondary)] ml-1">({fmt(montantCalc)})</span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      {/* Mois prévu */}
+                      <td className="px-2 py-2 text-center">
+                        <input
+                          type="month"
+                          value={ph.moisPrevu}
+                          onChange={(e) => updatePhase(idx, 'moisPrevu', e.target.value)}
+                          className="w-full rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1.5 font-mono text-xs text-center text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                        />
+                      </td>
+                      {/* Facturé checkbox */}
+                      <td className="px-2 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={ph.facture}
+                          onChange={(e) => updatePhase(idx, 'facture', e.target.checked)}
+                          className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)]"
+                        />
+                      </td>
+                      {/* Mois facturé */}
+                      <td className="px-2 py-2 text-center">
+                        {ph.facture ? (
+                          <input
+                            type="month"
+                            value={ph.moisFacture}
+                            onChange={(e) => updatePhase(idx, 'moisFacture', e.target.value)}
+                            className="w-full rounded border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1.5 font-mono text-xs text-center text-emerald-700 dark:text-emerald-400 focus:outline-none focus:border-emerald-400"
+                          />
+                        ) : (
+                          <span className="font-mono text-[10px] text-[var(--border)]">—</span>
+                        )}
+                      </td>
+                      {/* Delete (only for custom phases) */}
+                      <td className="px-2 py-2 text-center">
+                        {!isStandard && (
+                          <button
+                            type="button"
+                            onClick={() => removePhase(idx)}
+                            className="text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
 
-              {echeances.map((ech) => (
-                <div key={ech.id} className="grid grid-cols-[120px_1fr_140px_1fr_auto] gap-3 items-center">
-                  <select
-                    value={ech.type}
-                    onChange={(e) => updateEcheance(ech.id, 'type', e.target.value)}
-                    className={inputClass}
-                  >
-                    {TYPES_ECHEANCE.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={ech.montant === '' ? '' : ech.montant}
-                      onChange={(e) => updateEcheance(ech.id, 'montant', e.target.value === '' ? '' : parseFloat(e.target.value))}
-                      placeholder="0"
-                      min={0}
-                      step={100}
-                      className={inputClass}
-                    />
-                    <span className="font-mono text-sm text-[var(--text-secondary)] shrink-0">&euro;</span>
-                  </div>
-                  <input
-                    type="date"
-                    value={ech.date}
-                    onChange={(e) => updateEcheance(ech.id, 'date', e.target.value)}
-                    className={inputClass}
-                  />
-                  <input
-                    type="text"
-                    value={ech.description}
-                    onChange={(e) => updateEcheance(ech.id, 'description', e.target.value)}
-                    placeholder="Phase, livrable..."
-                    className={inputClass}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeEcheance(ech.id)}
-                    className="p-2.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--bg-hover)] transition-colors"
-                    title="Supprimer"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
+          {/* Add custom phase */}
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[var(--border)]">
+            <input
+              type="text"
+              value={phaseCustom}
+              onChange={(e) => setPhaseCustom(e.target.value)}
+              placeholder="Phase personnalisée..."
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomPhase() } }}
+              className="flex-1 max-w-[200px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-1.5 font-mono text-xs text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--accent)]"
+            />
+            <button
+              type="button"
+              onClick={addCustomPhase}
+              disabled={!phaseCustom.trim()}
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1.5 font-mono text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-30"
+            >
+              <Plus size={14} />
+              Ajouter une phase
+            </button>
+          </div>
 
-              {/* Coherence check */}
-              {totalEcheances > 0 && resteAFacturer > 0 && (
-                <div className={`mt-2 px-3 py-2 rounded-lg border text-xs font-mono ${
-                  Math.abs(totalEcheances - resteAFacturer) < 1
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
-                    : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
-                }`}>
-                  Échéancier : {fmt(totalEcheances)} / Reste à facturer : {fmt(resteAFacturer)}
-                  {Math.abs(totalEcheances - resteAFacturer) < 1
-                    ? ' — Cohérent'
-                    : ` — Écart de ${fmt(Math.abs(totalEcheances - resteAFacturer))}`
-                  }
-                </div>
-              )}
+          {/* Coherence check */}
+          {totalEcheances > 0 && honoraireNum > 0 && (
+            <div className={`mt-3 px-3 py-2 rounded-lg border text-xs font-mono ${
+              Math.abs(totalEcheances - honoraireNum) < 1
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                : totalEcheances > honoraireNum
+                  ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400'
+                  : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
+            }`}>
+              Échéancier : {fmt(totalEcheances)} / Honoraires : {fmt(honoraireNum)}
+              {' — '}
+              {Math.abs(totalEcheances - honoraireNum) < 1
+                ? '100% ventilé'
+                : `${Math.round(totalEcheances / honoraireNum * 100)}% ventilé (reste ${fmt(honoraireNum - totalEcheances)})`
+              }
             </div>
           )}
         </div>
