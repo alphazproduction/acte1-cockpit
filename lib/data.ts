@@ -8,8 +8,6 @@ export interface Projet {
   reste: number
   mois: number[]
   total_2026: number
-  mois_2027?: number[]
-  total_2027?: number
   debut?: string
   fin_initiale?: string
   fin_revisee?: string
@@ -53,8 +51,6 @@ export const PROJETS: Projet[] = [
     honoraire: 118750, facture_n1: 0, reste: 118750,
     mois: [0, 9565, 0, 7515, 0, 12525, 0, 0, 0, 21050, 0, 0],
     total_2026: 50655,
-    mois_2027: [22700, 22700, 22695, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    total_2027: 68095,
     debut: '2025-06', fin_initiale: '2027-03', fin_revisee: '2027-03',
   },
   {
@@ -132,6 +128,7 @@ export const PROJETS: Projet[] = [
     honoraire: 37525, facture_n1: 0, reste: 37525,
     mois: [10925, 0, 0, 4750, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 15675,
+    debut: '2024-06', fin_initiale: '2027-06', fin_revisee: '2027-06',
   },
   {
     id: 'ajn-falcon', code: 'AJN',
@@ -148,8 +145,7 @@ export const PROJETS: Projet[] = [
     honoraire: 35500, facture_n1: 0, reste: 35500,
     mois: [0, 1500, 0, 0, 0, 0, 0, 0, 0, 8000, 0, 3500],
     total_2026: 13000,
-    mois_2027: [5000, 5000, 5000, 4000, 3500, 0, 0, 0, 0, 0, 0, 0],
-    total_2027: 22500,
+    debut: '2026-02', fin_initiale: '2027-06', fin_revisee: '2027-06',
   },
   {
     id: 'sgp-ardoines', code: 'SGA',
@@ -166,6 +162,7 @@ export const PROJETS: Projet[] = [
     honoraire: 29400, facture_n1: 0, reste: 29400,
     mois: [0, 0, 1575, 5250, 0, 4200, 0, 0, 0, 0, 0, 0],
     total_2026: 11025,
+    debut: '2025-09', fin_initiale: '2027-03', fin_revisee: '2027-03',
   },
   {
     id: 'sg-29h', code: 'S29',
@@ -182,9 +179,7 @@ export const PROJETS: Projet[] = [
     honoraire: 93196, facture_n1: 43434, reste: 49762,
     mois: [0, 1850, 0, 3800, 3800, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 9450,
-    mois_2027: [8000, 8000, 8000, 8000, 8312, 0, 0, 0, 0, 0, 0, 0],
-    total_2027: 40312,
-    debut: '2023-09', fin_initiale: '2026-04', fin_revisee: '2027-05',
+    debut: '2023-09', fin_initiale: '2026-04', fin_revisee: '2027-06',
   },
   {
     id: 'nausicaa', code: 'NAU',
@@ -193,9 +188,7 @@ export const PROJETS: Projet[] = [
     honoraire: 98766, facture_n1: 0, reste: 98766,
     mois: [0, 0, 0, 0, 7901, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 7901,
-    mois_2027: [15000, 15000, 15000, 15000, 15000, 15865, 0, 0, 0, 0, 0, 0],
-    total_2027: 90865,
-    debut: '2024-06', fin_initiale: '2026-05', fin_revisee: '2027-06',
+    debut: '2024-06', fin_initiale: '2026-05', fin_revisee: '2027-09',
   },
   {
     id: 'summit-affichage', code: 'SUM',
@@ -212,6 +205,7 @@ export const PROJETS: Projet[] = [
     honoraire: 38400, facture_n1: 0, reste: 38400,
     mois: [5775, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 5775,
+    debut: '2025-06', fin_initiale: '2027-04', fin_revisee: '2027-04',
   },
   {
     id: 'oceanopolis', code: 'OCE',
@@ -220,6 +214,7 @@ export const PROJETS: Projet[] = [
     honoraire: 43650, facture_n1: 0, reste: 43650,
     mois: [0, 1545, 1000, 1000, 1000, 1000, 0, 0, 0, 0, 0, 0],
     total_2026: 5545,
+    debut: '2025-01', fin_initiale: '2027-09', fin_revisee: '2027-09',
   },
   {
     id: 'cinematheque-toulouse', code: 'CTL',
@@ -228,6 +223,7 @@ export const PROJETS: Projet[] = [
     honoraire: 21017, facture_n1: 0, reste: 21017,
     mois: [2662, 0, 1692, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 4354,
+    debut: '2025-03', fin_initiale: '2027-06', fin_revisee: '2027-06',
   },
   {
     id: 'pb-complement-audito', code: 'PBA',
@@ -236,6 +232,7 @@ export const PROJETS: Projet[] = [
     honoraire: 34359, facture_n1: 0, reste: 34359,
     mois: [1255, 627, 0, 0, 2971, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 4853,
+    debut: '2024-06', fin_initiale: '2027-06', fin_revisee: '2027-06',
   },
   {
     id: 'pb-museo', code: 'PBM',
@@ -244,9 +241,7 @@ export const PROJETS: Projet[] = [
     honoraire: 136000, facture_n1: 0, reste: 136000,
     mois: [1800, 900, 900, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 3600,
-    mois_2027: [15000, 15000, 15000, 15000, 15000, 15000, 10000, 10000, 10000, 11400, 0, 0],
-    total_2027: 132400,
-    debut: '2024-01', fin_initiale: '2026-06', fin_revisee: '2027-10',
+    debut: '2024-01', fin_initiale: '2026-06', fin_revisee: '2027-12',
   },
   {
     id: 'pace-rennes', code: 'PAC',
@@ -311,8 +306,6 @@ export const PROJETS: Projet[] = [
     honoraire: 23800, facture_n1: 0, reste: 23800,
     mois: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 0,
-    mois_2027: [4000, 4000, 4000, 4000, 3900, 3900, 0, 0, 0, 0, 0, 0],
-    total_2027: 23800,
   },
   {
     id: 'sg-valmy', code: 'SGV',
@@ -329,8 +322,6 @@ export const PROJETS: Projet[] = [
     honoraire: 0, facture_n1: 0, reste: 32000,
     mois: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 0,
-    mois_2027: [5000, 5000, 5000, 5000, 5000, 4000, 3000, 0, 0, 0, 0, 0],
-    total_2027: 32000,
   },
   {
     id: 'sceaux', code: 'SCX',
@@ -339,8 +330,6 @@ export const PROJETS: Projet[] = [
     honoraire: 0, facture_n1: 0, reste: 13000,
     mois: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 0,
-    mois_2027: [3000, 3000, 3500, 3500, 0, 0, 0, 0, 0, 0, 0, 0],
-    total_2027: 13000,
   },
   {
     id: 'sgp-blanc-mesnil-prog', code: 'SBP',
@@ -360,26 +349,73 @@ export const PROJETS: Projet[] = [
   },
 ]
 
-// ── Totaux mensuels 2027 (calculés depuis les projets) ──────────
+// ── Projection automatique sur une année future ─────────────────
+// Répartit le reste à facturer (après 2026) uniformément entre
+// janvier de l'année demandée et la date de fin prévisionnelle.
 
-export const TOTAUX_MOIS_2027 = MOIS_LABELS.map((mois, i) => ({
-  mois,
-  montant: PROJETS.reduce((sum, p) => sum + (p.mois_2027?.[i] ?? 0), 0),
-}))
+const ZEROS = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+function parseDateYM(d: string): { year: number; month: number } {
+  const [y, m] = d.split('-').map(Number)
+  return { year: y, month: m } // month = 1-12
+}
+
+export function computeProjection(p: Projet, annee: number): { mois: number[]; total: number } {
+  if (annee === 2026) return { mois: p.mois, total: p.total_2026 }
+
+  const fin = p.fin_revisee || p.fin_initiale
+  if (!fin) return { mois: [...ZEROS], total: 0 }
+
+  const finDate = parseDateYM(fin)
+
+  // Le reste après 2026
+  const resteApres2026 = p.reste - p.total_2026
+  if (resteApres2026 <= 0) return { mois: [...ZEROS], total: 0 }
+
+  // Si le projet se termine avant cette année → rien
+  if (finDate.year < annee) return { mois: [...ZEROS], total: 0 }
+
+  // Nombre total de mois entre Jan de l'année demandée et la date de fin
+  // Ex: annee=2027, fin=2027-03 → de Jan 2027 à Mar 2027 = 3 mois
+  // Ex: annee=2027, fin=2028-06 → de Jan 2027 à Jun 2028 = 18 mois
+  const totalMoisRestants = (finDate.year - annee) * 12 + finDate.month
+  if (totalMoisRestants <= 0) return { mois: [...ZEROS], total: 0 }
+
+  // Mois couverts dans CETTE année (0-indexed)
+  // Si le projet se termine cette année : Jan → mois de fin
+  // Si le projet va au-delà : Jan → Déc (12 mois)
+  const dernierMoisIdx = finDate.year === annee ? finDate.month - 1 : 11
+  const nbMoisCetteAnnee = dernierMoisIdx + 1
+
+  // Montant à répartir cette année = proportion du reste
+  const montantCetteAnnee = Math.round(resteApres2026 * (nbMoisCetteAnnee / totalMoisRestants))
+
+  const perMois = Math.floor(montantCetteAnnee / nbMoisCetteAnnee)
+  const mois = [...ZEROS]
+  for (let i = 0; i <= dernierMoisIdx; i++) {
+    mois[i] = perMois
+  }
+  // Ajuster le dernier mois pour absorber l'arrondi
+  const somme = mois.reduce((a, b) => a + b, 0)
+  mois[dernierMoisIdx] += montantCetteAnnee - somme
+
+  return { mois, total: montantCetteAnnee }
+}
 
 // ── Helpers multi-année ─────────────────────────────────────────
 
 export function getProjetMois(p: Projet, annee: number): number[] {
-  if (annee === 2027) return p.mois_2027 ?? [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-  return p.mois // 2026 par défaut
+  return computeProjection(p, annee).mois
 }
 
 export function getProjetTotal(p: Projet, annee: number): number {
-  if (annee === 2027) return p.total_2027 ?? 0
-  return p.total_2026
+  return computeProjection(p, annee).total
 }
 
-export function getTotauxMois(annee: number): readonly { mois: string; montant: number }[] {
-  if (annee === 2027) return TOTAUX_MOIS_2027
-  return TOTAUX_MOIS_2026
+export function getTotauxMois(annee: number): { mois: string; montant: number }[] {
+  if (annee === 2026) return [...TOTAUX_MOIS_2026]
+  return MOIS_LABELS.map((mois, i) => ({
+    mois,
+    montant: PROJETS.reduce((sum, p) => sum + computeProjection(p, annee).mois[i], 0),
+  }))
 }
