@@ -3,28 +3,67 @@
 import { useState, useMemo } from 'react'
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { MOIS_LABELS, getProjetMois, getProjetTotal } from '@/lib/data'
-import { fmtK, objectifMois, MOIS_COURANT_INDEX, PONDERATIONS, OBJECTIF_ANNUEL } from '@/lib/utils'
+import { fmtK, objectifMois, MOIS_COURANT_INDEX, PONDERATIONS } from '@/lib/utils'
+import { getObjectifGlobal } from '@/lib/config'
 import { useData } from '@/lib/useData'
 import Topbar from '@/components/Topbar'
 import SourceTag from '@/components/SourceTag'
 import SparkLine from '@/components/SparkLine'
 import ProjetTooltip from '@/components/ProjetTooltip'
+import SortHeader from '@/components/SortHeader'
+
+type SortDir = 'asc' | 'desc'
 
 export default function ForecastPage() {
   const { projets } = useData()
   const [search, setSearch] = useState('')
   const [annee, setAnnee] = useState(2026)
+  const [sortKey, setSortKey] = useState('total')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const isCurrent = annee === 2026
 
+  const requestSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('desc')
+    }
+  }
+
   const projetsActifs = useMemo(() => {
-    const list = projets
-      .filter((p) => getProjetTotal(p, annee) > 0)
-      .sort((a, b) => getProjetTotal(b, annee) - getProjetTotal(a, annee))
-    if (!search) return list
-    const q = search.toLowerCase()
-    return list.filter((p) => p.projet.toLowerCase().includes(q) || p.etat.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
-  }, [search, projets, annee])
+    let list = projets.filter((p) => getProjetTotal(p, annee) > 0)
+
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter((p) => p.projet.toLowerCase().includes(q) || p.etat.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
+    }
+
+    return [...list].sort((a, b) => {
+      let va: string | number
+      let vb: string | number
+
+      if (sortKey === 'projet') {
+        va = a.projet.toLowerCase()
+        vb = b.projet.toLowerCase()
+      } else if (sortKey === 'total') {
+        va = getProjetTotal(a, annee)
+        vb = getProjetTotal(b, annee)
+      } else if (sortKey.startsWith('mois_')) {
+        const idx = parseInt(sortKey.replace('mois_', ''), 10)
+        va = getProjetMois(a, annee)[idx] ?? 0
+        vb = getProjetMois(b, annee)[idx] ?? 0
+      } else {
+        va = 0
+        vb = 0
+      }
+
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [search, projets, annee, sortKey, sortDir])
 
   return (
     <>
@@ -35,7 +74,7 @@ export default function ForecastPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setAnnee((a) => a - 1)}
-            disabled={annee <= 2026}
+            disabled={annee <= 2025}
             className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors disabled:opacity-30"
           >
             <ChevronLeft size={18} />
@@ -43,7 +82,7 @@ export default function ForecastPage() {
           <h2 className="font-serif text-2xl text-[var(--text-primary)] tabular-nums">{annee}</h2>
           <button
             onClick={() => setAnnee((a) => a + 1)}
-            disabled={annee >= 2027}
+            disabled={annee >= 2028}
             className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors disabled:opacity-30"
           >
             <ChevronRight size={18} />
@@ -67,15 +106,33 @@ export default function ForecastPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] font-mono">
-                <th className="text-left px-2 py-2.5 sticky left-0 bg-[var(--bg-card)] z-10 min-w-[90px]">Projet</th>
+                <SortHeader
+                  label="Projet"
+                  sortKey="projet"
+                  currentKey={sortKey}
+                  currentDir={sortDir}
+                  onSort={requestSort}
+                  className="text-left px-2 py-2.5 sticky left-0 bg-[var(--bg-card)] z-10 min-w-[90px]"
+                />
                 {MOIS_LABELS.map((m, i) => (
-                  <th key={i} className={`text-right px-2 py-2.5 min-w-[58px] ${isCurrent && i === MOIS_COURANT_INDEX ? 'text-[var(--accent)]' : ''}`}>
-                    {m}
-                    <br />
-                    <span className="text-[9px] opacity-50">&times;{PONDERATIONS[i]}</span>
-                  </th>
+                  <SortHeader
+                    key={i}
+                    label={m}
+                    sortKey={`mois_${i}`}
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={requestSort}
+                    className={`text-right px-2 py-2.5 min-w-[58px] ${isCurrent && i === MOIS_COURANT_INDEX ? 'text-[var(--accent)]' : ''}`}
+                  />
                 ))}
-                <th className="text-right px-2 py-2.5 min-w-[65px] text-[var(--accent)]">Total</th>
+                <SortHeader
+                  label="Total"
+                  sortKey="total"
+                  currentKey={sortKey}
+                  currentDir={sortDir}
+                  onSort={requestSort}
+                  className="text-right px-2 py-2.5 min-w-[65px] text-[var(--accent)]"
+                />
                 <th className="text-center px-2 py-2.5 min-w-[50px]">12m</th>
               </tr>
             </thead>
@@ -144,7 +201,7 @@ export default function ForecastPage() {
                 {MOIS_LABELS.map((_, i) => (
                   <td key={i} className="px-2 py-1 font-mono text-right text-[10px] italic">{fmtK(Math.round(objectifMois(i)))}</td>
                 ))}
-                <td className="px-2 py-1 font-mono text-right text-[10px] italic">{fmtK(OBJECTIF_ANNUEL)}</td>
+                <td className="px-2 py-1 font-mono text-right text-[10px] italic">{fmtK(getObjectifGlobal())}</td>
                 <td />
               </tr>
             </tfoot>

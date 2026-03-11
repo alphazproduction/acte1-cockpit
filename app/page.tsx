@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Info, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { type Projet, getProjetMois, getProjetTotal, getTotauxMois } from '@/lib/data'
 import { fmt, fmtK, fmtPct, getAlertes, getTop5Projets, MOIS_COURANT_INDEX, OBJECTIF_ANNUEL, objectifCumule, tempsEcoulePondere } from '@/lib/utils'
+import { getObjectifGlobal } from '@/lib/config'
 import { useData } from '@/lib/useData'
 import Topbar from '@/components/Topbar'
-import KpiCard from '@/components/KpiCard'
 import SourceTag from '@/components/SourceTag'
 import AlertBanner from '@/components/AlertBanner'
 import BarChartMensuel from '@/components/BarChartMensuel'
@@ -41,7 +41,13 @@ export default function DashboardPage() {
   const [chartView, setChartView] = useState<'mensuel' | 'ytd'>('mensuel')
   const [selectedProjet, setSelectedProjet] = useState<Projet | null>(null)
   const [annee, setAnnee] = useState(2026)
+  const [top5Mode, setTop5Mode] = useState<'annee' | 'global'>('annee')
+  const [objectifGlobal, setObjGlobal] = useState(OBJECTIF_ANNUEL)
   const alertes = getAlertes()
+
+  useEffect(() => {
+    setObjGlobal(getObjectifGlobal())
+  }, [])
 
   const isCurrent = annee === 2026
   const isFuture = annee > 2026
@@ -52,8 +58,8 @@ export default function DashboardPage() {
     return getTotauxMois(annee).map((t) => ({ mois: t.mois, montant: t.montant }))
   }, [annee, totaux, isCurrent])
 
-  // Top 5 par CA de l'année sélectionnée
-  const top5 = useMemo(() => {
+  // Top 5 par CA restant sur l'année
+  const top5Annee = useMemo(() => {
     if (isCurrent) {
       return mode === 'live'
         ? [...projets].sort((a, b) => b.reste - a.reste).slice(0, 5)
@@ -64,6 +70,16 @@ export default function DashboardPage() {
       .sort((a, b) => getProjetTotal(b, annee) - getProjetTotal(a, annee))
       .slice(0, 5)
   }, [annee, projets, mode, isCurrent])
+
+  // Top 5 par CA restant global
+  const top5Global = useMemo(() => {
+    return [...projets]
+      .filter((p) => p.reste > 0)
+      .sort((a, b) => b.reste - a.reste)
+      .slice(0, 5)
+  }, [projets])
+
+  const top5 = top5Mode === 'annee' ? top5Annee : top5Global
 
   // Pour les années futures, on prend les 12 mois comme "objectif à date"
   const moisCourantIdx = isCurrent ? MOIS_COURANT_INDEX : 11
@@ -86,11 +102,12 @@ export default function DashboardPage() {
   const totalAnnuel = totauxAnnee.reduce((a, b) => a + b.montant, 0)
   const objCumule = objectifCumule(moisCourantIdx)
   const tauxRealisation = objCumule > 0 ? (prevuCumule / objCumule) * 100 : 0
-  const projection = isCurrent ? Math.round((tauxRealisation / 100) * OBJECTIF_ANNUEL) : totalAnnuel
+  const projection = isCurrent ? Math.round((tauxRealisation / 100) * objectifGlobal) : totalAnnuel
   const tempsEcoule = isCurrent ? tempsEcoulePondere(MOIS_COURANT_INDEX) : 100
 
   const calendaire = isCurrent ? Math.round(((MOIS_COURANT_INDEX + 1) / 12) * 100) : 0
   const ecartMontant = prevuCumule - objCumule
+  const ecartPct = objCumule > 0 ? ((prevuCumule - objCumule) / objCumule) * 100 : 0
 
   const hasData = totalAnnuel > 0 || annee === 2026
 
@@ -115,15 +132,22 @@ export default function DashboardPage() {
       <div className="flex items-center justify-center gap-4 mb-6">
         <button
           onClick={() => setAnnee((a) => a - 1)}
-          disabled={annee <= 2026}
+          disabled={annee <= 2024}
           className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors disabled:opacity-30"
         >
           <ChevronLeft size={20} />
         </button>
-        <h2 className="font-serif text-3xl text-[var(--text-primary)] tabular-nums">{annee}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="font-serif text-3xl text-[var(--text-primary)] tabular-nums">{annee}</h2>
+          {annee === 2026 && (
+            <span className="px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-mono text-[10px] font-semibold">
+              Année en cours
+            </span>
+          )}
+        </div>
         <button
           onClick={() => setAnnee((a) => a + 1)}
-          disabled={annee >= 2027}
+          disabled={annee >= 2028}
           className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors disabled:opacity-30"
         >
           <ChevronRight size={20} />
@@ -140,30 +164,65 @@ export default function DashboardPage() {
 
       {hasData && (
         <>
-          {/* KPIs */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 ${isCurrent ? 'lg:grid-cols-5' : 'lg:grid-cols-3'} gap-4 mb-8`}>
-            {isCurrent && (
-              <KpiCard label="Prévu à date" value={fmt(prevuCumule)} source="PREVISIONNEL · cumul Jan–Mar 2026" accent="success" />
-            )}
-            {isCurrent && (
-              <KpiCard label="Objectif à date" value={fmt(Math.round(objCumule))} source="CONFIG · objectif × pondération cumulée" accent="default" />
-            )}
-            <KpiCard
-              label={isCurrent ? 'Projection annuelle' : `Total prévu ${annee}`}
-              value={fmt(isCurrent ? projection : totalAnnuel)}
-              source={isCurrent ? 'Taux réalisation × objectif annuel' : `Somme des prévisionnels ${annee}`}
-              accent={isCurrent ? (projection >= OBJECTIF_ANNUEL * 0.8 ? 'warning' : 'danger') : (totalAnnuel >= OBJECTIF_ANNUEL ? 'success' : totalAnnuel >= OBJECTIF_ANNUEL * 0.8 ? 'warning' : 'danger')}
-            />
-            <KpiCard
-              label={`Reste à facturer (${annee})`}
-              value={fmt(resteAnnee)}
-              source={`PREVISIONNEL · total ${annee}${isCurrent ? ' − facturé YTD' : ''}`}
-              accent="info"
-            />
-            {isCurrent && (
-              <KpiCard label="Reste global (tous projets)" value={fmt(resteGlobal)} source="PROJETS · somme reste tous projets actifs" accent="default" />
-            )}
-          </div>
+          {/* KPIs condensés */}
+          {isCurrent && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5 mb-8 space-y-4">
+              {/* Row 1: Objectif à date | Prévu à date + badge écart */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+                <div className="flex items-center gap-2">
+                  <span className="font-sans text-sm text-[var(--text-secondary)]">Objectif à date :</span>
+                  <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">{fmt(Math.round(objCumule))}</span>
+                </div>
+                <div className="hidden sm:block text-[var(--border)]">|</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-sans text-sm text-[var(--text-secondary)]">Prévu à date :</span>
+                  <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">{fmt(prevuCumule)}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${ecartPct >= 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400'}`}>
+                    {ecartPct >= 0 ? '+' : ''}{Math.round(ecartPct)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Row 2: Reste à facturer année | Reste à facturer global */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+                <div className="flex items-center gap-2">
+                  <span className="font-sans text-sm text-[var(--text-secondary)]">Reste à facturer (année) :</span>
+                  <span className="font-mono text-sm font-semibold text-[var(--accent)]">{fmt(resteAnnee)}</span>
+                </div>
+                <div className="hidden sm:block text-[var(--border)]">|</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-sans text-sm text-[var(--text-secondary)]">Reste à facturer (global) :</span>
+                  <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">{fmt(resteGlobal)}</span>
+                </div>
+              </div>
+
+              {/* Row 3: Projection annuelle */}
+              <div className="flex items-center gap-2">
+                <span className="font-sans text-sm text-[var(--text-secondary)]">Projection annuelle :</span>
+                <span className={`font-mono text-sm font-semibold ${projection >= objectifGlobal ? 'text-[var(--success)]' : projection >= objectifGlobal * 0.8 ? 'text-[var(--warning)]' : 'text-[var(--danger)]'}`}>
+                  {fmt(projection)}
+                </span>
+                <span className="font-sans text-xs text-[var(--text-secondary)]">(sur objectif de {fmt(objectifGlobal)})</span>
+              </div>
+            </div>
+          )}
+
+          {/* KPIs pour années non courantes */}
+          {!isCurrent && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5 mb-8 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+                <div className="flex items-center gap-2">
+                  <span className="font-sans text-sm text-[var(--text-secondary)]">Total prévu {annee} :</span>
+                  <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">{fmt(totalAnnuel)}</span>
+                </div>
+                <div className="hidden sm:block text-[var(--border)]">|</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-sans text-sm text-[var(--text-secondary)]">Reste à facturer (année) :</span>
+                  <span className="font-mono text-sm font-semibold text-[var(--accent)]">{fmt(resteAnnee)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Progression annuelle - seulement pour l'année courante */}
           {isCurrent && (
@@ -204,7 +263,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-1.5">
                 <p className="font-sans text-sm text-[var(--text-secondary)]">
                   Projection = <strong className="text-[var(--accent)]">{fmt(projection)}</strong>
-                  <span className="text-[var(--text-secondary)]"> (sur un objectif initial de {fmt(OBJECTIF_ANNUEL)})</span>
+                  <span className="text-[var(--text-secondary)]"> (sur un objectif initial de {fmt(objectifGlobal)})</span>
                 </p>
                 <InfoBulle text="La projection extrapole le rythme de facturation actuel sur l'ensemble de l'année. Si vous maintenez le même taux de réalisation, c'est le CA que vous atteindrez en fin d'exercice." />
               </div>
@@ -219,19 +278,19 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <span className="font-sans text-sm text-[var(--text-secondary)]">
                     Total prévu : <strong className="text-[var(--text-primary)]">{fmt(totalAnnuel)}</strong>
-                    <span className="text-[var(--text-secondary)]"> (soit <strong className={totalAnnuel >= OBJECTIF_ANNUEL ? 'text-[var(--success)]' : totalAnnuel >= OBJECTIF_ANNUEL * 0.8 ? 'text-[var(--warning)]' : 'text-[var(--danger)]'}>{fmtPct((totalAnnuel / OBJECTIF_ANNUEL) * 100)}</strong> de l'objectif)</span>
+                    <span className="text-[var(--text-secondary)]"> (soit <strong className={totalAnnuel >= objectifGlobal ? 'text-[var(--success)]' : totalAnnuel >= objectifGlobal * 0.8 ? 'text-[var(--warning)]' : 'text-[var(--danger)]'}>{fmtPct((totalAnnuel / objectifGlobal) * 100)}</strong> de l'objectif)</span>
                   </span>
                 </div>
                 <div className="h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${totalAnnuel >= OBJECTIF_ANNUEL ? 'bg-emerald-500' : totalAnnuel >= OBJECTIF_ANNUEL * 0.8 ? 'bg-amber-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min((totalAnnuel / OBJECTIF_ANNUEL) * 100, 100)}%` }}
+                    className={`h-full rounded-full ${totalAnnuel >= objectifGlobal ? 'bg-emerald-500' : totalAnnuel >= objectifGlobal * 0.8 ? 'bg-amber-500' : 'bg-red-500'}`}
+                    style={{ width: `${Math.min((totalAnnuel / objectifGlobal) * 100, 100)}%` }}
                   />
                 </div>
               </div>
               <p className="font-sans text-sm text-[var(--text-secondary)]">
-                Objectif annuel : <strong className="text-[var(--accent)]">{fmt(OBJECTIF_ANNUEL)}</strong>
-                <span className="text-[var(--text-secondary)]"> · Écart : <strong className={totalAnnuel >= OBJECTIF_ANNUEL ? 'text-[var(--success)]' : 'text-[var(--danger)]'}>{totalAnnuel >= OBJECTIF_ANNUEL ? '+' : ''}{fmtK(totalAnnuel - OBJECTIF_ANNUEL)}</strong></span>
+                Objectif annuel : <strong className="text-[var(--accent)]">{fmt(objectifGlobal)}</strong>
+                <span className="text-[var(--text-secondary)]"> · Écart : <strong className={totalAnnuel >= objectifGlobal ? 'text-[var(--success)]' : 'text-[var(--danger)]'}>{totalAnnuel >= objectifGlobal ? '+' : ''}{fmtK(totalAnnuel - objectifGlobal)}</strong></span>
               </p>
             </div>
           )}
@@ -266,14 +325,53 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
+
+            {/* Légende */}
+            <div className="flex flex-wrap items-center gap-4 mb-4 text-[11px] font-mono text-[var(--text-secondary)]">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(139, 92, 246, 0.3)' }} />
+                <span>Objectif pondéré</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />
+                <span>Réalisé</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)' }} />
+                <span>Prévisionnel</span>
+              </div>
+            </div>
+
             {chartView === 'mensuel' ? <BarChartMensuel annee={annee} /> : <ChartYTD annee={annee} />}
           </div>
 
           {/* Top 5 */}
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5">
-            <h3 className="font-serif text-lg text-[var(--text-primary)] mb-4">
-              {isCurrent ? 'Top 5 projets par CA restant' : `Top 5 projets ${annee}`}
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-serif text-lg text-[var(--text-primary)]">Top 5 projets</h3>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setTop5Mode('annee')}
+                  className={`px-3 py-1.5 rounded-md font-mono text-[10px] transition-colors ${
+                    top5Mode === 'annee'
+                      ? 'bg-[var(--accent)] text-white'
+                      : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
+                >
+                  CA restant ({annee})
+                </button>
+                <button
+                  onClick={() => setTop5Mode('global')}
+                  className={`px-3 py-1.5 rounded-md font-mono text-[10px] transition-colors ${
+                    top5Mode === 'global'
+                      ? 'bg-[var(--accent)] text-white'
+                      : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
+                >
+                  CA restant (global)
+                </button>
+              </div>
+            </div>
             <div className="space-y-3">
               {top5.map((p) => (
                 <div key={p.id} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
@@ -291,12 +389,12 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <p className="font-mono text-sm text-[var(--accent)] shrink-0 ml-4">
-                    {isCurrent ? fmt(p.reste) : fmt(getProjetTotal(p, annee))}
+                    {top5Mode === 'global' ? fmt(p.reste) : (isCurrent ? fmt(p.reste) : fmt(getProjetTotal(p, annee)))}
                   </p>
                 </div>
               ))}
             </div>
-            <SourceTag source={isCurrent ? 'PROJETS · col. honoraires_ht, trié décroissant' : `PREVISIONNEL ${annee} · trié par total décroissant`} />
+            <SourceTag source={top5Mode === 'global' ? 'PROJETS · col. reste, trié décroissant' : (isCurrent ? 'PROJETS · col. honoraires_ht, trié décroissant' : `PREVISIONNEL ${annee} · trié par total décroissant`)} />
           </div>
 
           {selectedProjet && <ProjetDetail projet={selectedProjet} onClose={() => setSelectedProjet(null)} />}

@@ -7,6 +7,9 @@ import { fmt } from '@/lib/utils'
 import { getGasUrl, setGasUrl } from '@/lib/api'
 import {
   getObjectifAnnuel, setObjectifAnnuel,
+  getNombreAssocies, setNombreAssocies,
+  getPrevSousTraitance, setPrevSousTraitance,
+  getObjectifGlobal,
   getPonderations, setPonderationsConfig, getSommePoids,
   getSheetUrl, setSheetUrl,
 } from '@/lib/config'
@@ -19,6 +22,8 @@ export default function ParametresPage() {
   const [connected, setConnected] = useState(false)
   const [saved, setSaved] = useState(false)
   const [objectif, setObjectif] = useState(400000)
+  const [nbAssocies, setNbAssocies] = useState(2)
+  const [prevSousTraitance, setPrevSousTraitanceState] = useState(0)
   const [ponderations, setPonderations] = useState([1, 1, 1, 1, 1, 1, 0.5, 0.5, 1, 1, 1, 0.5])
   const [objSaved, setObjSaved] = useState(false)
   const [pondSaved, setPondSaved] = useState(false)
@@ -28,6 +33,8 @@ export default function ParametresPage() {
     if (url) { setApiUrlState(url); setConnected(true) }
     setSheetUrlState(getSheetUrl())
     setObjectif(getObjectifAnnuel())
+    setNbAssocies(getNombreAssocies())
+    setPrevSousTraitanceState(getPrevSousTraitance())
     setPonderations(getPonderations())
   }, [])
 
@@ -48,8 +55,12 @@ export default function ParametresPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const objectifGlobal = objectif * nbAssocies
+
   const handleSaveObjectif = () => {
     setObjectifAnnuel(objectif)
+    setNombreAssocies(nbAssocies)
+    setPrevSousTraitance(prevSousTraitance)
     setObjSaved(true)
     setTimeout(() => setObjSaved(false), 2000)
   }
@@ -72,7 +83,7 @@ export default function ParametresPage() {
     setPonderationsConfig(defaults)
   }
 
-  const objMois = (i: number) => objectif * (ponderations[i] / sommePoids)
+  const objMois = (i: number) => objectifGlobal * (ponderations[i] / sommePoids)
 
   return (
     <>
@@ -157,24 +168,56 @@ export default function ParametresPage() {
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 font-mono text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
                 />
                 <span className="font-mono text-sm text-[var(--text-secondary)] shrink-0">&euro; HT</span>
-                <button
-                  onClick={handleSaveObjectif}
-                  className="px-3 py-2.5 rounded-lg bg-[var(--accent)] text-white font-mono text-xs hover:opacity-90 transition-opacity shrink-0"
-                >
-                  {objSaved ? <Check size={14} /> : 'OK'}
-                </button>
               </div>
+            </div>
+            <div>
+              <label className="block font-mono text-xs text-[var(--text-secondary)] mb-1.5">Nombre d&apos;associés</label>
+              <input
+                type="number"
+                value={nbAssocies}
+                onChange={(e) => setNbAssocies(Math.max(1, parseInt(e.target.value) || 1))}
+                min={1}
+                step={1}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 font-mono text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+              />
+            </div>
+            <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)]">
+              <span className="font-mono text-xs text-[var(--text-secondary)]">Objectif global ({nbAssocies} associé{nbAssocies > 1 ? 's' : ''})</span>
+              <span className="font-mono text-sm font-semibold text-[var(--accent)]">{fmt(objectifGlobal)} &euro;</span>
+            </div>
+            <div>
+              <label className="block font-mono text-xs text-[var(--text-secondary)] mb-1.5">Prévisionnel sous-traitance</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={prevSousTraitance}
+                  onChange={(e) => setPrevSousTraitanceState(parseInt(e.target.value) || 0)}
+                  step={5000}
+                  min={0}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 font-mono text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)]"
+                />
+                <span className="font-mono text-sm text-[var(--text-secondary)] shrink-0">&euro; HT</span>
+              </div>
+              <p className="font-sans text-[11px] text-[var(--text-secondary)] mt-1">Montant annuel de sous-traitance à intégrer dans les charges</p>
+            </div>
+            <div className="pt-1">
+              <button
+                onClick={handleSaveObjectif}
+                className="w-full px-3 py-2.5 rounded-lg bg-[var(--accent)] text-white font-mono text-xs hover:opacity-90 transition-opacity"
+              >
+                {objSaved ? <><Check size={14} className="inline mr-1" /> Enregistré</> : 'Enregistrer'}
+              </button>
             </div>
             <div className="flex items-center justify-between pt-2">
               <span className="font-mono text-xs text-[var(--text-secondary)]">Objectif mensuel moyen</span>
-              <span className="font-mono text-sm text-[var(--accent)]">{fmt(Math.round(objectif / 12))}</span>
+              <span className="font-mono text-sm text-[var(--accent)]">{fmt(Math.round(objectifGlobal / 12))}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs text-[var(--text-secondary)]">Objectif mensuel pondéré moyen</span>
-              <span className="font-mono text-sm text-[var(--accent)]">{fmt(Math.round(objectif / sommePoids))}</span>
+              <span className="font-mono text-sm text-[var(--accent)]">{fmt(Math.round(objectifGlobal / sommePoids))}</span>
             </div>
           </div>
-          <SourceTag source="CONFIG · objectif_annuel (modifiable)" />
+          <SourceTag source="CONFIG · objectif_annuel, nombre_associes, prev_sous_traitance (modifiables)" />
         </div>
 
         {/* Seuils */}
@@ -266,7 +309,7 @@ export default function ParametresPage() {
               </div>
             ))}
           </div>
-          <SourceTag source="CONFIG · pondérations mensuelles (modifiables)" detail={`Somme poids = ${sommePoids.toFixed(1)}. Objectif mois = ${fmt(objectif)} × (poids / ${sommePoids.toFixed(1)})`} />
+          <SourceTag source="CONFIG · pondérations mensuelles (modifiables)" detail={`Somme poids = ${sommePoids.toFixed(1)}. Objectif mois = ${fmt(objectifGlobal)} × (poids / ${sommePoids.toFixed(1)})`} />
         </div>
       </div>
     </>

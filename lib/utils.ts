@@ -1,4 +1,5 @@
 import { type Projet, PROJETS, MOIS_LABELS } from './data'
+import { getObjectifGlobal, getPonderations, getSommePoids } from './config'
 
 // ── Formatage montants ──────────────────────────────────────────
 
@@ -11,7 +12,6 @@ export function fmt(n: number): string {
 export function fmtK(n: number): string {
   if (n === 0) return '—'
   if (n >= 1000000) return `${(n / 1000000).toFixed(1).replace('.', ',')}M`
-  if (n >= 10000) return `${(n / 1000).toFixed(1).replace('.', ',')}k€`
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace('.', ',')}k€`
   return `${n}€`
 }
@@ -21,13 +21,18 @@ export function fmtPct(n: number): string {
 }
 
 // ── Pondération mensuelle ───────────────────────────────────────
+// Ces constantes restent pour le SSR / fallback, mais les fonctions
+// utilisent maintenant la config dynamique (localStorage)
 
 export const PONDERATIONS = [1, 1, 1, 1, 1, 1, 0.5, 0.5, 1, 1, 1, 0.5] as const
-export const SOMME_POIDS = PONDERATIONS.reduce((a, b) => a + b, 0) // 10.5
-export const OBJECTIF_ANNUEL = 400000
+export const SOMME_POIDS = PONDERATIONS.reduce((a, b) => a + b, 0)
+export const OBJECTIF_ANNUEL = 400000 // Fallback SSR — en client, utiliser getObjectifGlobal()
 
 export function objectifMois(moisIndex: number): number {
-  return OBJECTIF_ANNUEL * (PONDERATIONS[moisIndex] / SOMME_POIDS)
+  const obj = getObjectifGlobal()
+  const pond = getPonderations()
+  const somme = getSommePoids(pond)
+  return obj * (pond[moisIndex] / somme)
 }
 
 export function objectifCumule(moisIndex: number): number {
@@ -37,9 +42,11 @@ export function objectifCumule(moisIndex: number): number {
 }
 
 export function tempsEcoulePondere(moisIndex: number): number {
+  const pond = getPonderations()
+  const somme = getSommePoids(pond)
   let poidsPasses = 0
-  for (let i = 0; i <= moisIndex; i++) poidsPasses += PONDERATIONS[i]
-  return (poidsPasses / SOMME_POIDS) * 100
+  for (let i = 0; i <= moisIndex; i++) poidsPasses += pond[i]
+  return (poidsPasses / somme) * 100
 }
 
 // ── Mois courant ────────────────────────────────────────────────
@@ -130,7 +137,7 @@ export function getTop5Projets(): Projet[] {
 // ── Couleur bar en fonction du ratio réalisé/objectif ───────────
 
 export function getBarColor(realise: number, objectif: number, isPast: boolean, isCurrent: boolean): string {
-  if (isCurrent) return '#8b5cf6' // violet pour le mois courant
+  if (isCurrent) return '#8b5cf6'
   if (isPast) {
     if (objectif === 0) return '#9ca3af40'
     const ratio = realise / objectif
@@ -138,5 +145,5 @@ export function getBarColor(realise: number, objectif: number, isPast: boolean, 
     if (ratio >= 0.8) return '#f59e0b80'
     return '#ef444480'
   }
-  return '#8b5cf640' // futur = violet clair
+  return '#8b5cf640'
 }

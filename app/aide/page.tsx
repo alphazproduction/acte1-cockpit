@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, LayoutDashboard, CalendarRange, GanttChart, Receipt, Settings, ArrowRight, Database, Globe, BarChart3, Target, AlertTriangle, Palette, Hash, MousePointer } from 'lucide-react'
-import { PONDERATIONS, OBJECTIF_ANNUEL, objectifMois, fmt, fmtPct } from '@/lib/utils'
+import { PONDERATIONS, objectifMois, fmt, fmtPct } from '@/lib/utils'
+import { getObjectifGlobal, getNombreAssocies, getObjectifAnnuel } from '@/lib/config'
 import { MOIS_LABELS } from '@/lib/data'
 import Topbar from '@/components/Topbar'
 
@@ -114,7 +115,7 @@ export default function AidePage() {
             <p className="font-sans text-sm text-[var(--text-secondary)]">
               Le cockpit de pilotage ACTE 1 est un outil de visualisation financière conçu pour suivre en temps réel
               la facturation prévisionnelle de l'agence. Il permet aux associés de piloter leur
-              activité à partir d'un objectif annuel de <strong className="text-[var(--text-primary)]">{fmt(OBJECTIF_ANNUEL)} HT par associé</strong> (paramétrable).
+              activité à partir d'un objectif annuel de <strong className="text-[var(--text-primary)]">{fmt(getObjectifGlobal())} HT par associé</strong> (paramétrable).
             </p>
 
             {/* Schéma architecture */}
@@ -217,7 +218,7 @@ export default function AidePage() {
         <Section id="logique" icon={Target} title="Logique de calcul">
           <div className="mt-4 space-y-4">
             <p className="font-sans text-sm text-[var(--text-secondary)]">
-              L'objectif annuel est de <strong className="text-[var(--text-primary)]">X k€</strong> par associé (configurable dans Paramètres, actuellement {fmt(OBJECTIF_ANNUEL)}).
+              L'objectif annuel est de <strong className="text-[var(--text-primary)]">X k€</strong> par associé (configurable dans Paramètres, actuellement {fmt(getObjectifGlobal())}).
               Cet objectif est réparti sur 12 mois avec un système de <strong className="text-[var(--text-primary)]">pondération</strong> :
               les mois d'activité réduite (juillet, août, décembre) comptent pour 0.5, les autres pour 1.0.
             </p>
@@ -241,7 +242,7 @@ export default function AidePage() {
               <KpiExplain
                 label="Objectif du mois"
                 formula="Objectif_annuel × (Poids_mois / 10.5)"
-                example={`Mars (×1) = ${fmt(OBJECTIF_ANNUEL)} × (1 / 10.5) = ${fmt(Math.round(objectifMois(2)))}`}
+                example={`Mars (×1) = ${fmt(getObjectifGlobal())} × (1 / 10.5) = ${fmt(Math.round(objectifMois(2)))}`}
                 source="CONFIG · objectif_annuel + pondérations"
               />
               <KpiExplain
@@ -258,8 +259,8 @@ export default function AidePage() {
               />
               <KpiExplain
                 label="Projection annuelle"
-                formula={`Taux_réalisation × Objectif_annuel (${fmt(OBJECTIF_ANNUEL)})`}
-                example={`160% × ${fmt(OBJECTIF_ANNUEL)} = ${fmt(Math.round(OBJECTIF_ANNUEL * 1.6))}`}
+                formula={`Taux_réalisation × Objectif_annuel (${fmt(getObjectifGlobal())})`}
+                example={`160% × ${fmt(getObjectifGlobal())} = ${fmt(Math.round(getObjectifGlobal() * 1.6))}`}
                 source="Extrapolation du rythme actuel"
               />
               <KpiExplain
@@ -347,7 +348,7 @@ export default function AidePage() {
                 {[
                   { label: 'CA prévu YTD', desc: 'Somme des montants prévisionnels du 1er janvier au mois courant inclus', source: 'PREVISIONNEL · Jan à Mars', color: 'border-emerald-200 dark:border-emerald-500/30' },
                   { label: 'Objectif YTD', desc: 'Somme des objectifs pondérés du 1er janvier au mois courant', source: 'CONFIG × pondérations cumulées', color: 'border-violet-200 dark:border-violet-500/30' },
-                  { label: 'Projection annuelle', desc: 'Si le rythme actuel se maintient, combien sera facturé sur l\'année', source: `Taux réalisation × ${fmt(OBJECTIF_ANNUEL)}`, color: 'border-amber-200 dark:border-amber-500/30' },
+                  { label: 'Projection annuelle', desc: 'Si le rythme actuel se maintient, combien sera facturé sur l\'année', source: `Taux réalisation × ${fmt(getObjectifGlobal())}`, color: 'border-amber-200 dark:border-amber-500/30' },
                   { label: 'Reste à facturer', desc: 'Total des honoraires de tous les projets encore à facturer', source: 'PROJETS · col. honoraires_ht', color: 'border-blue-200 dark:border-blue-500/30' },
                 ].map((kpi) => (
                   <div key={kpi.label} className={`rounded-lg border ${kpi.color} bg-[var(--bg-primary)] p-3`}>

@@ -3,8 +3,10 @@
 import { useState, useMemo } from 'react'
 import { PROJETS } from '@/lib/data'
 import { fmt, getStatut } from '@/lib/utils'
+import { useSort } from '@/lib/useSort'
 import Topbar from '@/components/Topbar'
 import SourceTag from '@/components/SourceTag'
+import SortHeader from '@/components/SortHeader'
 
 interface PlanningRow {
   id: string
@@ -44,6 +46,7 @@ export default function PlanningPage() {
   }, [])
 
   const [data, setData] = useState(initialData)
+  const { sorted, sortKey, sortDir, requestSort } = useSort(data, 'honoraires', 'desc')
 
   const updateDate = (id: string, newDate: string) => {
     setData((prev) =>
@@ -64,18 +67,18 @@ export default function PlanningPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] font-mono text-xs">
-                <th className="text-left px-4 py-3">Code</th>
-                <th className="text-left px-4 py-3">Projet</th>
-                <th className="text-left px-4 py-3">Statut</th>
-                <th className="text-right px-4 py-3">Honoraires</th>
-                <th className="text-center px-4 py-3">Début</th>
-                <th className="text-center px-4 py-3">Fin initiale</th>
-                <th className="text-center px-4 py-3">Fin révisée</th>
-                <th className="text-center px-4 py-3">Delta</th>
+                <SortHeader label="Code" sortKey="code" currentKey={sortKey} currentDir={sortDir} onSort={requestSort} className="text-left px-4 py-3" />
+                <SortHeader label="Projet" sortKey="nom" currentKey={sortKey} currentDir={sortDir} onSort={requestSort} className="text-left px-4 py-3" />
+                <SortHeader label="Statut" sortKey="etat" currentKey={sortKey} currentDir={sortDir} onSort={requestSort} className="text-left px-4 py-3" />
+                <SortHeader label="Honoraires" sortKey="honoraires" currentKey={sortKey} currentDir={sortDir} onSort={requestSort} className="text-right px-4 py-3" />
+                <SortHeader label="Début" sortKey="dateDebut" currentKey={sortKey} currentDir={sortDir} onSort={requestSort} className="text-center px-4 py-3" />
+                <SortHeader label="Fin initiale" sortKey="dateFinInitiale" currentKey={sortKey} currentDir={sortDir} onSort={requestSort} className="text-center px-4 py-3" />
+                <SortHeader label="Fin révisée" sortKey="dateFinRevisee" currentKey={sortKey} currentDir={sortDir} onSort={requestSort} className="text-center px-4 py-3" />
+                <SortHeader label="Delta" sortKey="delta" currentKey={sortKey} currentDir={sortDir} onSort={requestSort} className="text-center px-4 py-3" />
               </tr>
             </thead>
             <tbody>
-              {data.map((p) => {
+              {sorted.map((p) => {
                 const statut = getStatut(p.etat)
                 return (
                   <tr key={p.id} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">

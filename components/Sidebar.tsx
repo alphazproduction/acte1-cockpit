@@ -12,7 +12,7 @@ const NAV = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/forecast', label: 'Forecast', icon: CalendarRange },
   { href: '/planning', label: 'Planning', icon: GanttChart },
-  { href: '/echeances', label: 'Échéances', icon: CalendarClock },
+  { href: '/echeances', label: 'Échéancier', icon: CalendarClock },
   { href: '/creances', label: 'Créances', icon: Receipt },
   { href: '/projets/nouveau', label: 'Nouveau projet', icon: PlusCircle },
   { href: '/parametres', label: 'Paramètres', icon: Settings },
