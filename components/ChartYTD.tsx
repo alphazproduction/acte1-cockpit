@@ -1,7 +1,7 @@
 'use client'
 
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart, ReferenceLine } from 'recharts'
-import { TOTAUX_MOIS_2026, MOIS_LABELS } from '@/lib/data'
+import { Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart, ReferenceLine } from 'recharts'
+import { MOIS_LABELS, getTotauxMois } from '@/lib/data'
 import { fmt, objectifMois, MOIS_COURANT_INDEX } from '@/lib/utils'
 import SourceTag from './SourceTag'
 
@@ -26,12 +26,15 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   )
 }
 
-export default function ChartYTD() {
+export default function ChartYTD({ annee = 2026 }: { annee?: number }) {
+  const totaux = getTotauxMois(annee)
+  const isCurrent = annee === 2026
+
   let prevuSum = 0
   let objSum = 0
 
   const data: DataPoint[] = MOIS_LABELS.map((mois, i) => {
-    prevuSum += TOTAUX_MOIS_2026[i].montant
+    prevuSum += totaux[i].montant
     objSum += objectifMois(i)
     return {
       mois,
@@ -41,8 +44,8 @@ export default function ChartYTD() {
     }
   })
 
-  // Projection à partir du mois courant
-  if (MOIS_COURANT_INDEX > 0) {
+  // Projection à partir du mois courant (seulement pour l'année en cours)
+  if (isCurrent && MOIS_COURANT_INDEX > 0) {
     const ratioActuel = data[MOIS_COURANT_INDEX].prevuCumule / data[MOIS_COURANT_INDEX].objectifCumule
     let projSum = data[MOIS_COURANT_INDEX].prevuCumule
     for (let i = MOIS_COURANT_INDEX; i < 12; i++) {
@@ -58,7 +61,9 @@ export default function ChartYTD() {
           <XAxis dataKey="mois" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-dm-mono)' }} />
           <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-secondary)', fontSize: 10, fontFamily: 'var(--font-dm-mono)' }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
           <Tooltip content={<CustomTooltip />} />
-          <ReferenceLine x={MOIS_LABELS[MOIS_COURANT_INDEX]} stroke="#8b5cf6" strokeWidth={2} strokeDasharray="4 4" label={{ value: 'Aujourd\'hui', position: 'top', fill: '#8b5cf6', fontSize: 10, fontFamily: 'var(--font-dm-mono)' }} />
+          {isCurrent && (
+            <ReferenceLine x={MOIS_LABELS[MOIS_COURANT_INDEX]} stroke="#8b5cf6" strokeWidth={2} strokeDasharray="4 4" label={{ value: 'Aujourd\'hui', position: 'top', fill: '#8b5cf6', fontSize: 10, fontFamily: 'var(--font-dm-mono)' }} />
+          )}
           <Area type="monotone" dataKey="objectifCumule" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="6 4" fill="#8b5cf610" />
           <Area type="monotone" dataKey="prevuCumule" stroke="#10b981" strokeWidth={2.5} fill="#10b98115" />
           {data.some((d) => d.projectionCumule !== null) && (
@@ -66,7 +71,7 @@ export default function ChartYTD() {
           )}
         </AreaChart>
       </ResponsiveContainer>
-      <SourceTag source="PREVISIONNEL · cumul mensuel vs objectif pondéré" detail="Vert = prévu cumulé. Violet pointillé = objectif cumulé pondéré. Orange pointillé = projection basée sur le rythme actuel." />
+      <SourceTag source={`PREVISIONNEL ${annee} · cumul mensuel vs objectif pondéré`} detail="Vert = prévu cumulé. Violet pointillé = objectif cumulé pondéré. Orange pointillé = projection basée sur le rythme actuel." />
     </div>
   )
 }

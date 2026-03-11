@@ -8,6 +8,8 @@ export interface Projet {
   reste: number
   mois: number[]
   total_2026: number
+  mois_2027?: number[]
+  total_2027?: number
   debut?: string
   fin_initiale?: string
   fin_revisee?: string
@@ -51,6 +53,8 @@ export const PROJETS: Projet[] = [
     honoraire: 118750, facture_n1: 0, reste: 118750,
     mois: [0, 9565, 0, 7515, 0, 12525, 0, 0, 0, 21050, 0, 0],
     total_2026: 50655,
+    mois_2027: [22700, 22700, 22695, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    total_2027: 68095,
     debut: '2025-06', fin_initiale: '2027-03', fin_revisee: '2027-03',
   },
   {
@@ -144,6 +148,8 @@ export const PROJETS: Projet[] = [
     honoraire: 35500, facture_n1: 0, reste: 35500,
     mois: [0, 1500, 0, 0, 0, 0, 0, 0, 0, 8000, 0, 3500],
     total_2026: 13000,
+    mois_2027: [5000, 5000, 5000, 4000, 3500, 0, 0, 0, 0, 0, 0, 0],
+    total_2027: 22500,
   },
   {
     id: 'sgp-ardoines', code: 'SGA',
@@ -176,7 +182,9 @@ export const PROJETS: Projet[] = [
     honoraire: 93196, facture_n1: 43434, reste: 49762,
     mois: [0, 1850, 0, 3800, 3800, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 9450,
-    debut: '2023-09', fin_initiale: '2026-04', fin_revisee: '2026-06',
+    mois_2027: [8000, 8000, 8000, 8000, 8312, 0, 0, 0, 0, 0, 0, 0],
+    total_2027: 40312,
+    debut: '2023-09', fin_initiale: '2026-04', fin_revisee: '2027-05',
   },
   {
     id: 'nausicaa', code: 'NAU',
@@ -185,7 +193,9 @@ export const PROJETS: Projet[] = [
     honoraire: 98766, facture_n1: 0, reste: 98766,
     mois: [0, 0, 0, 0, 7901, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 7901,
-    debut: '2024-06', fin_initiale: '2026-05', fin_revisee: '2026-05',
+    mois_2027: [15000, 15000, 15000, 15000, 15000, 15865, 0, 0, 0, 0, 0, 0],
+    total_2027: 90865,
+    debut: '2024-06', fin_initiale: '2026-05', fin_revisee: '2027-06',
   },
   {
     id: 'summit-affichage', code: 'SUM',
@@ -234,7 +244,9 @@ export const PROJETS: Projet[] = [
     honoraire: 136000, facture_n1: 0, reste: 136000,
     mois: [1800, 900, 900, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 3600,
-    debut: '2024-01', fin_initiale: '2026-06', fin_revisee: '2026-12',
+    mois_2027: [15000, 15000, 15000, 15000, 15000, 15000, 10000, 10000, 10000, 11400, 0, 0],
+    total_2027: 132400,
+    debut: '2024-01', fin_initiale: '2026-06', fin_revisee: '2027-10',
   },
   {
     id: 'pace-rennes', code: 'PAC',
@@ -299,6 +311,8 @@ export const PROJETS: Projet[] = [
     honoraire: 23800, facture_n1: 0, reste: 23800,
     mois: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 0,
+    mois_2027: [4000, 4000, 4000, 4000, 3900, 3900, 0, 0, 0, 0, 0, 0],
+    total_2027: 23800,
   },
   {
     id: 'sg-valmy', code: 'SGV',
@@ -315,6 +329,8 @@ export const PROJETS: Projet[] = [
     honoraire: 0, facture_n1: 0, reste: 32000,
     mois: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 0,
+    mois_2027: [5000, 5000, 5000, 5000, 5000, 4000, 3000, 0, 0, 0, 0, 0],
+    total_2027: 32000,
   },
   {
     id: 'sceaux', code: 'SCX',
@@ -323,6 +339,8 @@ export const PROJETS: Projet[] = [
     honoraire: 0, facture_n1: 0, reste: 13000,
     mois: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     total_2026: 0,
+    mois_2027: [3000, 3000, 3500, 3500, 0, 0, 0, 0, 0, 0, 0, 0],
+    total_2027: 13000,
   },
   {
     id: 'sgp-blanc-mesnil-prog', code: 'SBP',
@@ -341,3 +359,27 @@ export const PROJETS: Projet[] = [
     total_2026: 0,
   },
 ]
+
+// ── Totaux mensuels 2027 (calculés depuis les projets) ──────────
+
+export const TOTAUX_MOIS_2027 = MOIS_LABELS.map((mois, i) => ({
+  mois,
+  montant: PROJETS.reduce((sum, p) => sum + (p.mois_2027?.[i] ?? 0), 0),
+}))
+
+// ── Helpers multi-année ─────────────────────────────────────────
+
+export function getProjetMois(p: Projet, annee: number): number[] {
+  if (annee === 2027) return p.mois_2027 ?? [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  return p.mois // 2026 par défaut
+}
+
+export function getProjetTotal(p: Projet, annee: number): number {
+  if (annee === 2027) return p.total_2027 ?? 0
+  return p.total_2026
+}
+
+export function getTotauxMois(annee: number): readonly { mois: string; montant: number }[] {
+  if (annee === 2027) return TOTAUX_MOIS_2027
+  return TOTAUX_MOIS_2026
+}

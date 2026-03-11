@@ -77,6 +77,7 @@ function mapGasToProjet(gasProjets: GasProjet[], gasPrev: GasPrevProjet[]): Proj
       reste: honoraire - factureN1,
       mois,
       total_2026: prev?.total ?? mois.reduce((a, b) => a + b, 0),
+      // Les données 2027 seront ajoutées quand le GAS les fournira
       debut: gp.date_debut || undefined,
       fin_initiale: gp.date_fin_prevue || undefined,
       fin_revisee: gp.date_fin_revisee || undefined,
