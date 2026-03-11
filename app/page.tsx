@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Info, ChevronLeft, ChevronRight } from 'lucide-react'
-import { PROJETS, TOTAUX_MOIS_2026, type Projet } from '@/lib/data'
+import { Info, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { type Projet } from '@/lib/data'
 import { fmt, fmtK, fmtPct, getAlertes, getTop5Projets, MOIS_COURANT_INDEX, OBJECTIF_ANNUEL, objectifCumule, tempsEcoulePondere } from '@/lib/utils'
+import { useData } from '@/lib/useData'
 import Topbar from '@/components/Topbar'
 import KpiCard from '@/components/KpiCard'
 import SourceTag from '@/components/SourceTag'
@@ -36,26 +37,29 @@ function InfoBulle({ text }: { text: string }) {
 }
 
 export default function DashboardPage() {
+  const { mode, projets, totaux, loading, error } = useData()
   const [chartView, setChartView] = useState<'mensuel' | 'ytd'>('mensuel')
   const [selectedProjet, setSelectedProjet] = useState<Projet | null>(null)
   const [annee, setAnnee] = useState(2026)
   const alertes = getAlertes()
-  const top5 = getTop5Projets()
+  const top5 = mode === 'live'
+    ? [...projets].sort((a, b) => b.reste - a.reste).slice(0, 5)
+    : getTop5Projets()
 
   const isAnneeActive = annee === 2026
 
   // Reste à facturer sur l'année en cours = total_2026 - déjà facturé YTD
-  const resteAnnee = PROJETS.reduce((sum, p) => {
+  const resteAnnee = projets.reduce((sum, p) => {
     const factureYTD = p.mois.slice(0, MOIS_COURANT_INDEX + 1).reduce((a, b) => a + b, 0)
     return sum + Math.max(p.total_2026 - factureYTD, 0)
   }, 0)
 
   // Reste à facturer global = somme des restes sur tous les projets (hors pipeline)
-  const resteGlobal = PROJETS
+  const resteGlobal = projets
     .filter((p) => p.honoraire > 0)
     .reduce((sum, p) => sum + p.reste, 0)
 
-  const prevuCumule = TOTAUX_MOIS_2026.slice(0, MOIS_COURANT_INDEX + 1).reduce((a, b) => a + b.montant, 0)
+  const prevuCumule = totaux.slice(0, MOIS_COURANT_INDEX + 1).reduce((a, b) => a + b.montant, 0)
   const objCumule = objectifCumule(MOIS_COURANT_INDEX)
   const tauxRealisation = objCumule > 0 ? (prevuCumule / objCumule) * 100 : 0
   const projection = Math.round((tauxRealisation / 100) * OBJECTIF_ANNUEL)
@@ -66,7 +70,20 @@ export default function DashboardPage() {
 
   return (
     <>
-      <Topbar title="Dashboard" subtitle="Vue synthétique · Cockpit de pilotage ACTE 1" />
+      <Topbar title="Dashboard" subtitle={`Vue synthétique · ${mode === 'live' ? 'Connecté au Google Sheet' : 'Données POC'}`} />
+
+      {loading && (
+        <div className="flex items-center justify-center gap-2 py-12">
+          <Loader2 size={20} className="animate-spin text-[var(--accent)]" />
+          <span className="font-mono text-sm text-[var(--text-secondary)]">Chargement des données...</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/5 p-4 mb-6">
+          <p className="font-sans text-sm text-red-700 dark:text-red-400">{error}</p>
+        </div>
+      )}
 
       {/* Sélecteur d'année */}
       <div className="flex items-center justify-center gap-4 mb-6">

@@ -1,23 +1,25 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search } from 'lucide-react'
-import { PROJETS, MOIS_LABELS } from '@/lib/data'
+import { Search, Loader2 } from 'lucide-react'
+import { MOIS_LABELS } from '@/lib/data'
 import { fmtK, fmtPct, getStatut, objectifMois, MOIS_COURANT_INDEX, PONDERATIONS, OBJECTIF_ANNUEL } from '@/lib/utils'
+import { useData } from '@/lib/useData'
 import Topbar from '@/components/Topbar'
 import SourceTag from '@/components/SourceTag'
 import SparkLine from '@/components/SparkLine'
 import ProjetTooltip from '@/components/ProjetTooltip'
 
 export default function ForecastPage() {
+  const { mode, projets, loading } = useData()
   const [search, setSearch] = useState('')
 
   const projetsActifs = useMemo(() => {
-    const list = PROJETS.filter((p) => p.total_2026 > 0).sort((a, b) => b.total_2026 - a.total_2026)
+    const list = projets.filter((p) => p.total_2026 > 0).sort((a, b) => b.total_2026 - a.total_2026)
     if (!search) return list
     const q = search.toLowerCase()
     return list.filter((p) => p.projet.toLowerCase().includes(q) || p.etat.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
-  }, [search])
+  }, [search, projets])
 
   return (
     <>

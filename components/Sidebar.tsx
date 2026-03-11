@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, CalendarRange, GanttChart, Receipt, Settings, HelpCircle, PanelLeftClose, PanelLeftOpen, CalendarClock, PlusCircle, ExternalLink } from 'lucide-react'
+import { LayoutDashboard, CalendarRange, GanttChart, Receipt, Settings, HelpCircle, PanelLeftClose, PanelLeftOpen, CalendarClock, PlusCircle, ExternalLink, Database, Wifi } from 'lucide-react'
 import { getSheetUrl } from '@/lib/config'
+import { getDataMode, setDataMode, canGoLive, type DataMode } from '@/lib/data-provider'
 import ThemeToggle from './ThemeToggle'
 
 const NAV = [
@@ -17,6 +18,49 @@ const NAV = [
   { href: '/parametres', label: 'Paramètres', icon: Settings },
   { href: '/aide', label: 'Aide', icon: HelpCircle },
 ] as const
+
+function ModeToggle({ collapsed }: { collapsed: boolean }) {
+  const [mode, setMode] = useState<DataMode>('poc')
+  const [canLive, setCanLive] = useState(false)
+
+  useEffect(() => {
+    setMode(getDataMode())
+    setCanLive(canGoLive())
+  }, [])
+
+  const toggle = () => {
+    const next: DataMode = mode === 'poc' ? 'live' : 'poc'
+    if (next === 'live' && !canLive) return
+    setDataMode(next)
+    setMode(next)
+    window.location.reload()
+  }
+
+  const isPoc = mode === 'poc'
+
+  return (
+    <button
+      onClick={toggle}
+      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-mono transition-all ${collapsed ? 'justify-center' : ''} ${
+        isPoc
+          ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 hover:bg-amber-100 dark:hover:bg-amber-500/20'
+          : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 hover:bg-emerald-100 dark:hover:bg-emerald-500/20'
+      }`}
+      title={isPoc ? 'Mode POC — Données statiques. Cliquer pour passer en Live.' : 'Mode Live — Connecté au Google Sheet. Cliquer pour revenir en POC.'}
+    >
+      {isPoc ? <Database size={14} className="shrink-0" /> : <Wifi size={14} className="shrink-0" />}
+      {!collapsed && (
+        <span className="flex items-center gap-1.5">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isPoc ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${isPoc ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+          </span>
+          {isPoc ? 'POC' : 'Live'}
+        </span>
+      )}
+    </button>
+  )
+}
 
 function SheetLink({ collapsed }: { collapsed: boolean }) {
   const [url, setUrl] = useState('')
@@ -104,13 +148,7 @@ export default function Sidebar() {
         </nav>
         <div className={`p-4 border-t border-[var(--border)] space-y-2 ${collapsed ? 'flex flex-col items-center' : ''}`}>
           <SheetLink collapsed={collapsed} />
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-            </span>
-            {!collapsed && <span className="font-mono text-[10px] text-[var(--text-secondary)]">POC · Données statiques</span>}
-          </div>
+          <ModeToggle collapsed={collapsed} />
         </div>
       </aside>
 
