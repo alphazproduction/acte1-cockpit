@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Save, ArrowLeft } from 'lucide-react'
+import { Plus, Save, ArrowLeft, Trash2, Users, Building2, CalendarClock } from 'lucide-react'
 import { MOIS_LABELS, PROJETS } from '@/lib/data'
 import { fmt } from '@/lib/utils'
 import Topbar from '@/components/Topbar'
@@ -17,6 +17,63 @@ const ETATS = [
   'Gelé',
   'Arrêté',
 ]
+
+const ROLES_INTERLOCUTEUR = [
+  'Maître d\'ouvrage',
+  'Architecte',
+  'Bureau d\'études',
+  'Économiste',
+  'Scénographe',
+  'Acousticien',
+  'Paysagiste',
+  'Autre',
+]
+
+const TYPES_ECHEANCE = [
+  'Acompte',
+  'Situation',
+  'Solde',
+  'Avance',
+  'Retenue de garantie',
+  'Autre',
+] as const
+
+type TypeEcheance = typeof TYPES_ECHEANCE[number]
+
+interface Interlocuteur {
+  id: string
+  nom: string
+  role: string
+  societe: string
+  email: string
+  tel: string
+}
+
+interface EcheancePrev {
+  id: string
+  type: TypeEcheance
+  montant: number | ''
+  date: string
+  description: string
+}
+
+// Load saved sociétés from localStorage
+function getSocietesConnues(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem('societes-connues')
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function saveSociete(nom: string) {
+  const list = getSocietesConnues()
+  if (nom && !list.includes(nom)) {
+    list.push(nom)
+    list.sort()
+    localStorage.setItem('societes-connues', JSON.stringify(list))
+  }
+}
 
 export default function NouveauProjetPage() {
   const router = useRouter()
@@ -42,6 +99,7 @@ export default function NouveauProjetPage() {
     return candidate
   }
 
+  // General info
   const [code, setCode] = useState('')
   const [projet, setProjet] = useState('')
   const [etat, setEtat] = useState('En cours')
@@ -54,12 +112,29 @@ export default function NouveauProjetPage() {
   const [toast, setToast] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  // Client / Prestataire info
+  const [client, setClient] = useState('')
+  const [clientSociete, setClientSociete] = useState('')
+  const [architecte, setArchitecte] = useState('')
+  const [architecteSociete, setArchitecteSociete] = useState('')
+  const [interlocuteurs, setInterlocuteurs] = useState<Interlocuteur[]>([])
+
+  // Échéancier prévisionnel
+  const [echeances, setEcheances] = useState<EcheancePrev[]>([])
+
+  const societesConnues = useMemo(() => getSocietesConnues(), [])
+
   const total2026 = useMemo(() => mois.reduce((a, b) => a + b, 0), [mois])
   const resteAFacturer = useMemo(() => {
     const h = typeof honoraire === 'number' ? honoraire : 0
     const f = typeof factureN1 === 'number' ? factureN1 : 0
     return h - f
   }, [honoraire, factureN1])
+
+  const totalEcheances = useMemo(
+    () => echeances.reduce((s, e) => s + (typeof e.montant === 'number' ? e.montant : 0), 0),
+    [echeances],
+  )
 
   const updateMois = (index: number, value: string) => {
     const n = value === '' ? 0 : parseFloat(value)
@@ -69,6 +144,45 @@ export default function NouveauProjetPage() {
       next[index] = n
       return next
     })
+  }
+
+  // Interlocuteurs handlers
+  const addInterlocuteur = () => {
+    setInterlocuteurs((prev) => [...prev, {
+      id: `int-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      nom: '',
+      role: 'Maître d\'ouvrage',
+      societe: '',
+      email: '',
+      tel: '',
+    }])
+  }
+
+  const updateInterlocuteur = (id: string, field: keyof Interlocuteur, value: string) => {
+    setInterlocuteurs((prev) => prev.map((i) => i.id === id ? { ...i, [field]: value } : i))
+  }
+
+  const removeInterlocuteur = (id: string) => {
+    setInterlocuteurs((prev) => prev.filter((i) => i.id !== id))
+  }
+
+  // Échéancier handlers
+  const addEcheance = () => {
+    setEcheances((prev) => [...prev, {
+      id: `ech-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: 'Situation',
+      montant: '',
+      date: '',
+      description: '',
+    }])
+  }
+
+  const updateEcheance = (id: string, field: keyof EcheancePrev, value: string | number) => {
+    setEcheances((prev) => prev.map((e) => e.id === id ? { ...e, [field]: value } : e))
+  }
+
+  const removeEcheance = (id: string) => {
+    setEcheances((prev) => prev.filter((e) => e.id !== id))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,6 +204,13 @@ export default function NouveauProjetPage() {
       return
     }
 
+    // Save sociétés to base
+    if (clientSociete.trim()) saveSociete(clientSociete.trim())
+    if (architecteSociete.trim()) saveSociete(architecteSociete.trim())
+    for (const inter of interlocuteurs) {
+      if (inter.societe.trim()) saveSociete(inter.societe.trim())
+    }
+
     const newProjet = {
       id: `custom-${trimmedCode.toLowerCase()}-${Date.now()}`,
       code: trimmedCode,
@@ -103,6 +224,17 @@ export default function NouveauProjetPage() {
       debut: debut || null,
       fin_initiale: finInitiale || null,
       fin_revisee: finRevisee || null,
+      client: client.trim() || null,
+      client_societe: clientSociete.trim() || null,
+      architecte: architecte.trim() || null,
+      architecte_societe: architecteSociete.trim() || null,
+      interlocuteurs: interlocuteurs.filter((i) => i.nom.trim()),
+      echeances: echeances.filter((e) => typeof e.montant === 'number' && e.montant > 0).map((e) => ({
+        type: e.type,
+        montant: e.montant,
+        date: e.date,
+        description: e.description,
+      })),
     }
 
     const existing = JSON.parse(localStorage.getItem('projets-custom') || '[]')
@@ -266,6 +398,151 @@ export default function NouveauProjetPage() {
           </div>
         </div>
 
+        {/* Client & Acteurs du projet */}
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Building2 size={18} className="text-[var(--accent)]" />
+            <h3 className="font-serif text-lg text-[var(--text-primary)]">Client & acteurs du projet</h3>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4 mb-4">
+            {/* Client (MOA) */}
+            <div>
+              <label className={labelClass}>Client (Maître d&apos;ouvrage)</label>
+              <input
+                type="text"
+                value={client}
+                onChange={(e) => setClient(e.target.value)}
+                placeholder="Nom du contact"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Société client</label>
+              <input
+                type="text"
+                value={clientSociete}
+                onChange={(e) => setClientSociete(e.target.value)}
+                placeholder="Nom de la société"
+                list="societes-list"
+                className={inputClass}
+              />
+            </div>
+
+            {/* Architecte */}
+            <div>
+              <label className={labelClass}>Architecte / MOE</label>
+              <input
+                type="text"
+                value={architecte}
+                onChange={(e) => setArchitecte(e.target.value)}
+                placeholder="Nom du contact"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Société architecte</label>
+              <input
+                type="text"
+                value={architecteSociete}
+                onChange={(e) => setArchitecteSociete(e.target.value)}
+                placeholder="Nom de l'agence"
+                list="societes-list"
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          {/* Datalist for known sociétés */}
+          <datalist id="societes-list">
+            {societesConnues.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+
+          {/* Interlocuteurs dynamiques */}
+          <div className="mt-4 pt-4 border-t border-[var(--border)]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Users size={16} className="text-[var(--text-secondary)]" />
+                <span className="font-mono text-xs text-[var(--text-secondary)]">Autres interlocuteurs</span>
+              </div>
+              <button
+                type="button"
+                onClick={addInterlocuteur}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 font-mono text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <Plus size={14} />
+                Ajouter
+              </button>
+            </div>
+
+            {interlocuteurs.length === 0 && (
+              <p className="font-sans text-xs text-[var(--text-secondary)] italic">
+                Aucun interlocuteur ajouté. Cliquez sur &laquo; Ajouter &raquo; pour en ajouter.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {interlocuteurs.map((inter) => (
+                <div key={inter.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-end">
+                  <div>
+                    <label className={labelClass}>Nom</label>
+                    <input
+                      type="text"
+                      value={inter.nom}
+                      onChange={(e) => updateInterlocuteur(inter.id, 'nom', e.target.value)}
+                      placeholder="Prénom Nom"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Rôle</label>
+                    <select
+                      value={inter.role}
+                      onChange={(e) => updateInterlocuteur(inter.id, 'role', e.target.value)}
+                      className={inputClass}
+                    >
+                      {ROLES_INTERLOCUTEUR.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Société</label>
+                    <input
+                      type="text"
+                      value={inter.societe}
+                      onChange={(e) => updateInterlocuteur(inter.id, 'societe', e.target.value)}
+                      placeholder="Société"
+                      list="societes-list"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Email</label>
+                    <input
+                      type="email"
+                      value={inter.email}
+                      onChange={(e) => updateInterlocuteur(inter.id, 'email', e.target.value)}
+                      placeholder="email@exemple.fr"
+                      className={inputClass}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeInterlocuteur(inter.id)}
+                    className="p-2.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--bg-hover)] transition-colors"
+                    title="Supprimer"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Dates */}
         <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5">
           <h3 className="font-serif text-lg text-[var(--text-primary)] mb-4">Dates</h3>
@@ -330,6 +607,113 @@ export default function NouveauProjetPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Échéancier prévisionnel */}
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CalendarClock size={18} className="text-[var(--accent)]" />
+              <h3 className="font-serif text-lg text-[var(--text-primary)]">Échéancier prévisionnel</h3>
+            </div>
+            <div className="flex items-center gap-4">
+              {echeances.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-[var(--text-secondary)]">Total échéancier</span>
+                  <span className={`font-mono text-sm font-semibold px-2.5 py-1 rounded-lg border ${totalEcheances > 0 ? 'text-[var(--accent)] border-[var(--accent)]/20 bg-[var(--accent)]/5' : 'text-[var(--text-secondary)] border-[var(--border)] bg-[var(--bg-primary)]'}`}>
+                    {fmt(totalEcheances)}
+                  </span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={addEcheance}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 font-mono text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+              >
+                <Plus size={14} />
+                Ajouter
+              </button>
+            </div>
+          </div>
+
+          {echeances.length === 0 ? (
+            <p className="font-sans text-xs text-[var(--text-secondary)] italic">
+              Aucune échéance définie. Ajoutez les jalons de facturation prévisionnels.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {/* Header */}
+              <div className="grid grid-cols-[120px_1fr_140px_1fr_auto] gap-3 px-1">
+                <span className="font-mono text-[10px] text-[var(--text-secondary)] uppercase">Type</span>
+                <span className="font-mono text-[10px] text-[var(--text-secondary)] uppercase">Montant HT</span>
+                <span className="font-mono text-[10px] text-[var(--text-secondary)] uppercase">Date prévue</span>
+                <span className="font-mono text-[10px] text-[var(--text-secondary)] uppercase">Description</span>
+                <span className="w-[40px]" />
+              </div>
+
+              {echeances.map((ech) => (
+                <div key={ech.id} className="grid grid-cols-[120px_1fr_140px_1fr_auto] gap-3 items-center">
+                  <select
+                    value={ech.type}
+                    onChange={(e) => updateEcheance(ech.id, 'type', e.target.value)}
+                    className={inputClass}
+                  >
+                    {TYPES_ECHEANCE.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={ech.montant === '' ? '' : ech.montant}
+                      onChange={(e) => updateEcheance(ech.id, 'montant', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      placeholder="0"
+                      min={0}
+                      step={100}
+                      className={inputClass}
+                    />
+                    <span className="font-mono text-sm text-[var(--text-secondary)] shrink-0">&euro;</span>
+                  </div>
+                  <input
+                    type="date"
+                    value={ech.date}
+                    onChange={(e) => updateEcheance(ech.id, 'date', e.target.value)}
+                    className={inputClass}
+                  />
+                  <input
+                    type="text"
+                    value={ech.description}
+                    onChange={(e) => updateEcheance(ech.id, 'description', e.target.value)}
+                    placeholder="Phase, livrable..."
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeEcheance(ech.id)}
+                    className="p-2.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--bg-hover)] transition-colors"
+                    title="Supprimer"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+
+              {/* Coherence check */}
+              {totalEcheances > 0 && resteAFacturer > 0 && (
+                <div className={`mt-2 px-3 py-2 rounded-lg border text-xs font-mono ${
+                  Math.abs(totalEcheances - resteAFacturer) < 1
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                    : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400'
+                }`}>
+                  Échéancier : {fmt(totalEcheances)} / Reste à facturer : {fmt(resteAFacturer)}
+                  {Math.abs(totalEcheances - resteAFacturer) < 1
+                    ? ' — Cohérent'
+                    : ` — Écart de ${fmt(Math.abs(totalEcheances - resteAFacturer))}`
+                  }
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Submit */}
