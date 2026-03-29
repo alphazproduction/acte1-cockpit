@@ -495,6 +495,31 @@
       border-radius: 3px;
       transition: width 0.4s;
     }
+    .top5-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 0.75rem;
+    }
+    .top5-tab {
+      padding: 0.4rem 0.85rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-muted);
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .top5-tab:first-child { border-radius: 6px 0 0 6px; }
+    .top5-tab:last-child { border-radius: 0 6px 6px 0; }
+    .top5-tab:not(:first-child) { border-left: none; }
+    .top5-tab.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .top5-tab:hover:not(.active) { background: var(--grey-bg); }
 
     /* ============================================================
        PARAMETERS PAGE
@@ -777,7 +802,7 @@
       pointer-events: none;
       white-space: nowrap;
     }
-    .data-table tbody tr:hover .forecast-tip { display: block; }
+    .data-table tbody td.col-projet:hover .forecast-tip { display: block; }
     .tip-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem; }
     .tip-row { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.2rem; }
     .tip-label { color: var(--text-muted); }
@@ -1102,6 +1127,7 @@
     @media (max-width: 1100px) {
       .kpi-grid { grid-template-columns: 1fr; }
       .params-grid { grid-template-columns: 1fr; }
+      .top5-tabs { flex-wrap: wrap; }
     }
     @media (max-width: 768px) {
       .sidebar { display: none; }
@@ -1506,7 +1532,12 @@
                 lien_devis: sp.lien_devis || '',
                 ville: sp.ville || '',
                 type_secteur: sp.type_secteur || '',
-                budget: sp.budget_total_travaux || 0
+                budget: sp.budget_total_travaux || 0,
+                client: sp.client || sp.client_code || '',
+                client_code: sp.client_code || '',
+                date_debut: sp.date_debut || '',
+                date_fin: sp.date_fin || '',
+                date_travaux: sp.date_debut_travaux || ''
               });
             });
           }
@@ -1555,18 +1586,32 @@
           // 4. Appliquer les données de l'année sélectionnée
           applyYearData(selectedYear);
 
-          // 5. Update ORGANISATION from sheet data
+          // 5. Update ORGANISATION + PHASES_VALIDEES from sheet data
           if (data.organisation && data.organisation.length > 0) {
             for (var k in ORGANISATION) delete ORGANISATION[k];
+            for (var k2 in PHASES_VALIDEES) delete PHASES_VALIDEES[k2];
             data.organisation.forEach(function(org) {
               if (!org.code_projet || !org.phase) return;
               var code = org.code_projet;
               var proj = data.projets && data.projets.find(function(p) { return p.code_projet === code; });
               var displayCode = proj ? (proj.quadrigramme || code) : code;
               if (!ORGANISATION[displayCode]) ORGANISATION[displayCode] = [null,null,null,null,null,null,null,null,null,null,null,null];
+              if (!PHASES_VALIDEES[displayCode]) PHASES_VALIDEES[displayCode] = [false,false,false,false,false,false,false,false,false,false,false,false];
               if (org.date_rendu_prev) {
                 var m2 = parseInt(String(org.date_rendu_prev).substring(5,7)) - 1;
-                if (m2 >= 0 && m2 < 12) ORGANISATION[displayCode][m2] = org.phase;
+                if (m2 >= 0 && m2 < 12) {
+                  ORGANISATION[displayCode][m2] = org.phase;
+                  // Mark as validated if validee field is truthy
+                  if (org.validee === true || org.validee === 'true' || org.validee === 'oui' || org.validee === 'Oui' || org.validee === 1) {
+                    PHASES_VALIDEES[displayCode][m2] = true;
+                  }
+                  // Store delivery date if available
+                  if (org.date_validation) {
+                    deliveryDates[displayCode + '_' + org.phase] = String(org.date_validation).substring(0,10);
+                  } else if (org.date_rendu_prev) {
+                    deliveryDates[displayCode + '_' + org.phase] = String(org.date_rendu_prev).substring(0,10);
+                  }
+                }
               }
             });
           }
@@ -1726,6 +1771,10 @@
       return sum / coeffTotal();
     }
 
+    // Année de référence des données mock (les PROJETS initiaux sont pour 2026)
+    var MOCK_YEAR = 2026;
+    var MOCK_PROJETS = null; // sauvegarde des données mock originales
+
     // Appliquer les données prévisionnelles d'une année aux PROJETS
     function applyYearData(annee) {
       var yr = String(annee);
@@ -1749,10 +1798,46 @@
               lien_devis: pb.lien_devis || '',
               ville: pb.ville || '',
               type_secteur: pb.type_secteur || '',
-              budget: pb.budget || 0
+              budget: pb.budget || 0,
+              client: pb.client || pb.client_code || '',
+              client_code: pb.client_code || '',
+              date_debut: pb.date_debut || '',
+              date_fin: pb.date_fin || '',
+              date_travaux: pb.date_travaux || ''
             });
           }
         });
+      } else {
+        // Mode mock : les PROJETS ne sont valides que pour MOCK_YEAR
+        // Sauvegarder les données mock originales la première fois
+        if (!MOCK_PROJETS) {
+          MOCK_PROJETS = PROJETS.map(function(p) {
+            return { code:p.code, nom:p.nom, etat:p.etat, cat:p.cat, chef:p.chef, mois:p.mois.slice(),
+                     phase_courante:p.phase_courante||'', lien_devis:p.lien_devis||'',
+                     ville:p.ville||'', type_secteur:p.type_secteur||'', budget:p.budget||0, client:p.client||'' };
+          });
+        }
+        PROJETS.length = 0;
+        if (annee === MOCK_YEAR) {
+          // Restaurer les données mock originales
+          MOCK_PROJETS.forEach(function(mp) {
+            PROJETS.push({
+              code:mp.code, nom:mp.nom, etat:mp.etat, cat:mp.cat, chef:mp.chef, mois:mp.mois.slice(),
+              phase_courante:mp.phase_courante, lien_devis:mp.lien_devis,
+              ville:mp.ville, type_secteur:mp.type_secteur, budget:mp.budget, client:mp.client
+            });
+          });
+        } else {
+          // Autre année en mock : projets avec mois à zéro
+          MOCK_PROJETS.forEach(function(mp) {
+            PROJETS.push({
+              code:mp.code, nom:mp.nom, etat:mp.etat, cat:mp.cat, chef:mp.chef,
+              mois:[0,0,0,0,0,0,0,0,0,0,0,0],
+              phase_courante:mp.phase_courante, lien_devis:mp.lien_devis,
+              ville:mp.ville, type_secteur:mp.type_secteur, budget:mp.budget, client:mp.client
+            });
+          });
+        }
       }
     }
 
@@ -2149,23 +2234,79 @@
     }
 
     /* ==============================================================
-       RENDER: TOP 5
+       RENDER: TOP 5 with switchable views
        ============================================================== */
+    var top5View = 'ca_prevu'; // 'ca_prevu', 'ca_restant', 'ca_total'
+
+    window.switchTop5View = function(view) {
+      top5View = view;
+      renderTop5();
+    };
+
     function renderTop5() {
       var el = document.getElementById('top5Section');
-      var sorted = PROJETS.slice()
-        .map(function(p) {
-          var total = p.mois.reduce(function(a,b){return a+b;}, 0);
-          return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, total: total };
-        })
-        .filter(function(p) { return p.total > 0; })
-        .sort(function(a,b) { return b.total - a.total; })
-        .slice(0, 5);
 
-      var maxVal = sorted.length ? sorted[0].total : 1;
+      // Build tabs
+      var tabsHtml = '<div class="top5-tabs">' +
+        '<button class="top5-tab' + (top5View==='ca_prevu'?' active':'') + '" onclick="switchTop5View(\'ca_prevu\')">CA pr\u00e9vu ' + selectedYear + '</button>' +
+        '<button class="top5-tab' + (top5View==='ca_restant'?' active':'') + '" onclick="switchTop5View(\'ca_restant\')">CA restant projet</button>' +
+        '<button class="top5-tab' + (top5View==='ca_total'?' active':'') + '" onclick="switchTop5View(\'ca_total\')">CA total projet</button>' +
+      '</div>';
+
+      var sorted = [];
+      var subtitle = '';
+      var mi = effectiveMonthIndex();
+
+      if (top5View === 'ca_prevu') {
+        // Top 5 by total mois[] for selectedYear
+        sorted = PROJETS.slice()
+          .map(function(p) {
+            var total = p.mois.reduce(function(a,b){return a+b;}, 0);
+            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: total };
+          })
+          .filter(function(p) { return p.amount > 0; })
+          .sort(function(a,b) { return b.amount - a.amount; })
+          .slice(0, 5);
+        subtitle = 'Montants pr\u00e9visionnels sur l\'ann\u00e9e ' + selectedYear;
+
+      } else if (top5View === 'ca_restant') {
+        // Top 5 by (budget - already invoiced) = budget - sum of past months
+        sorted = PROJETS.slice()
+          .map(function(p) {
+            var budget = p.budget || 0;
+            var facture = 0;
+            for (var i = 0; i < mi; i++) facture += p.mois[i];
+            var restant = budget > 0 ? budget - facture : 0;
+            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: restant, budget: budget };
+          })
+          .filter(function(p) { return p.amount > 0; })
+          .sort(function(a,b) { return b.amount - a.amount; })
+          .slice(0, 5);
+        subtitle = 'Reste \u00e0 facturer (budget - factur\u00e9)';
+
+      } else if (top5View === 'ca_total') {
+        // Top 5 by budget_total
+        sorted = PROJETS.slice()
+          .map(function(p) {
+            var budget = p.budget || p.mois.reduce(function(a,b){return a+b;}, 0);
+            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: budget };
+          })
+          .filter(function(p) { return p.amount > 0; })
+          .sort(function(a,b) { return b.amount - a.amount; })
+          .slice(0, 5);
+        subtitle = 'Budget total par projet';
+      }
+
+      var maxVal = sorted.length ? sorted[0].amount : 1;
+      var titleLabel = top5View === 'ca_prevu' ? 'CA pr\u00e9visionnel ' + selectedYear :
+                       top5View === 'ca_restant' ? 'CA restant \u00e0 facturer' : 'CA total projet';
       var html = '<div class="section-card">' +
-        '<div class="section-title">Top 5 &mdash; Projets par CA pr\u00e9visionnel 2026</div>' +
-        '<div class="section-subtitle">Montants restants \u00e0 facturer sur l\'ann\u00e9e</div>';
+        '<div class="section-title">Top 5 &mdash; ' + titleLabel + '</div>' +
+        '<div class="section-subtitle">' + subtitle + '</div>' +
+        tabsHtml;
+      if (sorted.length === 0) {
+        html += '<p style="color:var(--text-muted);text-align:center;padding:1.5rem">Aucun projet \u00e0 afficher</p>';
+      }
       sorted.forEach(function(p, i) {
         html += '<div class="top5-item">' +
           '<div class="top5-rank' + (i < 3 ? ' top' : '') + '">' + (i+1) + '</div>' +
@@ -2173,8 +2314,8 @@
             '<div class="top5-name"><span class="code-badge">' + p.code + '</span> ' + p.nom + '</div>' +
             '<div class="top5-detail">' + p.chef + ' &middot; ' + p.etat + '</div>' +
           '</div>' +
-          '<div class="top5-bar-wrap"><div class="top5-bar" style="width:' + Math.round(p.total/maxVal*100) + '%"></div></div>' +
-          '<div class="top5-amount">' + fmtEuro(p.total) + '</div>' +
+          '<div class="top5-bar-wrap"><div class="top5-bar" style="width:' + Math.round(p.amount/maxVal*100) + '%"></div></div>' +
+          '<div class="top5-amount">' + fmtEuro(p.amount) + '</div>' +
         '</div>';
       });
       html += '</div>';
@@ -2557,7 +2698,7 @@
       forecastYear += delta;
       if (forecastYear < 2015) forecastYear = 2015;
       if (forecastYear > 2030) forecastYear = 2030;
-      if (dataMode === 'live' && projetsBase.length > 0) applyYearData(forecastYear);
+      applyYearData(forecastYear);
       renderForecast();
     };
 
@@ -2918,7 +3059,7 @@
       planningYear += delta;
       if (planningYear < 2015) planningYear = 2015;
       if (planningYear > 2030) planningYear = 2030;
-      if (dataMode === 'live' && projetsBase.length > 0) applyYearData(planningYear);
+      applyYearData(planningYear);
       renderPlanning();
     };
 
@@ -3220,7 +3361,7 @@
         }
         // Filtre texte
         if (!q) return true;
-        return (p.code + ' ' + p.nom + ' ' + p.chef + ' ' + p.etat).toLowerCase().indexOf(q) >= 0;
+        return (p.code + ' ' + p.nom + ' ' + p.chef + ' ' + p.etat + ' ' + (p.client || '')).toLowerCase().indexOf(q) >= 0;
       });
       var subtitle = document.getElementById('projetsSubtitle');
       if (subtitle) subtitle.textContent = filtered.length + ' projet' + (filtered.length > 1 ? 's' : '') + (etatFilter !== 'tous' ? ' (' + document.getElementById('projetEtatFilter').selectedOptions[0].text + ')' : '');
@@ -3231,10 +3372,27 @@
                       (p.etat.indexOf('ttente') >= 0 || p.etat.indexOf('rifi') >= 0) ? 'etat-attente' : 'etat-gele';
         var devisLink = p.lien_devis ? '<a href="' + p.lien_devis + '" target="_blank" onclick="event.stopPropagation()" style="font-size:0.7rem;padding:0.2rem 0.5rem;background:var(--accent-light);color:var(--accent);border-radius:4px;text-decoration:none;white-space:nowrap">Devis</a>' : '';
         var phaseTag = p.phase_courante ? '<span style="font-size:0.7rem;padding:0.15rem 0.4rem;background:var(--blue-bg);color:var(--blue);border-radius:4px;margin-left:0.3rem">' + p.phase_courante + '</span>' : '';
+        var clientName = p.client || p.client_code || '';
+        var clientTag = clientName ? ' <span style="color:var(--text-muted);font-size:0.8rem;font-weight:400">\u2014 ' + clientName + '</span>' : '';
+
+        // % advancement: (past months with amounts / total months with amounts) * 100
+        var mi_adv = effectiveMonthIndex();
+        var moisActifs = p.mois.filter(function(v){return v>0;}).length;
+        var moisPasses = 0;
+        for (var ma = 0; ma < mi_adv; ma++) { if (p.mois[ma] > 0) moisPasses++; }
+        var pctAvancement = moisActifs > 0 ? Math.round(moisPasses / moisActifs * 100) : 0;
+        var avancementBar = moisActifs > 0 ?
+          '<div style="display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem">' +
+            '<div style="width:60px;height:4px;background:var(--grey-bg);border-radius:2px;overflow:hidden">' +
+              '<div style="height:100%;width:' + pctAvancement + '%;background:' + (pctAvancement >= 80 ? 'var(--green)' : pctAvancement >= 40 ? 'var(--accent)' : 'var(--blue)') + ';border-radius:2px"></div>' +
+            '</div>' +
+            '<span style="font-size:0.7rem;color:var(--text-muted);font-weight:600">' + pctAvancement + '%</span>' +
+          '</div>' : '';
+
         html += '<div class="projet-card" style="grid-template-columns:auto 1fr auto auto auto;align-items:center" onclick="openProjetDetail(\'' + p.code + '\')">' +
           '<div><span class="code-badge" style="font-size:0.85rem">' + p.code + '</span></div>' +
-          '<div><div class="projet-card-name">' + p.nom + (p.ville ? ' <span style="color:var(--text-muted);font-size:0.8rem">' + p.ville + '</span>' : '') + '</div>' +
-          '<div class="projet-card-meta">' + p.chef + ' &middot; <span class="etat-badge ' + etatCls + '">' + p.etat + '</span>' + phaseTag + '</div></div>' +
+          '<div><div class="projet-card-name">' + p.nom + clientTag + (p.ville ? ' <span style="color:var(--text-muted);font-size:0.8rem">' + p.ville + '</span>' : '') + '</div>' +
+          '<div class="projet-card-meta">' + p.chef + ' &middot; <span class="etat-badge ' + etatCls + '">' + p.etat + '</span>' + phaseTag + '</div>' + avancementBar + '</div>' +
           '<div style="display:flex;align-items:center;justify-content:center">' + (ORGANISATION[p.code] ? buildPipeline(p.code, false) : '') + '</div>' +
           '<div style="display:flex;align-items:center;gap:0.5rem">' + devisLink + '</div>' +
           '<div class="projet-card-amount">' + fmtEuro(total) + '</div>' +
@@ -3284,12 +3442,12 @@
 
       // Default values
       var v = p ? {
-        code: p.code, nom: p.nom, ville: '', type_client: 'Public', type_mission: 'MOE',
-        type_marche: 'Neuf', type_secteur: 'Mus\u00e9ographie', etat: p.etat, chef: p.chef,
-        date_debut: '', date_fin: '', date_travaux: '',
-        client: '', architecte: '', moa_delegue: '', via: '',
+        code: p.code, nom: p.nom, ville: p.ville || '', type_client: 'Public', type_mission: 'MOE',
+        type_marche: 'Neuf', type_secteur: p.type_secteur || 'Mus\u00e9ographie', etat: p.etat, chef: p.chef,
+        date_debut: p.date_debut || '', date_fin: p.date_fin || '', date_travaux: p.date_travaux || '',
+        client: p.client || p.client_code || '', architecte: '', moa_delegue: '', via: '',
         contact_nom: '', contact_prenom: '', contact_fonction: '', contact_tel: '', contact_email: '', contact_societe: '',
-        budget_total: '', budget_sceno: '', surface: '', resume: ''
+        budget_total: p.budget || '', budget_sceno: '', surface: '', resume: ''
       } : {
         code: '', nom: '', ville: '', type_client: 'Public', type_mission: 'MOE',
         type_marche: 'Neuf', type_secteur: '', etat: 'En cours', chef: 'Am\u00e9lie',
@@ -3301,6 +3459,87 @@
 
       var html = '<a class="back-link" onclick="navigateTo(\'projets\')">&larr; Retour aux projets</a>';
       html += '<div class="page-header"><div class="page-title">' + title + '</div></div>';
+
+      // ── SUMMARY CARD for existing projects ──
+      if (p) {
+        var totalMois = p.mois.reduce(function(a,b){return a+b;},0);
+        var mi_det = effectiveMonthIndex();
+        var facture_det = 0;
+        for (var fd = 0; fd < mi_det; fd++) facture_det += p.mois[fd];
+        var clientLabel = v.client || '<span style="color:var(--red);font-style:italic">Non renseign\u00e9</span>';
+        var budgetLabel = v.budget_total ? fmtEuro(v.budget_total) : '<span style="color:var(--red);font-style:italic">Non renseign\u00e9</span>';
+        var phaseLabel = p.phase_courante || '<span style="color:var(--text-muted);font-style:italic">N/A</span>';
+        var devisLink = p.lien_devis ? '<a href="' + p.lien_devis + '" target="_blank" style="font-size:0.82rem">Voir le devis &rarr;</a>' : '<span style="color:var(--text-muted);font-style:italic">Aucun lien</span>';
+
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.25rem">';
+        // Col 1: identité
+        html += '<div class="section-card" style="margin-bottom:0;padding:1rem">' +
+          '<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.5rem">Identit\u00e9</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Client :</strong> ' + clientLabel + '</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Phase :</strong> ' + phaseLabel + '</div>' +
+          '<div style="font-size:0.85rem"><strong>Devis :</strong> ' + devisLink + '</div>' +
+        '</div>';
+        // Col 2: finances
+        html += '<div class="section-card" style="margin-bottom:0;padding:1rem">' +
+          '<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.5rem">Finances</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Budget total :</strong> ' + budgetLabel + '</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Pr\u00e9vu ' + selectedYear + ' :</strong> ' + fmtEuro(totalMois) + '</div>' +
+          '<div style="font-size:0.85rem"><strong>Factur\u00e9 :</strong> ' + fmtEuro(facture_det) + '</div>' +
+        '</div>';
+        // Col 3: dates
+        html += '<div class="section-card" style="margin-bottom:0;padding:1rem">' +
+          '<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.5rem">Dates</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>D\u00e9but :</strong> ' + (v.date_debut || '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Fin :</strong> ' + (v.date_fin || '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
+          '<div style="font-size:0.85rem"><strong>D\u00e9b. travaux :</strong> ' + (v.date_travaux || '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
+        '</div>';
+        html += '</div>';
+
+        // ── COHERENCE ALERTS ──
+        var alerts = [];
+        // Check missing fields
+        if (!v.client) alerts.push({ type: 'warn', msg: 'Client non renseign\u00e9' });
+        if (!v.budget_total) alerts.push({ type: 'warn', msg: 'Budget total non renseign\u00e9' });
+        if (!v.date_debut && !v.date_fin) alerts.push({ type: 'warn', msg: 'Dates de d\u00e9but et fin manquantes' });
+
+        // Check if total échéancier matches budget
+        if (v.budget_total && totalMois > 0) {
+          var budgetNum = parseFloat(v.budget_total) || 0;
+          if (budgetNum > 0 && Math.abs(totalMois - budgetNum) > budgetNum * 0.05) {
+            var ecartPct = Math.round(((totalMois - budgetNum) / budgetNum) * 100);
+            alerts.push({ type: 'error', msg: '\u00c9cart \u00e9ch\u00e9ancier/budget : ' + fmtEuro(totalMois) + ' vs ' + fmtEuro(budgetNum) + ' (' + (ecartPct > 0 ? '+' : '') + ecartPct + '%)' });
+          }
+        }
+
+        // Check phases in échéancier vs ORGANISATION
+        if (ORGANISATION[p.code]) {
+          var orgPhases = ORGANISATION[p.code];
+          for (var ai = 0; ai < 12; ai++) {
+            if (p.mois[ai] > 0 && !orgPhases[ai]) {
+              alerts.push({ type: 'info', msg: 'Montant en ' + MOIS_LABELS[ai] + ' (' + fmtEuro(p.mois[ai]) + ') sans phase associ\u00e9e dans l\'organisation' });
+            }
+            if (orgPhases[ai] && p.mois[ai] === 0) {
+              alerts.push({ type: 'info', msg: 'Phase ' + orgPhases[ai] + ' en ' + MOIS_LABELS[ai] + ' sans montant dans l\'\u00e9ch\u00e9ancier' });
+            }
+          }
+        }
+
+        if (alerts.length > 0) {
+          html += '<div class="section-card" style="margin-bottom:1.25rem;border-left:4px solid var(--yellow);padding:1rem 1.25rem">';
+          html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">' +
+            '<span style="font-size:1rem">&#9888;</span>' +
+            '<strong style="font-size:0.9rem">Alertes de coh\u00e9rence</strong>' +
+            '<span class="alert-badge" style="background:var(--yellow-bg);color:#92400E">' + alerts.length + '</span>' +
+          '</div>';
+          alerts.forEach(function(a) {
+            var icon = a.type === 'error' ? '<span style="color:var(--red)">&#9679;</span>' :
+                       a.type === 'warn' ? '<span style="color:var(--yellow)">&#9679;</span>' :
+                       '<span style="color:var(--blue)">&#9679;</span>';
+            html += '<div style="font-size:0.82rem;padding:0.2rem 0;display:flex;align-items:center;gap:0.4rem">' + icon + ' ' + a.msg + '</div>';
+          });
+          html += '</div>';
+        }
+      }
 
       // Pipeline
       if (p) {
@@ -3781,7 +4020,7 @@
       selectedYear += delta;
       if (selectedYear < 2015) selectedYear = 2015;
       if (selectedYear > 2030) selectedYear = 2030;
-      if (dataMode === 'live' && projetsBase.length > 0) applyYearData(selectedYear);
+      applyYearData(selectedYear);
       renderDashboard();
     };
 
