@@ -3851,7 +3851,7 @@
 
       // Save button
       html += '<div class="params-actions" style="margin-top:2rem">' +
-        '<button class="btn btn-primary" onclick="showToast(\'Sauvegarde locale OK\')">' + (isNew ? 'Cr\u00e9er le projet' : 'Enregistrer') + '</button>' +
+        '<button class="btn btn-primary" onclick="saveProjet()">' + (isNew ? 'Cr\u00e9er le projet' : 'Enregistrer') + '</button>' +
       '</div>';
 
       el.innerHTML = html;
@@ -3868,6 +3868,80 @@
       options.forEach(function(o){ html += '<option' + (o===selected?' selected':'') + '>' + o + '</option>'; });
       return html + '</select></div>';
     }
+
+    // ── SAVE PROJET ──
+    window.saveProjet = function() {
+      var gv = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
+
+      var projetData = {
+        code_projet: gv('proj_code'),
+        quadrigramme: gv('proj_code'),
+        nom_affaire: gv('proj_nom'),
+        ville: gv('proj_ville'),
+        chef_projet: gv('proj_chef'),
+        type_client: gv('proj_type_client'),
+        type_mission: gv('proj_type_mission'),
+        type_marche: gv('proj_type_marche'),
+        type_secteur: gv('proj_type_secteur'),
+        etat: gv('proj_etat'),
+        date_debut_contrat: gv('proj_date_debut'),
+        date_fin_contrat: gv('proj_date_fin'),
+        date_debut_travaux: gv('proj_date_travaux'),
+        client_code: gv('proj_client'),
+        architecte: gv('proj_architecte'),
+        budget_total_travaux: parseFloat(gv('proj_budget')) || 0,
+        budget_scenographie: parseFloat(gv('proj_budget_sceno')) || 0,
+        surface_m2: parseFloat(gv('proj_surface')) || 0,
+        montant_travaux_estime: parseFloat(gv('proj_mt_estime')) || 0,
+        montant_travaux_reel: parseFloat(gv('proj_mt_reel')) || 0,
+        resume_reference: gv('proj_resume'),
+        notes: ''
+      };
+
+      if (!projetData.code_projet) {
+        showToast('Code projet obligatoire');
+        return;
+      }
+
+      // Mode Live : envoyer au Sheet
+      if (dataMode === 'live' && apiUrl) {
+        postToSheet('upsert_projet', projetData, function(ok) {
+          if (ok) {
+            showToast('Projet sauvegard\u00e9 dans Google Sheet');
+            // Mettre à jour les données locales
+            var existing = PROJETS.find(function(p) { return p.code === projetData.code_projet; });
+            if (existing) {
+              existing.nom = projetData.nom_affaire;
+              existing.etat = projetData.etat;
+              existing.chef = projetData.chef_projet;
+              existing.ville = projetData.ville;
+              existing.budget = projetData.budget_total_travaux;
+              existing.client = projetData.client_code;
+            }
+          } else {
+            showToast('Erreur de sauvegarde');
+          }
+        });
+      } else {
+        // Mode mock : sauvegarde locale
+        var existing = PROJETS.find(function(p) { return p.code === projetData.code_projet; });
+        if (existing) {
+          existing.nom = projetData.nom_affaire;
+          existing.etat = projetData.etat;
+          existing.chef = projetData.chef_projet;
+        } else {
+          PROJETS.push({
+            code: projetData.code_projet,
+            nom: projetData.nom_affaire,
+            etat: projetData.etat,
+            cat: 'etudes',
+            chef: projetData.chef_projet,
+            mois: [0,0,0,0,0,0,0,0,0,0,0,0]
+          });
+        }
+        showToast('Projet sauvegard\u00e9 (local)');
+      }
+    };
 
     /* ==============================================================
        RENDER: ECHEANCIER CONSOLIDE
