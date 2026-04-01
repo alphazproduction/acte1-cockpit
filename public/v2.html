@@ -3784,34 +3784,57 @@
 
       // ── VOLET ÉCHEANCIER (résumé global) ──
       html += '<div class="volet-panel" id="volet-ech">';
-      html += '<div class="volet-header volet-header-echeancier">\u00c9ch\u00e9ancier &mdash; Vue consolid\u00e9e</div>';
+      html += '<div class="volet-header volet-header-echeancier">\u00c9ch\u00e9ancier &mdash; \u00c9ditable</div>';
       if (p) {
-        html += '<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem">L\'\u00e9ch\u00e9ancier d\u00e9taill\u00e9 est rattach\u00e9 \u00e0 chaque document contractuel dans l\'onglet <a href="#" onclick="switchVolet(\'contrat\');return false" style="font-weight:600">Contrat</a>.</p>';
         var mi3 = getCurrentMonthIndex();
         var totalFact3 = 0, totalReste3 = 0;
-        // Consolidated view
-        html += '<div class="data-table-wrap"><table class="data-table" style="min-width:100%"><thead><tr>' +
-          '<th style="text-align:left;padding-left:0.5rem">Phase</th>' +
-          '<th style="text-align:right">Montant</th>' +
-          '<th style="text-align:center">Mois</th>' +
-          '<th style="text-align:center">Statut</th>' +
+        var echIdx = 0;
+        html += '<div class="data-table-wrap"><table class="data-table" id="echTable" style="min-width:100%"><thead><tr>' +
+          '<th style="text-align:left;padding-left:0.5rem;width:120px">Phase</th>' +
+          '<th style="text-align:right;width:120px">Montant \u20ac</th>' +
+          '<th style="text-align:center;width:140px">Date pr\u00e9v.</th>' +
+          '<th style="text-align:center;width:120px">N\u00b0 Facture</th>' +
+          '<th style="text-align:center;width:140px">Date facture</th>' +
+          '<th style="text-align:center;width:110px">Statut</th>' +
+          '<th style="text-align:center;width:40px"></th>' +
         '</tr></thead><tbody>';
+        var phasesDisp = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
         for (var em3=0;em3<12;em3++) {
           if (p.mois[em3] > 0) {
             var orgP3 = ORGANISATION[p.code] || [];
-            var phN3 = orgP3[em3] || '\u2014';
-            var st3 = em3 < mi3 ? 'facture' : (em3 === mi3 ? 'a_facturer' : 'previsionnel');
-            var stL3 = st3 === 'facture' ? 'Factur\u00e9' : st3 === 'a_facturer' ? '\u00c0 facturer' : 'Pr\u00e9visionnel';
-            if (st3 === 'facture') totalFact3 += p.mois[em3]; else totalReste3 += p.mois[em3];
-            var pCls3 = 'phase-' + getPhaseCategory(phN3);
-            html += '<tr><td style="text-align:left;padding-left:0.5rem"><div class="phase-cell ' + pCls3 + '" style="display:inline-block">' + phN3 + '</div></td>' +
-              '<td class="montant">' + fmtEuro(p.mois[em3]) + '</td>' +
-              '<td style="text-align:center">' + MOIS_LABELS[em3] + ' 2026</td>' +
-              '<td style="text-align:center"><span class="statut-badge statut-' + st3 + '">' + stL3 + '</span></td></tr>';
+            var phN3 = orgP3[em3] || '';
+            var st3 = em3 < mi3 ? 'Factur\u00e9' : (em3 === mi3 ? '\u00c0 facturer' : 'Pr\u00e9visionnel');
+            if (st3 === 'Factur\u00e9') totalFact3 += p.mois[em3]; else totalReste3 += p.mois[em3];
+            var dateVal = selectedYear + '-' + String(em3+1).padStart(2,'0') + '-15';
+            var selPhase = '<select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_phase_'+echIdx+'">';
+            selPhase += '<option value="">\u2014</option>';
+            for (var pp=0;pp<phasesDisp.length;pp++) selPhase += '<option' + (phasesDisp[pp]===phN3?' selected':'') + '>' + phasesDisp[pp] + '</option>';
+            selPhase += '</select>';
+            var selStatut = '<select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_statut_'+echIdx+'">' +
+              '<option' + (st3==='Pr\u00e9visionnel'?' selected':'') + '>Pr\u00e9visionnel</option>' +
+              '<option' + (st3==='\u00c0 facturer'?' selected':'') + '>\u00c0 facturer</option>' +
+              '<option' + (st3==='Factur\u00e9'?' selected':'') + '>Factur\u00e9</option>' +
+              '<option>Hypothétique</option></select>';
+            html += '<tr>' +
+              '<td style="text-align:left;padding-left:0.5rem">' + selPhase + '</td>' +
+              '<td><input type="number" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px;text-align:right" id="ech_montant_'+echIdx+'" value="' + p.mois[em3] + '"></td>' +
+              '<td style="text-align:center"><input type="date" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:130px" id="ech_date_'+echIdx+'" value="' + dateVal + '"></td>' +
+              '<td><input type="text" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px" id="ech_facture_'+echIdx+'" placeholder="F0000"></td>' +
+              '<td style="text-align:center"><input type="date" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:130px" id="ech_datefact_'+echIdx+'"></td>' +
+              '<td style="text-align:center">' + selStatut + '</td>' +
+              '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="removeEchRow(this)" title="Supprimer">\u2716</button></td>' +
+            '</tr>';
+            echIdx++;
           }
         }
-        html += '</tbody><tfoot><tr><td colspan="4" style="text-align:left;padding-left:0.5rem;font-size:0.85rem">' +
-          '<strong style="color:var(--green)">Factur\u00e9 : ' + fmtEuro(totalFact3) + '</strong> &mdash; Reste : ' + fmtEuro(totalReste3) +
+        html += '</tbody><tfoot><tr><td colspan="7" style="padding:0.5rem">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<span style="font-size:0.85rem"><strong style="color:var(--green)">Factur\u00e9 : ' + fmtEuro(totalFact3) + '</strong> &mdash; Reste : ' + fmtEuro(totalReste3) + '</span>' +
+            '<div style="display:flex;gap:0.5rem">' +
+              '<button class="btn" onclick="addEchRow(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">+ Ajouter une \u00e9ch\u00e9ance</button>' +
+              '<button class="btn btn-primary" onclick="saveEcheancier(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">Enregistrer l\'\u00e9ch\u00e9ancier</button>' +
+            '</div>' +
+          '</div>' +
         '</td></tr></tfoot></table></div>';
       } else {
         html += '<p style="color:var(--text-muted)">L\'\u00e9ch\u00e9ancier sera pr\u00e9-rempli depuis le contrat \u00e0 la cr\u00e9ation.</p>';
@@ -3878,6 +3901,73 @@
       options.forEach(function(o){ html += '<option' + (o===selected?' selected':'') + '>' + o + '</option>'; });
       return html + '</select></div>';
     }
+
+    // ── ECHEANCIER EDIT ──
+    window.addEchRow = function(code) {
+      var tbody = document.querySelector('#echTable tbody');
+      if (!tbody) return;
+      var idx = tbody.rows.length;
+      var phasesOpts = '<option value="">—</option>';
+      ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'].forEach(function(ph) {
+        phasesOpts += '<option>' + ph + '</option>';
+      });
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td style="text-align:left;padding-left:0.5rem"><select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_phase_'+idx+'">' + phasesOpts + '</select></td>' +
+        '<td><input type="number" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px;text-align:right" id="ech_montant_'+idx+'" value="0"></td>' +
+        '<td style="text-align:center"><input type="date" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:130px" id="ech_date_'+idx+'"></td>' +
+        '<td><input type="text" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px" id="ech_facture_'+idx+'" placeholder="F0000"></td>' +
+        '<td style="text-align:center"><input type="date" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:130px" id="ech_datefact_'+idx+'"></td>' +
+        '<td style="text-align:center"><select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_statut_'+idx+'"><option>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Hypoth\u00e9tique</option></select></td>' +
+        '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="removeEchRow(this)" title="Supprimer">\u2716</button></td>';
+      tbody.appendChild(tr);
+    };
+
+    window.removeEchRow = function(btn) {
+      var tr = btn.closest('tr');
+      if (tr) tr.remove();
+    };
+
+    window.saveEcheancier = function(code) {
+      var tbody = document.querySelector('#echTable tbody');
+      if (!tbody) return;
+      var rows = tbody.querySelectorAll('tr');
+      var saved = 0;
+
+      rows.forEach(function(tr, i) {
+        var phase = (tr.querySelector('[id^="ech_phase_"]') || {}).value || '';
+        var montant = parseFloat((tr.querySelector('[id^="ech_montant_"]') || {}).value) || 0;
+        var datePrev = (tr.querySelector('[id^="ech_date_"]') || {}).value || '';
+        var nFacture = (tr.querySelector('[id^="ech_facture_"]') || {}).value || '';
+        var dateFacture = (tr.querySelector('[id^="ech_datefact_"]') || {}).value || '';
+        var statut = (tr.querySelector('[id^="ech_statut_"]') || {}).value || 'Pr\u00e9visionnel';
+
+        if (!montant && !phase) return;
+
+        var echData = {
+          code_projet: code,
+          phase: phase,
+          montant: montant,
+          date_prev_facturation: datePrev,
+          n_facture: nFacture,
+          date_facture: dateFacture,
+          statut: statut,
+          commentaire: '',
+          ordre_affichage: i + 1
+        };
+
+        if (dataMode === 'live' && apiUrl) {
+          postToSheet('upsert_echeancier', echData);
+          saved++;
+        }
+      });
+
+      if (saved > 0) {
+        showToast(saved + ' \u00e9ch\u00e9ance(s) sauvegard\u00e9e(s)');
+      } else if (dataMode !== 'live') {
+        showToast('\u00c9ch\u00e9ancier sauvegard\u00e9 (local)');
+      }
+    };
 
     // ── SAVE PROJET ──
     window.saveProjet = function() {
