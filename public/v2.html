@@ -1442,6 +1442,17 @@
     // Objectifs et seuils par année (surcharges)
     var OBJECTIFS_KEY = 'cockpit-acte1-v2-objectifs-annee';
     var objectifsParAnnee = loadObjectifsParAnnee();
+    // Nettoyer les valeurs manifestement fausses dans les surcharges
+    (function() {
+      var cleaned = false;
+      for (var yr in objectifsParAnnee) {
+        var o = objectifsParAnnee[yr];
+        if (o.objectif_ca && o.objectif_ca < 10000) { delete o.objectif_ca; cleaned = true; }
+        if (o.seuil_rentabilite && o.seuil_rentabilite < 10000) { delete o.seuil_rentabilite; cleaned = true; }
+        if (!o.objectif_ca && !o.seuil_rentabilite) { delete objectifsParAnnee[yr]; cleaned = true; }
+      }
+      if (cleaned) saveObjectifsParAnnee();
+    })();
 
     function loadObjectifsParAnnee() {
       try {
@@ -1457,13 +1468,19 @@
 
     function getObjectif(annee) {
       var a = String(annee || selectedYear);
-      if (objectifsParAnnee[a] && objectifsParAnnee[a].objectif_ca != null) return objectifsParAnnee[a].objectif_ca;
+      if (objectifsParAnnee[a] && objectifsParAnnee[a].objectif_ca != null) {
+        var v = objectifsParAnnee[a].objectif_ca;
+        if (v >= 10000) return v; // ignorer les valeurs manifestement fausses
+      }
       return params.objectif_ca;
     }
 
     function getSeuil(annee) {
       var a = String(annee || selectedYear);
-      if (objectifsParAnnee[a] && objectifsParAnnee[a].seuil_rentabilite != null) return objectifsParAnnee[a].seuil_rentabilite;
+      if (objectifsParAnnee[a] && objectifsParAnnee[a].seuil_rentabilite != null) {
+        var v = objectifsParAnnee[a].seuil_rentabilite;
+        if (v >= 10000) return v;
+      }
       return params.seuil_rentabilite;
     }
 
