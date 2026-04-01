@@ -2258,48 +2258,53 @@
       var mi = effectiveMonthIndex();
 
       if (top5View === 'ca_prevu') {
-        // Top 5 by total mois[] for selectedYear
+        // Top 5 : CA restant à facturer sur l'année sélectionnée
         sorted = PROJETS.slice()
           .map(function(p) {
             var total = p.mois.reduce(function(a,b){return a+b;}, 0);
-            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: total };
+            var facture = 0;
+            for (var i = 0; i < mi; i++) facture += p.mois[i];
+            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: total, reste: total - facture, facture: facture };
           })
           .filter(function(p) { return p.amount > 0; })
-          .sort(function(a,b) { return b.amount - a.amount; })
+          .sort(function(a,b) { return b.reste - a.reste; })
           .slice(0, 5);
-        subtitle = 'Montants pr\u00e9visionnels sur l\'ann\u00e9e ' + selectedYear;
+        subtitle = 'Reste \u00e0 facturer en ' + selectedYear + ' (pr\u00e9visionnel - d\u00e9j\u00e0 factur\u00e9)';
 
       } else if (top5View === 'ca_restant') {
-        // Top 5 by (budget - already invoiced) = budget - sum of past months
+        // Top 5 : CA restant à facturer sur le projet entier (budget - total facturé toutes années)
         sorted = PROJETS.slice()
           .map(function(p) {
             var budget = p.budget || 0;
             var facture = 0;
             for (var i = 0; i < mi; i++) facture += p.mois[i];
             var restant = budget > 0 ? budget - facture : 0;
-            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: restant, budget: budget };
+            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: restant, reste: restant, budget: budget, facture: facture };
           })
           .filter(function(p) { return p.amount > 0; })
           .sort(function(a,b) { return b.amount - a.amount; })
           .slice(0, 5);
-        subtitle = 'Reste \u00e0 facturer (budget - factur\u00e9)';
+        subtitle = 'Reste \u00e0 facturer jusqu\'\u00e0 fin de projet (budget - factur\u00e9)';
 
       } else if (top5View === 'ca_total') {
-        // Top 5 by budget_total
+        // Top 5 : budget total du projet avec reste à facturer
         sorted = PROJETS.slice()
           .map(function(p) {
             var budget = p.budget || p.mois.reduce(function(a,b){return a+b;}, 0);
-            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: budget };
+            var facture = 0;
+            for (var i = 0; i < mi; i++) facture += p.mois[i];
+            var restant = budget - facture;
+            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: budget, reste: restant, facture: facture };
           })
           .filter(function(p) { return p.amount > 0; })
           .sort(function(a,b) { return b.amount - a.amount; })
           .slice(0, 5);
-        subtitle = 'Budget total par projet';
+        subtitle = 'Budget total honoraires par projet';
       }
 
       var maxVal = sorted.length ? sorted[0].amount : 1;
-      var titleLabel = top5View === 'ca_prevu' ? 'CA pr\u00e9visionnel ' + selectedYear :
-                       top5View === 'ca_restant' ? 'CA restant \u00e0 facturer' : 'CA total projet';
+      var titleLabel = top5View === 'ca_prevu' ? 'Reste \u00e0 facturer ' + selectedYear :
+                       top5View === 'ca_restant' ? 'Reste \u00e0 facturer (projet)' : 'Budget total projet';
       var html = '<div class="section-card">' +
         '<div class="section-title">Top 5 &mdash; ' + titleLabel + '</div>' +
         '<div class="section-subtitle">' + subtitle + '</div>' +
@@ -2308,11 +2313,14 @@
         html += '<p style="color:var(--text-muted);text-align:center;padding:1.5rem">Aucun projet \u00e0 afficher</p>';
       }
       sorted.forEach(function(p, i) {
-        html += '<div class="top5-item">' +
+        var detailLine = p.chef + ' &middot; ' + p.etat;
+        if (p.facture > 0) detailLine += ' &middot; Factur\u00e9 : ' + fmtEuro(p.facture);
+        if (p.reste !== undefined && p.reste !== p.amount) detailLine += ' &middot; Reste : ' + fmtEuro(p.reste);
+        html += '<div class="top5-item" style="cursor:pointer" onclick="navigateTo(\'projets\'); setTimeout(function(){ openProjetDetail(\'' + p.code + '\'); }, 100);">' +
           '<div class="top5-rank' + (i < 3 ? ' top' : '') + '">' + (i+1) + '</div>' +
           '<div class="top5-info">' +
             '<div class="top5-name"><span class="code-badge">' + p.code + '</span> ' + p.nom + '</div>' +
-            '<div class="top5-detail">' + p.chef + ' &middot; ' + p.etat + '</div>' +
+            '<div class="top5-detail">' + detailLine + '</div>' +
           '</div>' +
           '<div class="top5-bar-wrap"><div class="top5-bar" style="width:' + Math.round(p.amount/maxVal*100) + '%"></div></div>' +
           '<div class="top5-amount">' + fmtEuro(p.amount) + '</div>' +
