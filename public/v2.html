@@ -1167,7 +1167,7 @@
         <span class="nav-icon">&#10067;</span> Aide
       </a>
     </nav>
-    <div class="sidebar-footer">Cockpit V2 &mdash; Sprint 4</div>
+    <div class="sidebar-footer" id="sidebarFooter" style="cursor:pointer" onclick="navigateTo('parametres')">Cockpit V2</div>
   </aside>
 
   <!-- ============================================================
@@ -1683,6 +1683,16 @@
 
     function updateConnectionBadge() {
       var badge = document.getElementById('headerBadge');
+      var footer = document.getElementById('sidebarFooter');
+      if (footer) {
+        if (dataMode === 'live') {
+          footer.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:0.4rem"></span>Live';
+          footer.style.color = 'var(--green)';
+        } else {
+          footer.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:0.4rem"></span>D\u00e9mo';
+          footer.style.color = 'var(--yellow)';
+        }
+      }
       if (!badge) return;
       if (dataMode === 'live') {
         if (isLoading) {
