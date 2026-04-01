@@ -3789,6 +3789,28 @@
         var mi3 = getCurrentMonthIndex();
         var totalFact3 = 0, totalReste3 = 0;
         var echIdx = 0;
+
+        // Récupérer les phases du contrat (ORGANISATION) comme source de vérité
+        var orgPhases = ORGANISATION[p.code] || [];
+        var contratPhases = [];
+        var seenPhases = {};
+        for (var op = 0; op < orgPhases.length; op++) {
+          if (orgPhases[op] && !seenPhases[orgPhases[op]]) {
+            contratPhases.push(orgPhases[op]);
+            seenPhases[orgPhases[op]] = true;
+          }
+        }
+        // Si pas de phases dans ORGANISATION, déduire depuis les mois
+        if (contratPhases.length === 0) {
+          contratPhases = ['PHASE 1'];
+        }
+
+        // Construire l'échéancier : une ligne par mois avec montant > 0
+        // La phase est celle du contrat pour ce mois-là
+        html += '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem">' +
+          'Phases du contrat : <strong>' + contratPhases.join(', ') + '</strong> &mdash; ' +
+          'L\'\u00e9ch\u00e9ancier doit reprendre exactement ces phases.</p>';
+
         html += '<div class="data-table-wrap"><table class="data-table" id="echTable" style="min-width:100%"><thead><tr>' +
           '<th style="text-align:left;padding-left:0.5rem;width:120px">Phase</th>' +
           '<th style="text-align:right;width:120px">Montant \u20ac</th>' +
@@ -3798,23 +3820,36 @@
           '<th style="text-align:center;width:110px">Statut</th>' +
           '<th style="text-align:center;width:40px"></th>' +
         '</tr></thead><tbody>';
-        var phasesDisp = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
-        for (var em3=0;em3<12;em3++) {
+
+        // Options de phases = celles du contrat uniquement
+        var phaseOptions = '<option value="">\u2014</option>';
+        for (var cp = 0; cp < contratPhases.length; cp++) {
+          phaseOptions += '<option>' + contratPhases[cp] + '</option>';
+        }
+        // + option libre au cas où
+        phaseOptions += '<option value="_autre">Autre\u2026</option>';
+
+        for (var em3 = 0; em3 < 12; em3++) {
           if (p.mois[em3] > 0) {
-            var orgP3 = ORGANISATION[p.code] || [];
-            var phN3 = orgP3[em3] || '';
+            var phN3 = orgPhases[em3] || '';
             var st3 = em3 < mi3 ? 'Factur\u00e9' : (em3 === mi3 ? '\u00c0 facturer' : 'Pr\u00e9visionnel');
             if (st3 === 'Factur\u00e9') totalFact3 += p.mois[em3]; else totalReste3 += p.mois[em3];
             var dateVal = selectedYear + '-' + String(em3+1).padStart(2,'0') + '-15';
+
             var selPhase = '<select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_phase_'+echIdx+'">';
             selPhase += '<option value="">\u2014</option>';
-            for (var pp=0;pp<phasesDisp.length;pp++) selPhase += '<option' + (phasesDisp[pp]===phN3?' selected':'') + '>' + phasesDisp[pp] + '</option>';
+            for (var cp2 = 0; cp2 < contratPhases.length; cp2++) {
+              selPhase += '<option' + (contratPhases[cp2]===phN3?' selected':'') + '>' + contratPhases[cp2] + '</option>';
+            }
+            selPhase += '<option value="_autre">Autre\u2026</option>';
             selPhase += '</select>';
+
             var selStatut = '<select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_statut_'+echIdx+'">' +
               '<option' + (st3==='Pr\u00e9visionnel'?' selected':'') + '>Pr\u00e9visionnel</option>' +
               '<option' + (st3==='\u00c0 facturer'?' selected':'') + '>\u00c0 facturer</option>' +
               '<option' + (st3==='Factur\u00e9'?' selected':'') + '>Factur\u00e9</option>' +
-              '<option>Hypothétique</option></select>';
+              '<option>Hypoth\u00e9tique</option></select>';
+
             html += '<tr>' +
               '<td style="text-align:left;padding-left:0.5rem">' + selPhase + '</td>' +
               '<td><input type="number" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px;text-align:right" id="ech_montant_'+echIdx+'" value="' + p.mois[em3] + '"></td>' +
@@ -3827,6 +3862,17 @@
             echIdx++;
           }
         }
+
+        // Vérif cohérence : phases du contrat sans échéance
+        var echPhases3 = {};
+        for (var ep = 0; ep < orgPhases.length; ep++) { if (orgPhases[ep]) echPhases3[orgPhases[ep]] = true; }
+        var phasesManquantes = contratPhases.filter(function(ph) { return !echPhases3[ph]; });
+        if (phasesManquantes.length > 0) {
+          html += '<tr style="background:var(--yellow-bg)"><td colspan="7" style="padding:0.5rem;font-size:0.82rem;color:var(--accent)">' +
+            '\u26a0 Phases du contrat sans \u00e9ch\u00e9ance : <strong>' + phasesManquantes.join(', ') + '</strong> &mdash; Cliquez "+ Ajouter" pour les planifier.' +
+          '</td></tr>';
+        }
+
         html += '</tbody><tfoot><tr><td colspan="7" style="padding:0.5rem">' +
           '<div style="display:flex;justify-content:space-between;align-items:center">' +
             '<span style="font-size:0.85rem"><strong style="color:var(--green)">Factur\u00e9 : ' + fmtEuro(totalFact3) + '</strong> &mdash; Reste : ' + fmtEuro(totalReste3) + '</span>' +
@@ -3907,10 +3953,19 @@
       var tbody = document.querySelector('#echTable tbody');
       if (!tbody) return;
       var idx = tbody.rows.length;
-      var phasesOpts = '<option value="">—</option>';
-      ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'].forEach(function(ph) {
+      // Utiliser les phases du contrat (ORGANISATION) comme options
+      var orgPhases = ORGANISATION[code] || [];
+      var contratPhases = [];
+      var seen = {};
+      for (var i = 0; i < orgPhases.length; i++) {
+        if (orgPhases[i] && !seen[orgPhases[i]]) { contratPhases.push(orgPhases[i]); seen[orgPhases[i]] = true; }
+      }
+      if (contratPhases.length === 0) contratPhases = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
+      var phasesOpts = '<option value="">\u2014</option>';
+      contratPhases.forEach(function(ph) {
         phasesOpts += '<option>' + ph + '</option>';
       });
+      phasesOpts += '<option value="_autre">Autre\u2026</option>';
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td style="text-align:left;padding-left:0.5rem"><select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_phase_'+idx+'">' + phasesOpts + '</select></td>' +
