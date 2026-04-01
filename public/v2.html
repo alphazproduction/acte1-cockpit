@@ -1521,12 +1521,17 @@
             projetsBase = [];
             data.projets.forEach(function(sp) {
               if (!sp.code_projet) return;
+              // Déduire la catégorie depuis la phase courante
+              var phase = (sp.phase_courante || '').toUpperCase();
+              var cat = 'etudes';
+              if (['ACT','VISA','DET','AOR','GPA'].indexOf(phase) >= 0) cat = 'travaux';
+              else if (phase === 'CONSEIL') cat = 'conseil';
               projetsBase.push({
                 code_projet: sp.code_projet,
                 code: sp.quadrigramme || String(sp.code_projet),
                 nom: sp.nom_affaire || '',
                 etat: sp.etat || 'En cours',
-                cat: 'etudes',
+                cat: cat,
                 chef: sp.chef_projet || 'Am\u00e9lie',
                 phase_courante: sp.phase_courante || '',
                 lien_devis: sp.lien_devis || '',
