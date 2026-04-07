@@ -785,6 +785,9 @@
     /* Tooltip projet dans le forecast */
     .data-table tbody tr { position: relative; }
     .data-table tbody tr td.col-projet { position: relative; }
+    #iaDropZone.drag-over { border-color: var(--accent); background: var(--accent-light); }
+    #iaDropZone.analyzing { border-color: var(--blue); background: var(--blue-bg); }
+
     .forecast-tip {
       display: none;
       position: absolute;
@@ -2463,6 +2466,18 @@
         '</div>' +
       '</div>';
 
+      // Section API Claude
+      html += '<div class="params-section full-width" style="margin-bottom:1.5rem;border-left:4px solid var(--blue)">' +
+        '<div><h3 style="margin:0;border:none;padding:0">Intelligence Artificielle (Claude)</h3>' +
+        '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">Cl\u00e9 API pour l\'analyse automatique de documents (devis, contrats, etc.)</div></div>' +
+        '<div class="form-grid" style="margin-top:0.75rem">' +
+          '<div class="form-group full-width">' +
+            '<label class="form-label">Cl\u00e9 API Anthropic (Claude)</label>' +
+            '<input type="password" class="form-input" id="paramClaudeKey" value="' + (getClaudeKey() ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : '') + '" placeholder="sk-ant-api03-..." onchange="setClaudeKey(this.value)" style="font-family:monospace">' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
       html += '<div class="params-grid">' +
         // Objectifs financiers par année
         '<div class="params-section">' +
@@ -3595,6 +3610,17 @@
       var html = '<a class="back-link" onclick="navigateTo(\'projets\')">&larr; Retour aux projets</a>';
       html += '<div class="page-header"><div class="page-title">' + title + '</div></div>';
 
+      // ── DROP ZONE IA ──
+      html += '<div id="iaDropZone" style="margin-bottom:1.5rem;border:2px dashed var(--border);border-radius:12px;padding:1.25rem;text-align:center;transition:all 0.2s;background:var(--bg)">' +
+        '<div style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem">Analyser un document avec l\'IA</div>' +
+        '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem">D\u00e9posez un devis, contrat, DPGF ou tout document projet (PDF, Excel, image)</div>' +
+        '<div style="display:flex;gap:0.75rem;justify-content:center;align-items:center">' +
+          '<input type="file" id="iaFileInput" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.doc,.docx" style="font-size:0.82rem;max-width:300px">' +
+          '<button class="btn btn-primary" onclick="analyserDocument(\'' + (p ? p.code : '') + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap">Analyser</button>' +
+        '</div>' +
+        '<div id="iaStatus" style="margin-top:0.75rem;font-size:0.82rem"></div>' +
+      '</div>';
+
       // ── SUMMARY CARD for existing projects ──
       if (p) {
         var totalMois = p.mois.reduce(function(a,b){return a+b;},0);
@@ -4086,6 +4112,183 @@
       var html = '<div class="form-group"><label class="form-label">' + label + '</label><select class="form-select" id="' + id + '">';
       options.forEach(function(o){ html += '<option' + (o===selected?' selected':'') + '>' + o + '</option>'; });
       return html + '</select></div>';
+    }
+
+    // ── CLAUDE API KEY ──
+    var CLAUDE_KEY_STORAGE = 'cockpit-claude-api-key';
+
+    function getClaudeKey() {
+      return localStorage.getItem(CLAUDE_KEY_STORAGE) || '';
+    }
+
+    window.setClaudeKey = function(val) {
+      if (val && !val.startsWith('\u2022')) {
+        localStorage.setItem(CLAUDE_KEY_STORAGE, val);
+        showToast('Cl\u00e9 API Claude enregistr\u00e9e');
+      }
+    };
+
+    // ── ANALYSE IA DE DOCUMENT ──
+    window.analyserDocument = function(projetCode) {
+      var input = document.getElementById('iaFileInput');
+      if (!input || !input.files || !input.files[0]) {
+        showToast('S\u00e9lectionnez un fichier');
+        return;
+      }
+
+      var apiKey = getClaudeKey();
+      if (!apiKey) {
+        showToast('Configurez la cl\u00e9 API Claude dans Param\u00e8tres');
+        return;
+      }
+
+      var file = input.files[0];
+      var statusEl = document.getElementById('iaStatus');
+      statusEl.innerHTML = '<span style="color:var(--blue)">Analyse en cours de <strong>' + file.name + '</strong> (' + Math.round(file.size/1024) + ' Ko)...</span>';
+
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var base64 = e.target.result.split(',')[1];
+        var mimeType = file.type || 'application/pdf';
+
+        // Construire le message pour Claude
+        var content = [];
+
+        // Si c'est un PDF ou une image, envoyer en tant que document/image
+        if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
+          content.push({
+            type: mimeType === 'application/pdf' ? 'document' : 'image',
+            source: { type: 'base64', media_type: mimeType, data: base64 }
+          });
+        }
+
+        // Prompt AMO professionnel
+        content.push({
+          type: 'text',
+          text: 'Tu es un Assistant \u00e0 Ma\u00eetrise d\'Ouvrage (AMO) sp\u00e9cialis\u00e9 en ing\u00e9nierie audiovisuelle, sc\u00e9nographie et mus\u00e9ographie pour le bureau d\'\u00e9tudes ACTE 1 (Ivry-sur-Seine).\n\nAnalyse ce document et extrais TOUTES les informations utiles pour la fiche projet :\n\n1. **Identification** : nom du projet/affaire, code, ville, r\u00e9f\u00e9rence devis\n2. **Client** : nom du ma\u00eetre d\'ouvrage (MOA), contact principal (nom, email, tel), type (Public/Priv\u00e9)\n3. **Acteurs** : architecte/MOE mandataire, BET associ\u00e9s, int\u00e9grateur\n4. **March\u00e9** : type (Neuf/R\u00e9habilitation/R\u00e9novation), secteur (Mus\u00e9ographie/Spectacle/Sport/Tertiaire/\u00c9ducation)\n5. **Montants** : budget total honoraires ACTE 1, d\u00e9tail par phase MOP (ESQ, DIAG, APS, APD, AVP, PRO, DCE, ACT, VISA, DET, AOR, GPA, CONSEIL)\n6. **Dates** : d\u00e9but contrat, fin pr\u00e9vue, d\u00e9but travaux\n7. **\u00c9ch\u00e9ancier** : si des dates de facturation par phase sont mentionn\u00e9es\n8. **Surface**, budget travaux global si mentionn\u00e9\n\nR\u00e9ponds UNIQUEMENT en JSON :\n{\n  "nom_projet": "",\n  "code_projet": "",\n  "ville": "",\n  "ref_devis": "",\n  "client": "",\n  "contact_nom": "",\n  "contact_email": "",\n  "contact_tel": "",\n  "type_client": "Public|Priv\u00e9|Semi-public",\n  "architecte": "",\n  "type_marche": "Neuf|R\u00e9habilitation|R\u00e9novation",\n  "type_secteur": "",\n  "type_mission": "MOE|AMO|Autre",\n  "budget_total_ht": 0,\n  "phases": [\n    {"phase": "APS", "montant": 0, "date_prevue": ""}\n  ],\n  "date_debut": "",\n  "date_fin": "",\n  "date_travaux": "",\n  "surface_m2": 0,\n  "budget_travaux_global": 0,\n  "resume": "R\u00e9sum\u00e9 court du projet",\n  "confiance": "haute|moyenne|basse",\n  "notes": "Ce que l\'IA a d\u00e9duit vs ce qui \u00e9tait explicite"\n}'
+        });
+
+        // Appel Claude API
+        fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4000,
+            messages: [{ role: 'user', content: content }]
+          })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+          if (resp.error) {
+            statusEl.innerHTML = '<span style="color:var(--red)">Erreur API : ' + (resp.error.message || JSON.stringify(resp.error)) + '</span>';
+            return;
+          }
+
+          var text = resp.content && resp.content[0] ? resp.content[0].text : '';
+          var jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            statusEl.innerHTML = '<span style="color:var(--red)">R\u00e9ponse non structur\u00e9e</span><pre style="font-size:0.75rem;max-height:200px;overflow:auto;margin-top:0.5rem">' + text.substring(0, 500) + '</pre>';
+            return;
+          }
+
+          var data = JSON.parse(jsonMatch[0]);
+          statusEl.innerHTML = '<span style="color:var(--green)">Analyse termin\u00e9e &mdash; Confiance : <strong>' + (data.confiance || 'moyenne') + '</strong></span>';
+
+          // Afficher le résultat et pré-remplir les champs
+          remplirDepuisIA(data, projetCode);
+        })
+        .catch(function(err) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err.toString() + '</span>';
+        });
+      };
+
+      reader.readAsDataURL(file);
+    };
+
+    function remplirDepuisIA(data, projetCode) {
+      // Pré-remplir les champs du formulaire
+      var mappings = {
+        'proj_nom': data.nom_projet,
+        'proj_code': data.code_projet || projetCode,
+        'proj_ville': data.ville,
+        'proj_client': data.client,
+        'proj_architecte': data.architecte,
+        'proj_budget': data.budget_total_ht,
+        'proj_surface': data.surface_m2,
+        'proj_date_debut': data.date_debut,
+        'proj_date_fin': data.date_fin,
+        'proj_date_travaux': data.date_travaux,
+        'proj_contact_nom': data.contact_nom,
+        'proj_contact_email': data.contact_email,
+        'proj_contact_tel': data.contact_tel,
+        'proj_resume': data.resume
+      };
+
+      var filled = 0;
+      for (var id in mappings) {
+        var val = mappings[id];
+        if (val) {
+          var el = document.getElementById(id);
+          if (el && !el.value) {
+            el.value = val;
+            el.style.borderColor = 'var(--green)';
+            el.style.backgroundColor = 'rgba(6,214,160,0.05)';
+            filled++;
+          }
+        }
+      }
+
+      // Selects
+      var selMappings = {
+        'proj_type_client': data.type_client,
+        'proj_type_marche': data.type_marche,
+        'proj_type_secteur': data.type_secteur,
+        'proj_type_mission': data.type_mission
+      };
+      for (var sid in selMappings) {
+        var sval = selMappings[sid];
+        if (sval) {
+          var sel = document.getElementById(sid);
+          if (sel) {
+            for (var oi = 0; oi < sel.options.length; oi++) {
+              if (sel.options[oi].text === sval || sel.options[oi].value === sval) {
+                sel.selectedIndex = oi;
+                sel.style.borderColor = 'var(--green)';
+                filled++;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Afficher les phases extraites
+      if (data.phases && data.phases.length > 0) {
+        var phasesHtml = '<div style="margin-top:1rem;padding:1rem;background:var(--green-bg);border:1px solid var(--green);border-radius:8px">' +
+          '<div style="font-weight:700;margin-bottom:0.5rem;color:var(--green)">Phases extraites du document</div>' +
+          '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">' +
+          '<tr style="font-weight:600"><td>Phase</td><td style="text-align:right">Montant</td><td>Date pr\u00e9vue</td></tr>';
+        var totalPhases = 0;
+        data.phases.forEach(function(ph) {
+          totalPhases += ph.montant || 0;
+          phasesHtml += '<tr><td>' + ph.phase + '</td><td style="text-align:right">' + (ph.montant ? ph.montant.toLocaleString('fr-FR') + ' \u20ac' : '\u2014') + '</td><td>' + (ph.date_prevue || '\u2014') + '</td></tr>';
+        });
+        phasesHtml += '<tr style="font-weight:700;border-top:2px solid var(--green)"><td>TOTAL</td><td style="text-align:right">' + totalPhases.toLocaleString('fr-FR') + ' \u20ac</td><td></td></tr>';
+        phasesHtml += '</table>';
+        if (data.notes) {
+          phasesHtml += '<div style="margin-top:0.5rem;font-size:0.78rem;color:var(--text-muted);font-style:italic">' + data.notes + '</div>';
+        }
+        phasesHtml += '</div>';
+        document.getElementById('iaStatus').innerHTML += phasesHtml;
+      }
+
+      showToast(filled + ' champs pr\u00e9-remplis par l\'IA');
     }
 
     // ── ECHEANCIER EDIT ──
