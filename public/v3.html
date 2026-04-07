@@ -2522,22 +2522,31 @@
         '</div>' +
         // Classification phases
         '<div class="params-section">' +
-          '<h3>Classification des phases</h3>' +
-          '<table><thead><tr><th>Phase</th><th>Cat\u00e9gorie</th><th>Ordre</th></tr></thead><tbody>' +
-          '<tr><td>ESQ</td><td>\u00c9tudes</td><td>1</td></tr>' +
-          '<tr><td>DIAG</td><td>\u00c9tudes</td><td>2</td></tr>' +
-          '<tr><td>APS</td><td>\u00c9tudes</td><td>3</td></tr>' +
-          '<tr><td>APD</td><td>\u00c9tudes</td><td>4</td></tr>' +
-          '<tr><td>AVP</td><td>\u00c9tudes</td><td>5</td></tr>' +
-          '<tr><td>PRO</td><td>\u00c9tudes</td><td>6</td></tr>' +
-          '<tr><td>DCE</td><td>\u00c9tudes</td><td>7</td></tr>' +
-          '<tr><td>ACT</td><td>Travaux</td><td>8</td></tr>' +
-          '<tr><td>VISA</td><td>Travaux</td><td>9</td></tr>' +
-          '<tr><td>DET</td><td>Travaux</td><td>10</td></tr>' +
-          '<tr><td>AOR</td><td>Travaux</td><td>11</td></tr>' +
-          '<tr><td>GPA</td><td>Travaux</td><td>12</td></tr>' +
-          '<tr><td>CONSEIL</td><td>Conseil</td><td>99</td></tr>' +
+          '<h3>Classification des phases MOP</h3>' +
+          '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">Les devis ACTE 1 utilisent parfois des noms diff\u00e9rents. L\'IA sait mapper automatiquement.</div>' +
+          '<table style="font-size:0.82rem"><thead><tr><th>Code MOP</th><th>Nom complet</th><th>Cat.</th><th>Correspondances courantes dans les devis</th></tr></thead><tbody>' +
+          '<tr><td><strong>ESQ</strong></td><td>Esquisse</td><td style="color:var(--blue)">\u00c9tudes</td><td style="font-size:0.75rem;color:var(--text-muted)">Esquisse, \u00e9tude pr\u00e9liminaire</td></tr>' +
+          '<tr><td><strong>DIAG</strong></td><td>Diagnostic</td><td style="color:var(--blue)">\u00c9tudes</td><td style="font-size:0.75rem;color:var(--text-muted)">Diagnostic, audit, \u00e9tat des lieux</td></tr>' +
+          '<tr><td><strong>APS</strong></td><td>Avant-Projet Sommaire</td><td style="color:var(--blue)">\u00c9tudes</td><td style="font-size:0.75rem;color:var(--text-muted)">APS, avant-projet, \u00e9tude sommaire</td></tr>' +
+          '<tr><td><strong>APD</strong></td><td>Avant-Projet D\u00e9taill\u00e9</td><td style="color:var(--blue)">\u00c9tudes</td><td style="font-size:0.75rem;color:var(--text-muted)">APD, \u00e9tude d\u00e9taill\u00e9e</td></tr>' +
+          '<tr><td><strong>AVP</strong></td><td>Avant-Projet</td><td style="color:var(--blue)">\u00c9tudes</td><td style="font-size:0.75rem;color:var(--text-muted)"><strong>Programme/Avant Projet</strong>, recueil besoins, synth\u00e8se AVP</td></tr>' +
+          '<tr><td><strong>PRO</strong></td><td>Projet</td><td style="color:var(--blue)">\u00c9tudes</td><td style="font-size:0.75rem;color:var(--text-muted)"><strong>PRO/DCE</strong>, r\u00e9daction CCTP, cahier des charges</td></tr>' +
+          '<tr><td><strong>DCE</strong></td><td>Dossier Consultation</td><td style="color:var(--blue)">\u00c9tudes</td><td style="font-size:0.75rem;color:var(--text-muted)">Souvent group\u00e9 avec PRO (<strong>PRO/DCE</strong>)</td></tr>' +
+          '<tr><td><strong>ACT</strong></td><td>Assistance Contrats Travaux</td><td style="color:var(--accent)">Travaux</td><td style="font-size:0.75rem;color:var(--text-muted)"><strong>ACT sur APD</strong>, <strong>ACT sur DCE</strong>, analyse offres, consultation entreprises</td></tr>' +
+          '<tr><td><strong>VISA</strong></td><td>Visa</td><td style="color:var(--accent)">Travaux</td><td style="font-size:0.75rem;color:var(--text-muted)">VISA, validation documents ex\u00e9cution. Souvent group\u00e9 dans <strong>Suivi des op\u00e9rations</strong></td></tr>' +
+          '<tr><td><strong>DET</strong></td><td>Direction Ex\u00e9cution Travaux</td><td style="color:var(--accent)">Travaux</td><td style="font-size:0.75rem;color:var(--text-muted)">DET, suivi chantier, CR visite. Souvent group\u00e9 dans <strong>Suivi des op\u00e9rations</strong></td></tr>' +
+          '<tr><td><strong>AOR</strong></td><td>Assistance R\u00e9ception</td><td style="color:var(--accent)">Travaux</td><td style="font-size:0.75rem;color:var(--text-muted)">AOR, r\u00e9ception, lev\u00e9e de r\u00e9serves, OPR</td></tr>' +
+          '<tr><td><strong>GPA</strong></td><td>Garantie Parfait Ach\u00e8vement</td><td style="color:var(--accent)">Travaux</td><td style="font-size:0.75rem;color:var(--text-muted)">GPA, suivi 1 an</td></tr>' +
+          '<tr><td><strong>CONSEIL</strong></td><td>Mission de conseil</td><td style="color:var(--grey)">Conseil</td><td style="font-size:0.75rem;color:var(--text-muted)">AMO, assistance, conseil ponctuel, audit</td></tr>' +
           '</tbody></table>' +
+          '<div style="margin-top:0.75rem;padding:0.6rem;background:var(--yellow-bg);border-radius:6px;font-size:0.78rem">' +
+            '<strong>\u26a0 Regroupements fr\u00e9quents dans les devis ACTE 1 :</strong><br>' +
+            '\u2022 <strong>"Programme / Avant Projet"</strong> = AVP (peut inclure APS+APD)<br>' +
+            '\u2022 <strong>"PRO/DCE"</strong> = PRO + DCE group\u00e9s en une seule phase<br>' +
+            '\u2022 <strong>"ACT sur APD"</strong> et <strong>"ACT sur DCE"</strong> = 2 phases ACT distinctes (pr\u00e9-consultation et consultation finale)<br>' +
+            '\u2022 <strong>"Suivi des op\u00e9rations"</strong> = VISA + DET group\u00e9s<br>' +
+            '\u2022 <strong>"PHASE TRAVAUX - OPTION"</strong> = phases optionnelles (VISA+DET+AOR), \u00e0 distinguer dans l\'\u00e9ch\u00e9ancier' +
+          '</div>' +
         '</div>' +
         // Pondération mensuelle (full width)
         '<div class="params-section full-width">' +
@@ -4306,18 +4315,22 @@
 
         // Phases de base
         html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin-bottom:0.5rem">';
-        html += '<tr style="font-weight:600;border-bottom:1px solid var(--border)"><td style="width:30px"></td><td>Phase</td><td style="text-align:right">Montant</td><td>Date</td><td>Type</td></tr>';
+        html += '<tr style="font-weight:600;border-bottom:1px solid var(--border)"><td style="width:30px"></td><td>Phase MOP</td><td>Nom dans le devis</td><td style="text-align:right">Montant</td><td>Date</td><td>Livrables</td></tr>';
         phasesBase.forEach(function(ph, idx) {
-          var name = (ph.phase || '').toUpperCase();
+          var name = (ph.phase || '').toUpperCase().replace(' (OPTION)','');
           var isMOP = PHASES_MOP.indexOf(name) >= 0;
+          var isOption = (ph.phase || '').indexOf('OPTION') >= 0 || ph.option;
           var catCls = isMOP ? (['ACT','VISA','DET','AOR','GPA'].indexOf(name) >= 0 ? 'cat-travaux' : 'cat-etudes') : '';
-          html += '<tr style="border-bottom:1px solid var(--border)">' +
-            '<td><input type="checkbox" id="ia_phase_' + idx + '" checked></td>' +
+          var nomDevis = ph.nom_devis || '';
+          html += '<tr style="border-bottom:1px solid var(--border);' + (isOption ? 'background:var(--blue-bg);' : '') + '">' +
+            '<td><input type="checkbox" id="ia_phase_' + idx + '"' + (isOption ? '' : ' checked') + '></td>' +
             '<td><span class="phase-cat ' + catCls + '" style="display:inline-block;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.78rem">' + ph.phase + '</span>' +
-              (!isMOP ? ' <span style="color:var(--yellow);font-size:0.75rem">\u26a0 hors MOP</span>' : '') + '</td>' +
+              (isOption ? ' <span style="color:var(--blue);font-size:0.72rem;font-weight:600">OPTION</span>' : '') +
+              (!isMOP && !isOption ? ' <span style="color:var(--yellow);font-size:0.72rem">\u26a0</span>' : '') + '</td>' +
+            '<td style="font-size:0.78rem;color:var(--text-muted);font-style:italic">' + (nomDevis || '\u2014') + '</td>' +
             '<td style="text-align:right;font-weight:600">' + (ph.montant ? ph.montant.toLocaleString('fr-FR') + ' \u20ac' : '\u2014') + '</td>' +
-            '<td>' + (ph.date_prevue || '\u2014') + '</td>' +
-            '<td style="font-size:0.75rem;color:var(--text-muted)">' + (isMOP ? (['ACT','VISA','DET','AOR','GPA'].indexOf(name) >= 0 ? 'Travaux' : '\u00c9tudes') : 'Autre') + '</td>' +
+            '<td style="font-size:0.78rem">' + (ph.date_prevue || '\u2014') + '</td>' +
+            '<td style="font-size:0.72rem;color:var(--text-muted)">' + (ph.livrables || '') + '</td>' +
           '</tr>';
         });
         html += '<tr style="font-weight:700;border-top:2px solid var(--accent)"><td></td><td>TOTAL phases</td><td style="text-align:right">' + totalPhases.toLocaleString('fr-FR') + ' \u20ac</td><td colspan="2"></td></tr>';
