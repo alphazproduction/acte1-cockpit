@@ -1687,10 +1687,15 @@
       fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: action, data: data })
+        body: JSON.stringify({ action: action, data: data }),
+        redirect: 'follow'
       })
       .then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status + ' — Red\u00e9ployez la Web App (Nouvelle version)');
+        // GAS renvoie parfois du HTML au lieu de JSON (redirect échoué)
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('text/html') >= 0) {
+          throw new Error('La Web App a redirig\u00e9 — red\u00e9ployez en Nouvelle version');
+        }
         return r.json();
       })
       .then(function(res) {
