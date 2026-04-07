@@ -2475,16 +2475,11 @@
         '</div>' +
       '</div>';
 
-      // Section API Claude
+      // Section IA
       html += '<div class="params-section full-width" style="margin-bottom:1.5rem;border-left:4px solid var(--blue)">' +
         '<div><h3 style="margin:0;border:none;padding:0">Intelligence Artificielle (Claude)</h3>' +
-        '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">Cl\u00e9 API pour l\'analyse automatique de documents (devis, contrats, etc.)</div></div>' +
-        '<div class="form-grid" style="margin-top:0.75rem">' +
-          '<div class="form-group full-width">' +
-            '<label class="form-label">Cl\u00e9 API Anthropic (Claude)</label>' +
-            '<input type="password" class="form-input" id="paramClaudeKey" value="' + (getClaudeKey() ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : '') + '" placeholder="sk-ant-api03-..." onchange="setClaudeKey(this.value)" style="font-family:monospace">' +
-          '</div>' +
-        '</div>' +
+        '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">L\'analyse de documents utilise Claude via le proxy s\u00e9curis\u00e9 c\u00f4t\u00e9 serveur (Apps Script). La cl\u00e9 API n\'est jamais expos\u00e9e c\u00f4t\u00e9 client.</div></div>' +
+        '<div style="margin-top:0.5rem;font-size:0.82rem;color:var(--text-muted)">Pour configurer la cl\u00e9 : dans l\'\u00e9diteur Apps Script, ex\u00e9cuter <code>setClaudeApiKey()</code></div>' +
       '</div>';
 
       html += '<div class="params-grid">' +
@@ -4123,21 +4118,7 @@
       return html + '</select></div>';
     }
 
-    // ── CLAUDE API KEY ──
-    var CLAUDE_KEY_STORAGE = 'cockpit-claude-api-key';
-
-    function getClaudeKey() {
-      return localStorage.getItem(CLAUDE_KEY_STORAGE) || '';
-    }
-
-    window.setClaudeKey = function(val) {
-      if (val && !val.startsWith('\u2022')) {
-        localStorage.setItem(CLAUDE_KEY_STORAGE, val);
-        showToast('Cl\u00e9 API Claude enregistr\u00e9e');
-      }
-    };
-
-    // ── ANALYSE IA DE DOCUMENT ──
+    // ── ANALYSE IA DE DOCUMENT (via proxy GAS — clé API côté serveur) ──
     window.analyserDocument = function(projetCode) {
       var input = document.getElementById('iaFileInput');
       if (!input || !input.files || !input.files[0]) {
@@ -4145,71 +4126,50 @@
         return;
       }
 
-      var apiKey = getClaudeKey();
-      if (!apiKey) {
-        showToast('Configurez la cl\u00e9 API Claude dans Param\u00e8tres');
+      if (!apiUrl) {
+        showToast('Configurez l\'URL API dans Param\u00e8tres');
         return;
       }
 
       var file = input.files[0];
       var statusEl = document.getElementById('iaStatus');
-      statusEl.innerHTML = '<span style="color:var(--blue)">Analyse en cours de <strong>' + file.name + '</strong> (' + Math.round(file.size/1024) + ' Ko)...</span>';
+      statusEl.innerHTML = '<span style="color:var(--blue)">Analyse en cours de <strong>' + file.name + '</strong> (' + Math.round(file.size/1024) + ' Ko)... L\'IA lit le document.</span>';
 
       var reader = new FileReader();
       reader.onload = function(e) {
         var base64 = e.target.result.split(',')[1];
         var mimeType = file.type || 'application/pdf';
 
-        // Construire le message pour Claude
-        var content = [];
-
-        // Si c'est un PDF ou une image, envoyer en tant que document/image
-        if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
-          content.push({
-            type: mimeType === 'application/pdf' ? 'document' : 'image',
-            source: { type: 'base64', media_type: mimeType, data: base64 }
-          });
-        }
-
-        // Prompt AMO professionnel
-        content.push({
-          type: 'text',
-          text: 'Tu es un Assistant \u00e0 Ma\u00eetrise d\'Ouvrage (AMO) sp\u00e9cialis\u00e9 en ing\u00e9nierie audiovisuelle, sc\u00e9nographie et mus\u00e9ographie pour le bureau d\'\u00e9tudes ACTE 1 (Ivry-sur-Seine).\n\nAnalyse ce document et extrais TOUTES les informations utiles pour la fiche projet :\n\n1. **Identification** : nom du projet/affaire, code, ville, r\u00e9f\u00e9rence devis\n2. **Client** : nom du ma\u00eetre d\'ouvrage (MOA), contact principal (nom, email, tel), type (Public/Priv\u00e9)\n3. **Acteurs** : architecte/MOE mandataire, BET associ\u00e9s, int\u00e9grateur\n4. **March\u00e9** : type (Neuf/R\u00e9habilitation/R\u00e9novation), secteur (Mus\u00e9ographie/Spectacle/Sport/Tertiaire/\u00c9ducation)\n5. **Montants** : budget total honoraires ACTE 1, d\u00e9tail par phase MOP (ESQ, DIAG, APS, APD, AVP, PRO, DCE, ACT, VISA, DET, AOR, GPA, CONSEIL)\n6. **Dates** : d\u00e9but contrat, fin pr\u00e9vue, d\u00e9but travaux\n7. **\u00c9ch\u00e9ancier** : si des dates de facturation par phase sont mentionn\u00e9es\n8. **Surface**, budget travaux global si mentionn\u00e9\n\nR\u00e9ponds UNIQUEMENT en JSON :\n{\n  "nom_projet": "",\n  "code_projet": "",\n  "ville": "",\n  "ref_devis": "",\n  "client": "",\n  "contact_nom": "",\n  "contact_email": "",\n  "contact_tel": "",\n  "type_client": "Public|Priv\u00e9|Semi-public",\n  "architecte": "",\n  "type_marche": "Neuf|R\u00e9habilitation|R\u00e9novation",\n  "type_secteur": "",\n  "type_mission": "MOE|AMO|Autre",\n  "budget_total_ht": 0,\n  "phases": [\n    {"phase": "APS", "montant": 0, "date_prevue": ""}\n  ],\n  "date_debut": "",\n  "date_fin": "",\n  "date_travaux": "",\n  "surface_m2": 0,\n  "budget_travaux_global": 0,\n  "resume": "R\u00e9sum\u00e9 court du projet",\n  "confiance": "haute|moyenne|basse",\n  "notes": "Ce que l\'IA a d\u00e9duit vs ce qui \u00e9tait explicite"\n}'
-        });
-
-        // Appel Claude API
-        fetch('https://api.anthropic.com/v1/messages', {
+        // Appel via le proxy GAS (la clé API Claude est stockée côté serveur)
+        fetch(apiUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
+          headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 4000,
-            messages: [{ role: 'user', content: content }]
-          })
+            action: 'claude_analyze',
+            fileBase64: base64,
+            mimeType: mimeType,
+            fileName: file.name
+          }),
+          redirect: 'follow'
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+          var ct = r.headers.get('content-type') || '';
+          if (ct.indexOf('text/html') >= 0) throw new Error('Red\u00e9ployez la Web App (Nouvelle version)');
+          return r.json();
+        })
         .then(function(resp) {
-          if (resp.error) {
-            statusEl.innerHTML = '<span style="color:var(--red)">Erreur API : ' + (resp.error.message || JSON.stringify(resp.error)) + '</span>';
+          if (!resp.ok) {
+            statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || 'inconnue') + '</span>';
             return;
           }
 
-          var text = resp.content && resp.content[0] ? resp.content[0].text : '';
-          var jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            statusEl.innerHTML = '<span style="color:var(--red)">R\u00e9ponse non structur\u00e9e</span><pre style="font-size:0.75rem;max-height:200px;overflow:auto;margin-top:0.5rem">' + text.substring(0, 500) + '</pre>';
+          if (!resp.data) {
+            statusEl.innerHTML = '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>' + (resp.raw ? '<pre style="font-size:0.75rem;max-height:200px;overflow:auto;margin-top:0.5rem">' + resp.raw + '</pre>' : '');
             return;
           }
 
-          var data = JSON.parse(jsonMatch[0]);
+          var data = resp.data;
           statusEl.innerHTML = '<span style="color:var(--green)">Analyse termin\u00e9e &mdash; Confiance : <strong>' + (data.confiance || 'moyenne') + '</strong></span>';
-
-          // Afficher le résultat et pré-remplir les champs
           remplirDepuisIA(data, projetCode);
         })
         .catch(function(err) {
