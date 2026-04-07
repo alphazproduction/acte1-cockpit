@@ -4222,7 +4222,48 @@
     // Données IA en attente de validation
     var iaDataPending = null;
 
+    // Normaliser les phases retournées par Claude
+    function normaliserPhases(data) {
+      if (!data || !data.phases) return data;
+      var MOP = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
+      var newPhases = [];
+      data.phases.forEach(function(ph) {
+        var code = (ph.phase || '').toUpperCase().replace(/\s*\(OPTION\)\s*/i, '').trim();
+        // Nettoyer les codes composés
+        if (code.indexOf('PRO/DCE') >= 0 || code === 'PRO DCE') {
+          // Splitter PRO/DCE
+          newPhases.push({ phase: 'PRO', nom_devis: ph.nom_devis || 'PRO/DCE (part PRO)', montant: Math.round((ph.montant||0) * 0.6), date_prevue: ph.date_prevue, option: ph.option, livrables: 'CCTP, synoptiques' });
+          newPhases.push({ phase: 'DCE', nom_devis: ph.nom_devis || 'PRO/DCE (part DCE)', montant: Math.round((ph.montant||0) * 0.4), date_prevue: ph.date_prevue, option: ph.option, livrables: 'DPGF, plans' });
+          return;
+        }
+        if (code.indexOf('SUIVI') >= 0 || (code.indexOf('VISA') >= 0 && code.indexOf('DET') >= 0)) {
+          // Splitter VISA+DET
+          newPhases.push({ phase: 'VISA', nom_devis: ph.nom_devis || 'Suivi opérations (VISA)', montant: Math.round((ph.montant||0) * 0.3), date_prevue: ph.date_prevue, option: ph.option, livrables: 'VISA études exécution' });
+          newPhases.push({ phase: 'DET', nom_devis: ph.nom_devis || 'Suivi opérations (DET)', montant: Math.round((ph.montant||0) * 0.7), date_prevue: ph.date_prevue, option: ph.option, livrables: 'Suivi chantier, CR visites' });
+          return;
+        }
+        // Mapper les noms courants vers les codes MOP
+        if (code.indexOf('ACT SUR APD') >= 0 || code.indexOf('ACT APD') >= 0) code = 'ACT';
+        if (code.indexOf('ACT SUR DCE') >= 0 || code.indexOf('ACT DCE') >= 0) code = 'ACT';
+        if (code.indexOf('PROGRAMME') >= 0 || code.indexOf('AVANT PROJET') >= 0 || code.indexOf('AVANT-PROJET') >= 0) code = 'AVP';
+        if (code.indexOf('SUIVI TRAVAUX') >= 0 || code.indexOf('SUIVI OP') >= 0) { code = 'DET'; }
+        if (code.indexOf('RECEPTION') >= 0 || code.indexOf('RÉCEPTION') >= 0) code = 'AOR';
+        if (code.indexOf('DIAGNOSTIC') >= 0 || code.indexOf('AUDIT') >= 0) code = 'DIAG';
+        // Prendre le premier code MOP trouvé dans le texte
+        if (MOP.indexOf(code) < 0) {
+          for (var m = 0; m < MOP.length; m++) {
+            if (code.indexOf(MOP[m]) >= 0) { code = MOP[m]; break; }
+          }
+        }
+        ph.phase = MOP.indexOf(code) >= 0 ? code : ph.phase;
+        newPhases.push(ph);
+      });
+      data.phases = newPhases;
+      return data;
+    }
+
     function remplirDepuisIA(data, projetCode) {
+      data = normaliserPhases(data);
       iaDataPending = data;
       var el = document.getElementById('iaStatus');
 
@@ -4451,6 +4492,7 @@
           }
 
           // 3a. CONTRAT : phase + montant + r\u00e9f\u00e9rence devis
+          console.log('Saving phase ' + ph.phase + ' montant=' + montant + ' code=' + projetCode);
           postToSheet('upsert_contrat', {
             code_projet: projetCode,
             ref_document: refDevis,
