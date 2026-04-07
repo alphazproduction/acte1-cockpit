@@ -942,7 +942,7 @@
     .volet-tab.active { color: var(--text); border-bottom-color: var(--accent); }
     .volet-tab-infos.active { border-bottom-color: #94A3B8; }
     .volet-tab-contrat.active { border-bottom-color: #06D6A0; }
-    .volet-tab-echeancier.active { border-bottom-color: #E8601C; }
+    .volet-tab-facturation.active { border-bottom-color: #E8601C; }
     .volet-tab-orga.active { border-bottom-color: #3B82F6; }
     .volet-panel { display: none; }
     .volet-panel.active { display: block; }
@@ -980,7 +980,7 @@
       font-weight: 700; font-size: 0.9rem;
     }
     .volet-header-contrat { background: rgba(6,214,160,0.08); border-left: 4px solid #06D6A0; color: #059669; }
-    .volet-header-echeancier { background: rgba(232,96,28,0.08); border-left: 4px solid #E8601C; color: #C2410C; }
+    .volet-header-facturation { background: rgba(232,96,28,0.08); border-left: 4px solid #E8601C; color: #C2410C; }
     .volet-header-orga { background: rgba(59,130,246,0.08); border-left: 4px solid #3B82F6; color: #1D4ED8; }
     .volet-header-infos { background: var(--grey-bg); border-left: 4px solid #94A3B8; color: var(--text-muted); }
 
@@ -993,6 +993,7 @@
     .statut-a-facturer { background: rgba(232,96,28,0.12); color: #C2410C; }
     .statut-previsionnel { background: var(--yellow-bg); color: #92400E; }
     .statut-hypothetique { background: var(--grey-bg); color: var(--grey); font-style: italic; }
+    .statut-option { background: var(--blue-bg); color: var(--blue); }
 
     /* Echeancier horizontal phases */
     .ech-project {
@@ -3747,7 +3748,7 @@
       html += '<div class="volet-tabs">' +
         '<button class="volet-tab volet-tab-infos active" data-volet="infos" onclick="switchVolet(\'infos\')">Infos projet</button>' +
         '<button class="volet-tab volet-tab-contrat" data-volet="contrat" onclick="switchVolet(\'contrat\')">Contrat</button>' +
-        '<button class="volet-tab volet-tab-echeancier" data-volet="ech" onclick="switchVolet(\'ech\')">\u00c9ch\u00e9ancier</button>' +
+        '<button class="volet-tab volet-tab-facturation" data-volet="facturation" onclick="switchVolet(\'facturation\')">Facturation</button>' +
         '<button class="volet-tab volet-tab-orga" data-volet="orga" onclick="switchVolet(\'orga\')">Organisation</button>' +
       '</div>';
 
@@ -3828,264 +3829,329 @@
       '</div>';
       html += '</div>'; // end volet-infos
 
-      // ── VOLET CONTRAT ──
+      // ── VOLET CONTRAT (consolidated table per document) ──
       html += '<div class="volet-panel" id="volet-contrat">';
       html += '<div class="volet-header volet-header-contrat">Contrat &mdash; Engagements contractuels</div>';
 
       if (p) {
-        // Build mock documents for this project
-        var phases = ORGANISATION[p.code] || [];
+        // Build phase list from ORGANISATION
+        var orgPhasesC = ORGANISATION[p.code] || [];
         var usedPhases = [];
-        phases.forEach(function(ph){ if (ph && usedPhases.indexOf(ph)<0) usedPhases.push(ph); });
+        orgPhasesC.forEach(function(ph){ if (ph && usedPhases.indexOf(ph)<0) usedPhases.push(ph); });
         if (usedPhases.length === 0) usedPhases = ['APS','APD','PRO','ACT','DET','AOR'];
         var totalProjet = p.mois.reduce(function(a,b){return a+b;},0);
 
-        // Mock: devis initial + 1 avenant for some projects
+        // Build documents: devis initial + potential avenant
         var documents = [
-          { ref: 'DEV-' + p.code + '-001', nom: 'Devis initial', famille: 'Montant initial', type: 'Devis initial', date: '01/01/2026', montant: Math.round(totalProjet * 0.8) }
+          { ref: 'DEV-' + p.code + '-001', nom: 'Devis initial', famille: 'Montant initial', type: 'Devis initial', date: '2026-01-15', montant: Math.round(totalProjet * 0.8), fige: true }
         ];
         if (totalProjet > 15000) {
-          documents.push({ ref: 'AV-' + p.code + '-001', nom: 'Avenant 1', famille: 'Compl\u00e9mentaire', type: 'Avenant', date: '15/02/2026', montant: totalProjet - documents[0].montant });
+          documents.push({ ref: 'AV-' + p.code + '-001', nom: 'Avenant 1', famille: 'Compl\u00e9mentaire', type: 'Avenant', date: '2026-03-01', montant: totalProjet - documents[0].montant, fige: false });
         }
 
-        // Document cards
+        // Render each document as a consolidated table
+        var mi2 = getCurrentMonthIndex();
         documents.forEach(function(doc, docIdx) {
-          var isFige = doc.famille === 'Montant initial';
-          var borderColor = isFige ? '#06D6A0' : '#F59E0B';
+          var borderColor = doc.fige ? '#06D6A0' : '#F59E0B';
 
-          html += '<div class="section-card" style="margin-bottom:1rem;border-left:4px solid ' + borderColor + ';padding:1rem 1.25rem">';
+          html += '<div class="section-card contrat-doc-card" data-doc-idx="' + docIdx + '" style="margin-bottom:1.25rem;border-left:4px solid ' + borderColor + ';padding:1rem 1.25rem">';
 
-          // Document header
-          html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem">';
-          html += '<div>';
-          html += '<div style="font-weight:700;font-size:0.95rem">' + doc.nom + '</div>';
-          html += '<div style="font-size:0.78rem;color:var(--text-muted)">' +
-            '<span style="font-weight:600">' + doc.ref + '</span> &mdash; ' + doc.type + ' &mdash; ' + doc.date +
-            (isFige ? ' &mdash; <span style="color:var(--green);font-weight:600">Fig\u00e9</span>' : '') +
-          '</div>';
+          // Document header row
+          html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem">';
+          html += '<div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">';
+          html += '<span style="font-weight:700;font-size:0.95rem">' + doc.nom + '</span>';
+          html += '<span style="font-size:0.82rem;font-weight:600;color:var(--text-muted)">' + doc.ref + '</span>';
+          html += '<span style="font-size:0.82rem;color:var(--text-muted)">' + doc.date + '</span>';
+          if (doc.fige) html += '<span style="background:var(--green-bg);color:var(--green);font-size:0.72rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:999px">Fig\u00e9</span>';
           html += '</div>';
-          html += '<div class="font-din" style="font-size:1.15rem">' + fmtEuro(doc.montant) + '</div>';
+          html += '<div class="font-din" style="font-size:1.15rem" id="contrat_doc_total_' + docIdx + '">' + fmtEuro(doc.montant) + '</div>';
           html += '</div>';
 
-          // Phases table for this document
-          html += '<div class="data-table-wrap"><table class="data-table" style="min-width:100%"><thead><tr>' +
-            '<th style="width:30px"></th>' +
-            '<th style="text-align:left;padding-left:0.5rem">Phase</th>' +
-            '<th style="text-align:right">Montant HT</th>' +
+          // Consolidated table: Phase | Montant HT | Date Prev | N Fact | Date Fact | Statut
+          html += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_' + docIdx + '" style="min-width:100%"><thead><tr>' +
+            '<th style="text-align:left;padding-left:0.5rem;width:100px">Phase</th>' +
+            '<th style="text-align:right;width:120px">Montant HT</th>' +
+            '<th style="text-align:center;width:130px">Date pr\u00e9vi.</th>' +
+            '<th style="text-align:center;width:110px">N\u00b0 Fact</th>' +
+            '<th style="text-align:center;width:130px">Date fact.</th>' +
+            '<th style="text-align:center;width:130px">Statut</th>' +
+            '<th style="text-align:center;width:35px"></th>' +
           '</tr></thead><tbody>';
 
           var docPhaseTotal = 0;
+          var echFact = 0;
           var nbPhases = usedPhases.length;
           var baseMontant = Math.round(doc.montant / nbPhases);
+
           usedPhases.forEach(function(ph, phIdx) {
             var cat = getPhaseCategory(ph);
-            var isTravaux = cat === 'travaux';
+            var phaseCls = 'phase-' + cat;
             var m = phIdx === nbPhases - 1 ? doc.montant - docPhaseTotal : baseMontant;
             docPhaseTotal += m;
-            var phaseCls = 'phase-' + cat;
-            html += '<tr>' +
-              '<td style="text-align:center;color:var(--text-muted);font-size:0.75rem">' + (isTravaux ? 'X' : '') + '</td>' +
-              '<td style="text-align:left;padding-left:0.5rem"><div class="phase-cell ' + phaseCls + '" style="display:inline-block">' + ph + '</div></td>' +
-              '<td class="montant">' + (isFige ? fmtEuro(m) : '<input type="number" class="form-input" style="width:110px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" value="' + m + '">') + '</td>' +
+
+            // Determine status based on month index
+            var monthIdx = -1;
+            for (var mi3 = 0; mi3 < 12; mi3++) { if (orgPhasesC[mi3] === ph) { monthIdx = mi3; break; } }
+            var statut = monthIdx >= 0 && monthIdx < mi2 ? 'Factur\u00e9' : (monthIdx === mi2 ? '\u00c0 facturer' : 'Pr\u00e9visionnel');
+            var nFact = statut === 'Factur\u00e9' ? 'F' + (2650 + phIdx*3 + docIdx*10 + PROJETS.indexOf(p)%15) : '';
+            var datePrev = monthIdx >= 0 ? selectedYear + '-' + String(monthIdx+1).padStart(2,'0') + '-15' : '';
+            var dateFact = statut === 'Factur\u00e9' && monthIdx >= 0 ? selectedYear + '-' + String(monthIdx+1).padStart(2,'0') + '-20' : '';
+            if (statut === 'Factur\u00e9') echFact += m;
+
+            var statutSlug = statut === 'Factur\u00e9' ? 'facture' : statut === '\u00c0 facturer' ? 'a-facturer' : statut === 'Option' ? 'option' : statut === 'Hypoth\u00e9tique' ? 'hypothetique' : 'previsionnel';
+            var isFacture = statut === 'Factur\u00e9';
+            var rowId = 'ct_' + docIdx + '_' + phIdx;
+
+            html += '<tr data-row-id="' + rowId + '">' +
+              '<td style="text-align:left;padding-left:0.5rem"><div class="phase-cell ' + phaseCls + '" style="display:inline-block">' + ph + '</div>' +
+                '<input type="hidden" id="' + rowId + '_phase" value="' + ph + '">' +
+              '</td>' +
+              '<td style="text-align:right"><input type="number" class="form-input" id="' + rowId + '_montant" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" value="' + m + '" onchange="recalcContratTotals(' + docIdx + ')"></td>' +
+              '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_dateprev" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + datePrev + '"></td>' +
+              '<td style="text-align:center"><input type="text" class="form-input" id="' + rowId + '_nfact" style="width:90px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center' + (!isFacture ? ';opacity:0.35' : ';border-color:var(--accent);box-shadow:0 0 0 2px rgba(232,96,28,0.15)') + '" value="' + nFact + '" placeholder="N\u00b0"' + (!isFacture ? ' disabled' : '') + '></td>' +
+              '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_datefact" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center' + (!isFacture ? ';opacity:0.35' : '') + '" value="' + dateFact + '"' + (!isFacture ? ' disabled' : '') + '></td>' +
+              '<td style="text-align:center"><select class="form-select" id="' + rowId + '_statut" style="font-size:0.78rem;padding:0.3rem;width:120px" onchange="handleContratStatutChange(this,\'' + rowId + '\',' + docIdx + ')">' +
+                '<option' + (statut==='Pr\u00e9visionnel'?' selected':'') + '>Pr\u00e9visionnel</option>' +
+                '<option' + (statut==='\u00c0 facturer'?' selected':'') + '>\u00c0 facturer</option>' +
+                '<option' + (statut==='Factur\u00e9'?' selected':'') + '>Factur\u00e9</option>' +
+                '<option' + (statut==='Option'?' selected':'') + '>Option</option>' +
+                '<option' + (statut==='Hypoth\u00e9tique'?' selected':'') + '>Hypoth\u00e9tique</option>' +
+              '</select></td>' +
+              '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>' +
             '</tr>';
           });
 
-          html += '<tr style="font-weight:700;border-top:2px solid var(--border)"><td></td><td style="text-align:left;padding-left:0.5rem">TOTAL</td>' +
-            '<td class="montant">' + fmtEuro(doc.montant) + '</td></tr>';
-          html += '</tbody></table></div>';
+          // Summary rows
+          var echReste = doc.montant - echFact;
+          html += '</tbody><tfoot>' +
+            '<tr style="font-weight:700;border-top:2px solid var(--border);background:var(--grey-bg)">' +
+              '<td style="text-align:left;padding-left:0.5rem">TOTAL</td>' +
+              '<td style="text-align:right" id="contrat_doc_sum_' + docIdx + '">' + fmtEuro(doc.montant) + '</td>' +
+              '<td colspan="5"></td>' +
+            '</tr>' +
+            '<tr style="font-size:0.82rem">' +
+              '<td style="text-align:left;padding-left:0.5rem;color:var(--green);font-weight:600">Factur\u00e9</td>' +
+              '<td style="text-align:right;color:var(--green);font-weight:600" id="contrat_doc_fact_' + docIdx + '">' + fmtEuro(echFact) + '</td>' +
+              '<td colspan="5"></td>' +
+            '</tr>' +
+            '<tr style="font-size:0.82rem">' +
+              '<td style="text-align:left;padding-left:0.5rem;color:var(--text-muted);font-weight:600">Reste</td>' +
+              '<td style="text-align:right;color:var(--text-muted);font-weight:600" id="contrat_doc_reste_' + docIdx + '">' + fmtEuro(echReste) + '</td>' +
+              '<td colspan="5"></td>' +
+            '</tr>' +
+          '</tfoot></table></div>';
 
-          // Échéancier lié à ce document
-          html += '<div style="margin-top:1rem;padding-top:0.85rem;border-top:1px dashed var(--border)">';
-          html += '<div style="font-size:0.82rem;font-weight:700;color:var(--text-muted);margin-bottom:0.65rem">\u00c9ch\u00e9ancier &mdash; ' + doc.ref + '</div>';
+          // Add phase button
+          html += '<div style="margin-top:0.5rem">' +
+            '<button class="btn" onclick="addContratPhase(' + docIdx + ',\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">+ Ajouter une phase</button>' +
+          '</div>';
 
-          html += '<div class="data-table-wrap"><table class="data-table" style="min-width:100%"><thead><tr>' +
-            '<th style="text-align:left;padding-left:0.5rem">Phase</th>' +
-            '<th style="text-align:right">Montant</th>' +
-            '<th style="text-align:center">Date pr\u00e9v.</th>' +
-            '<th style="text-align:center">N\u00b0 Facture</th>' +
-            '<th style="text-align:center">Date fact.</th>' +
-            '<th style="text-align:center">Statut</th>' +
-          '</tr></thead><tbody>';
-
-          var mi2 = getCurrentMonthIndex();
-          var echFact = 0, echReste = 0;
-          for (var em2 = 0; em2 < 12; em2++) {
-            if (p.mois[em2] > 0) {
-              var orgPhases2 = ORGANISATION[p.code] || [];
-              var phN = orgPhases2[em2] || '\u2014';
-              // Only show entries relevant to this document (split proportionally)
-              var echMontant = Math.round(p.mois[em2] * doc.montant / totalProjet);
-              if (echMontant <= 0) continue;
-              var statut2 = em2 < mi2 ? 'facture' : (em2 === mi2 ? 'a_facturer' : 'previsionnel');
-              var statutLabel2 = statut2 === 'facture' ? 'Factur\u00e9' : statut2 === 'a_facturer' ? '\u00c0 facturer' : 'Pr\u00e9visionnel';
-              var nFact2 = statut2 === 'facture' ? 'F' + (2650 + em2*3 + docIdx*10 + PROJETS.indexOf(p)%15) : '';
-              if (statut2 === 'facture') echFact += echMontant; else echReste += echMontant;
-              var phaseCls2 = 'phase-' + getPhaseCategory(phN);
-
-              html += '<tr>' +
-                '<td style="text-align:left;padding-left:0.5rem"><div class="phase-cell ' + phaseCls2 + '" style="display:inline-block">' + phN + '</div></td>' +
-                '<td class="montant">' + fmtEuro(echMontant) + '</td>' +
-                '<td style="text-align:center"><input type="date" class="form-input" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="2026-' + String(em2+1).padStart(2,'0') + '-15"></td>' +
-                '<td style="text-align:center">' + (nFact2 ? '<span style="font-size:0.78rem;font-weight:600">' + nFact2 + '</span>' : '<input type="text" class="form-input" style="width:80px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" placeholder="N\u00b0">') + '</td>' +
-                '<td style="text-align:center">' + (statut2==='facture' ? '<input type="date" class="form-input" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="2026-' + String(em2+1).padStart(2,'0') + '-20">' : '') + '</td>' +
-                '<td style="text-align:center"><span class="statut-badge statut-' + statut2 + '">' + statutLabel2 + '</span></td>' +
-              '</tr>';
-            }
-          }
-
-          html += '</tbody><tfoot><tr><td colspan="6" style="text-align:left;padding-left:0.5rem;font-size:0.82rem">' +
-            '<strong style="color:var(--green)">Factur\u00e9 : ' + fmtEuro(echFact) + '</strong>' +
-            ' &mdash; Reste : ' + fmtEuro(echReste) +
-          '</td></tr></tfoot></table></div>';
-
-          html += '</div>'; // border-top échéancier
           html += '</div>'; // section-card
         });
 
-        // B4: Total row for all documents
+        // Grand total across all documents
         var grandTotalContrat = 0;
         documents.forEach(function(d) { grandTotalContrat += d.montant; });
         html += '<div class="section-card" style="margin-bottom:1rem;padding:0.75rem 1.25rem;background:var(--accent-light);border-left:4px solid var(--accent)">' +
           '<div style="display:flex;align-items:center;justify-content:space-between">' +
             '<span style="font-weight:700;font-size:0.95rem">TOTAL CONTRAT (' + documents.length + ' document' + (documents.length>1?'s':'') + ')</span>' +
-            '<span class="font-din" style="font-size:1.25rem;color:var(--accent)">' + fmtEuro(grandTotalContrat) + '</span>' +
+            '<span class="font-din" style="font-size:1.25rem;color:var(--accent)" id="contrat_grand_total">' + fmtEuro(grandTotalContrat) + '</span>' +
           '</div>' +
         '</div>';
 
-        html += '<div style="margin-top:0.75rem;display:flex;gap:0.5rem">' +
+        // Action buttons
+        html += '<div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">' +
           '<button class="btn" onclick="addContratDocument(\'' + p.code + '\')">+ Document (avenant, OS\u2026)</button>' +
-          '<button class="btn">+ Phase</button>' +
+          '<button class="btn btn-primary" onclick="saveContrat(\'' + p.code + '\')">Enregistrer le contrat</button>' +
         '</div>';
 
+        // Hidden data for JS
+        html += '<input type="hidden" id="contrat_doc_count" value="' + documents.length + '">';
+
       } else {
-        // New project — form
-        html += '<div class="form-grid" style="margin-bottom:1.25rem">' +
-          fg('Nom du document', 'text', 'contrat_nom', '', 'Ex: Devis initial') +
-          fg('N\u00b0 de devis / r\u00e9f\u00e9rence', 'text', 'contrat_ref', '', 'Ex: DEV-2602-001') +
-          fsel('Type', 'contrat_type', ['Devis initial','Acte d\'engagement'], 'Devis initial') +
-          fg('Date', 'date', 'contrat_date', '') +
+        // New project — empty form for first document
+        html += '<div class="section-card contrat-doc-card" data-doc-idx="0" style="margin-bottom:1.25rem;border-left:4px solid #06D6A0;padding:1rem 1.25rem">';
+        html += '<div class="form-grid" style="margin-bottom:1rem">' +
+          fg('Nom du document', 'text', 'contrat_nom_0', '', 'Ex: Devis initial') +
+          fg('R\u00e9f\u00e9rence', 'text', 'contrat_ref_0', '', 'Ex: DEV-2602-001') +
+          fsel('Type', 'contrat_type_0', ['Devis initial','Acte d\'engagement','Avenant','OS'], 'Devis initial') +
+          fg('Date', 'date', 'contrat_date_0', '') +
         '</div>';
-        html += '<div class="data-table-wrap"><table class="data-table" style="min-width:100%"><thead><tr>' +
-          '<th style="width:30px"></th><th style="text-align:left;padding-left:0.5rem">Phase</th><th style="text-align:right">Montant HT</th>' +
+
+        html += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_0" style="min-width:100%"><thead><tr>' +
+          '<th style="text-align:left;padding-left:0.5rem;width:100px">Phase</th>' +
+          '<th style="text-align:right;width:120px">Montant HT</th>' +
+          '<th style="text-align:center;width:130px">Date pr\u00e9vi.</th>' +
+          '<th style="text-align:center;width:110px">N\u00b0 Fact</th>' +
+          '<th style="text-align:center;width:130px">Date fact.</th>' +
+          '<th style="text-align:center;width:130px">Statut</th>' +
+          '<th style="text-align:center;width:35px"></th>' +
         '</tr></thead><tbody>';
-        ['ESQ','DIAG','APS','APD','PRO','DCE','ACT','VISA','DET','AOR'].forEach(function(ph) {
+
+        ['ESQ','DIAG','APS','APD','PRO','DCE','ACT','VISA','DET','AOR'].forEach(function(ph, phIdx) {
           var cat = getPhaseCategory(ph);
           var phaseCls = 'phase-' + cat;
-          html += '<tr><td style="text-align:center;color:var(--text-muted);font-size:0.75rem">' + (cat==='travaux'?'X':'') + '</td>' +
-            '<td style="text-align:left;padding-left:0.5rem"><div class="phase-cell ' + phaseCls + '" style="display:inline-block">' + ph + '</div></td>' +
-            '<td><input type="number" class="form-input" style="width:120px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" placeholder="0 \u20ac"></td></tr>';
+          var rowId = 'ct_0_' + phIdx;
+          html += '<tr data-row-id="' + rowId + '">' +
+            '<td style="text-align:left;padding-left:0.5rem"><div class="phase-cell ' + phaseCls + '" style="display:inline-block">' + ph + '</div>' +
+              '<input type="hidden" id="' + rowId + '_phase" value="' + ph + '">' +
+            '</td>' +
+            '<td style="text-align:right"><input type="number" class="form-input" id="' + rowId + '_montant" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" placeholder="0" value="" onchange="recalcContratTotals(0)"></td>' +
+            '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_dateprev" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center"></td>' +
+            '<td style="text-align:center"><input type="text" class="form-input" id="' + rowId + '_nfact" style="width:90px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center;opacity:0.35" placeholder="N\u00b0" disabled></td>' +
+            '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_datefact" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center;opacity:0.35" disabled></td>' +
+            '<td style="text-align:center"><select class="form-select" id="' + rowId + '_statut" style="font-size:0.78rem;padding:0.3rem;width:120px" onchange="handleContratStatutChange(this,\'' + rowId + '\',0)">' +
+              '<option selected>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Option</option><option>Hypoth\u00e9tique</option>' +
+            '</select></td>' +
+            '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(0)" title="Supprimer">\u2716</button></td>' +
+          '</tr>';
         });
-        html += '</tbody></table></div>';
-        html += '<div style="margin-top:0.75rem"><button class="btn">+ Phase</button></div>';
+
+        html += '</tbody><tfoot>' +
+          '<tr style="font-weight:700;border-top:2px solid var(--border);background:var(--grey-bg)">' +
+            '<td style="text-align:left;padding-left:0.5rem">TOTAL</td>' +
+            '<td style="text-align:right" id="contrat_doc_sum_0">0 \u20ac</td>' +
+            '<td colspan="5"></td></tr>' +
+          '<tr style="font-size:0.82rem"><td style="text-align:left;padding-left:0.5rem;color:var(--green);font-weight:600">Factur\u00e9</td>' +
+            '<td style="text-align:right;color:var(--green);font-weight:600" id="contrat_doc_fact_0">0 \u20ac</td><td colspan="5"></td></tr>' +
+          '<tr style="font-size:0.82rem"><td style="text-align:left;padding-left:0.5rem;color:var(--text-muted);font-weight:600">Reste</td>' +
+            '<td style="text-align:right;color:var(--text-muted);font-weight:600" id="contrat_doc_reste_0">0 \u20ac</td><td colspan="5"></td></tr>' +
+        '</tfoot></table></div>';
+
+        html += '<div style="margin-top:0.5rem">' +
+          '<button class="btn" onclick="addContratPhase(0,\'\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">+ Ajouter une phase</button>' +
+        '</div>';
+        html += '</div>'; // section-card
+
+        html += '<div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">' +
+          '<button class="btn" onclick="addContratDocument(\'\')">+ Document (avenant, OS\u2026)</button>' +
+          '<button class="btn btn-primary" onclick="saveContrat(\'\')">Enregistrer le contrat</button>' +
+        '</div>';
+        html += '<input type="hidden" id="contrat_doc_count" value="1">';
       }
       html += '</div>'; // end volet-contrat
 
-      // ── VOLET ÉCHEANCIER (résumé global) ──
-      html += '<div class="volet-panel" id="volet-ech">';
-      html += '<div class="volet-header volet-header-echeancier">\u00c9ch\u00e9ancier &mdash; \u00c9ditable</div>';
+      // ── VOLET FACTURATION (invoice tracking table) ──
+      html += '<div class="volet-panel" id="volet-facturation">';
+      html += '<div class="volet-header volet-header-facturation">Facturation &mdash; Suivi des factures \u00e9mises</div>';
       if (p) {
-        var mi3 = getCurrentMonthIndex();
-        var totalFact3 = 0, totalReste3 = 0;
-        var echIdx = 0;
+        // Build phase list from ORGANISATION (same as contrat)
+        var orgPhasesF = ORGANISATION[p.code] || [];
+        var factPhases = [];
+        orgPhasesF.forEach(function(ph){ if (ph && factPhases.indexOf(ph)<0) factPhases.push(ph); });
+        if (factPhases.length === 0) factPhases = ['APS','APD','PRO','ACT','DET','AOR'];
 
-        // Récupérer les phases du contrat (ORGANISATION) comme source de vérité
-        var orgPhases = ORGANISATION[p.code] || [];
-        var contratPhases = [];
-        var seenPhases = {};
-        for (var op = 0; op < orgPhases.length; op++) {
-          if (orgPhases[op] && !seenPhases[orgPhases[op]]) {
-            contratPhases.push(orgPhases[op]);
-            seenPhases[orgPhases[op]] = true;
+        // Phase montants from contrat (mock: evenly distributed)
+        var totalProjetF = p.mois.reduce(function(a,b){return a+b;},0);
+        var phaseMontants = {};
+        var nbPhasesF = factPhases.length;
+        var baseF = Math.round(totalProjetF / nbPhasesF);
+        var sumF = 0;
+        factPhases.forEach(function(ph, idx) {
+          var m = idx === nbPhasesF - 1 ? totalProjetF - sumF : baseF;
+          phaseMontants[ph] = m;
+          sumF += m;
+        });
+
+        // Build mock invoices from months with data
+        var mi4 = getCurrentMonthIndex();
+        var mockInvoices = [];
+        var invIdx = 0;
+        for (var em4 = 0; em4 < 12; em4++) {
+          if (p.mois[em4] > 0 && em4 < mi4) {
+            var phF = orgPhasesF[em4] || 'Divers';
+            mockInvoices.push({
+              n_facture: 'F' + (2650 + invIdx*3 + PROJETS.indexOf(p)%15),
+              date_facture: selectedYear + '-' + String(em4+1).padStart(2,'0') + '-20',
+              ventilation: {},
+              revision: 0
+            });
+            // 100% of that phase
+            mockInvoices[invIdx].ventilation[phF] = { type: 'pct', value: 100, montant: p.mois[em4] };
+            invIdx++;
           }
         }
-        // Si pas de phases dans ORGANISATION, déduire depuis les mois
-        if (contratPhases.length === 0) {
-          contratPhases = ['PHASE 1'];
-        }
 
-        // Construire l'échéancier : une ligne par mois avec montant > 0
-        // La phase est celle du contrat pour ce mois-là
+        // Info bar
         html += '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem">' +
-          'Phases du contrat : <strong>' + contratPhases.join(', ') + '</strong> &mdash; ' +
-          'L\'\u00e9ch\u00e9ancier doit reprendre exactement ces phases.</p>';
+          'Colonnes = phases du contrat. Saisissez un montant (\u20ac) ou un pourcentage (%) dans chaque cellule. ' +
+          'La colonne R\u00c9VISION accepte uniquement un montant.</p>';
 
-        html += '<div class="data-table-wrap"><table class="data-table" id="echTable" style="min-width:100%"><thead><tr>' +
-          '<th style="text-align:left;padding-left:0.5rem;width:120px">Phase</th>' +
-          '<th style="text-align:right;width:120px">Montant \u20ac</th>' +
-          '<th style="text-align:center;width:140px">Date pr\u00e9v.</th>' +
-          '<th style="text-align:center;width:120px">N\u00b0 Facture</th>' +
-          '<th style="text-align:center;width:140px">Date facture</th>' +
-          '<th style="text-align:center;width:110px">Statut</th>' +
-          '<th style="text-align:center;width:40px"></th>' +
+        // Build the facturation table
+        html += '<div class="data-table-wrap" style="overflow-x:auto"><table class="data-table" id="factTable" style="min-width:100%"><thead><tr>' +
+          '<th style="text-align:center;width:100px">N\u00b0 Fact</th>' +
+          '<th style="text-align:center;width:120px">Date fact.</th>';
+        factPhases.forEach(function(ph) {
+          var cat = getPhaseCategory(ph);
+          var bg = cat === 'etudes' ? 'rgba(59,130,246,0.1)' : cat === 'travaux' ? 'rgba(232,96,28,0.1)' : 'rgba(148,163,184,0.1)';
+          html += '<th style="text-align:center;width:90px;background:' + bg + ';font-size:0.75rem">' + ph + '<div style="font-size:0.68rem;font-weight:400;color:var(--text-muted)">' + fmtEuro(phaseMontants[ph]) + '</div></th>';
+        });
+        html += '<th style="text-align:center;width:90px;background:rgba(148,163,184,0.1);font-size:0.75rem">R\u00c9VISION</th>' +
+          '<th style="text-align:right;width:100px;font-weight:700">TOTAL</th>' +
+          '<th style="width:35px"></th>' +
         '</tr></thead><tbody>';
 
-        // Options de phases = celles du contrat + Revision
-        var phaseOptions = '<option value="">\u2014</option>';
-        for (var cp = 0; cp < contratPhases.length; cp++) {
-          phaseOptions += '<option>' + contratPhases[cp] + '</option>';
-        }
-        // B7: Add Revision option
-        phaseOptions += '<option value="R\u00e9vision">R\u00e9vision</option>';
-        // + option libre au cas où
-        phaseOptions += '<option value="_autre">Autre\u2026</option>';
-
-        for (var em3 = 0; em3 < 12; em3++) {
-          if (p.mois[em3] > 0) {
-            var phN3 = orgPhases[em3] || '';
-            var st3 = em3 < mi3 ? 'Factur\u00e9' : (em3 === mi3 ? '\u00c0 facturer' : 'Pr\u00e9visionnel');
-            if (st3 === 'Factur\u00e9') totalFact3 += p.mois[em3]; else totalReste3 += p.mois[em3];
-            var dateVal = selectedYear + '-' + String(em3+1).padStart(2,'0') + '-15';
-
-            var selPhase = '<select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_phase_'+echIdx+'">';
-            selPhase += '<option value="">\u2014</option>';
-            for (var cp2 = 0; cp2 < contratPhases.length; cp2++) {
-              selPhase += '<option' + (contratPhases[cp2]===phN3?' selected':'') + '>' + contratPhases[cp2] + '</option>';
+        // Render existing mock invoice rows
+        mockInvoices.forEach(function(inv, fIdx) {
+          html += '<tr data-fact-idx="' + fIdx + '">';
+          html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_num_' + fIdx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + inv.n_facture + '"></td>';
+          html += '<td style="text-align:center"><input type="date" class="form-input" id="fact_date_' + fIdx + '" style="width:110px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + inv.date_facture + '"></td>';
+          factPhases.forEach(function(ph, phIdx) {
+            var cellVal = '';
+            if (inv.ventilation[ph]) {
+              if (inv.ventilation[ph].type === 'pct') cellVal = inv.ventilation[ph].value + '%';
+              else cellVal = inv.ventilation[ph].montant;
             }
-            selPhase += '<option value="_autre">Autre\u2026</option>';
-            selPhase += '</select>';
+            html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_' + fIdx + '_ph_' + phIdx + '" style="width:75px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + cellVal + '" placeholder="\u20ac ou %" data-phase="' + ph + '" data-phase-montant="' + phaseMontants[ph] + '" onchange="recalcFactRow(' + fIdx + ')"></td>';
+          });
+          // Revision column
+          html += '<td style="text-align:center"><input type="number" class="form-input" id="fact_' + fIdx + '_rev" style="width:75px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + (inv.revision || '') + '" placeholder="0 \u20ac" onchange="recalcFactRow(' + fIdx + ')"></td>';
+          // Total column
+          var rowTotal = 0;
+          factPhases.forEach(function(ph2) {
+            if (inv.ventilation[ph2]) rowTotal += inv.ventilation[ph2].montant || 0;
+          });
+          rowTotal += inv.revision || 0;
+          html += '<td style="text-align:right;font-weight:700;font-size:0.85rem" id="fact_total_' + fIdx + '">' + fmtEuro(rowTotal) + '</td>';
+          html += '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="removeFactRow(this)" title="Supprimer">\u2716</button></td>';
+          html += '</tr>';
+        });
 
-            var selStatut = '<select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_statut_'+echIdx+'" onchange="handleEchStatutChange(this,'+echIdx+')">' +
-              '<option' + (st3==='Pr\u00e9visionnel'?' selected':'') + '>Pr\u00e9visionnel</option>' +
-              '<option' + (st3==='\u00c0 facturer'?' selected':'') + '>\u00c0 facturer</option>' +
-              '<option' + (st3==='Factur\u00e9'?' selected':'') + '>Factur\u00e9</option>' +
-              '<option>Hypoth\u00e9tique</option></select>';
+        html += '</tbody><tfoot>';
+        // Column totals
+        html += '<tr style="font-weight:700;border-top:2px solid var(--border);background:var(--grey-bg)">';
+        html += '<td colspan="2" style="text-align:left;padding-left:0.5rem">TOTAL</td>';
+        var grandFactTotal = 0;
+        factPhases.forEach(function(ph, phIdx) {
+          var colTotal = 0;
+          mockInvoices.forEach(function(inv) {
+            if (inv.ventilation[ph]) colTotal += inv.ventilation[ph].montant || 0;
+          });
+          grandFactTotal += colTotal;
+          html += '<td style="text-align:center;font-size:0.82rem" id="fact_col_total_' + phIdx + '">' + fmtEuro(colTotal) + '</td>';
+        });
+        // Revision total
+        var revTotal = mockInvoices.reduce(function(s,inv){return s+(inv.revision||0);},0);
+        grandFactTotal += revTotal;
+        html += '<td style="text-align:center;font-size:0.82rem" id="fact_col_total_rev">' + fmtEuro(revTotal) + '</td>';
+        html += '<td style="text-align:right;font-size:0.95rem" id="fact_grand_total">' + fmtEuro(grandFactTotal) + '</td>';
+        html += '<td></td>';
+        html += '</tr></tfoot></table></div>';
 
-            html += '<tr>' +
-              '<td style="text-align:left;padding-left:0.5rem">' + selPhase + '</td>' +
-              '<td><input type="number" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px;text-align:right" id="ech_montant_'+echIdx+'" value="' + p.mois[em3] + '"></td>' +
-              '<td style="text-align:center"><input type="date" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:130px" id="ech_date_'+echIdx+'" value="' + dateVal + '"></td>' +
-              '<td><input type="text" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px" id="ech_facture_'+echIdx+'" placeholder="F0000"></td>' +
-              '<td style="text-align:center"><input type="date" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:130px" id="ech_datefact_'+echIdx+'"></td>' +
-              '<td style="text-align:center">' + selStatut + '</td>' +
-              '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="removeEchRow(this)" title="Supprimer">\u2716</button></td>' +
-            '</tr>';
-            echIdx++;
-          }
-        }
+        // Hidden metadata
+        html += '<input type="hidden" id="fact_phases" value="' + factPhases.join(',') + '">';
+        html += '<input type="hidden" id="fact_phase_montants" value=\'' + JSON.stringify(phaseMontants) + '\'>';
 
-        // Vérif cohérence : phases du contrat sans échéance
-        var echPhases3 = {};
-        for (var ep = 0; ep < orgPhases.length; ep++) { if (orgPhases[ep]) echPhases3[orgPhases[ep]] = true; }
-        var phasesManquantes = contratPhases.filter(function(ph) { return !echPhases3[ph]; });
-        if (phasesManquantes.length > 0) {
-          html += '<tr style="background:var(--yellow-bg)"><td colspan="7" style="padding:0.5rem;font-size:0.82rem;color:var(--accent)">' +
-            '\u26a0 Phases du contrat sans \u00e9ch\u00e9ance : <strong>' + phasesManquantes.join(', ') + '</strong> &mdash; Cliquez "+ Ajouter" pour les planifier.' +
-          '</td></tr>';
-        }
+        // Buttons
+        html += '<div style="margin-top:0.75rem;display:flex;gap:0.5rem;justify-content:flex-end">' +
+          '<button class="btn" onclick="addFactRow(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">+ Ajouter une facture</button>' +
+          '<button class="btn btn-primary" onclick="saveFacturation(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">Enregistrer</button>' +
+        '</div>';
 
-        html += '</tbody><tfoot><tr><td colspan="7" style="padding:0.5rem">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center">' +
-            '<span style="font-size:0.85rem"><strong style="color:var(--green)">Factur\u00e9 : ' + fmtEuro(totalFact3) + '</strong> &mdash; Reste : ' + fmtEuro(totalReste3) + '</span>' +
-            '<div style="display:flex;gap:0.5rem">' +
-              '<button class="btn" onclick="addEchRow(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">+ Ajouter une \u00e9ch\u00e9ance</button>' +
-              '<button class="btn btn-primary" onclick="saveEcheancier(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">Enregistrer l\'\u00e9ch\u00e9ancier</button>' +
-            '</div>' +
-          '</div>' +
-        '</td></tr></tfoot></table></div>';
       } else {
-        html += '<p style="color:var(--text-muted)">L\'\u00e9ch\u00e9ancier sera pr\u00e9-rempli depuis le contrat \u00e0 la cr\u00e9ation.</p>';
+        html += '<p style="color:var(--text-muted)">La facturation sera disponible apr\u00e8s la cr\u00e9ation du contrat.</p>';
       }
-      html += '</div>'; // end volet-ech
+      html += '</div>'; // end volet-facturation
 
       // ── VOLET ORGANISATION ──
       html += '<div class="volet-panel" id="volet-orga">';
@@ -4621,13 +4687,13 @@
             '<div style="font-weight:700;color:var(--green);margin-bottom:0.5rem">\u2713 Import appliqu\u00e9 et sauvegard\u00e9</div>' +
             '<div style="font-size:0.85rem">' +
               '<strong>' + filled + '</strong> champs info projet mis \u00e0 jour<br>' +
-              '<strong>' + savedCount + '</strong> phases sauvegard\u00e9es dans Contrat + \u00c9ch\u00e9ancier + Organisation<br>' +
+              '<strong>' + savedCount + '</strong> phases sauvegard\u00e9es dans Contrat + Facturation + Organisation<br>' +
               'Montant total : <strong>' + totalMontant.toLocaleString('fr-FR') + ' \u20ac</strong><br>' +
               'R\u00e9f\u00e9rence devis : ' + refDevis +
             '</div>' +
             '<div style="margin-top:0.75rem;font-size:0.82rem;color:var(--text-muted)">' +
               'Cliquez <strong>Enregistrer</strong> pour sauvegarder aussi les infos projet. ' +
-              'Rechargez la page pour voir les mises \u00e0 jour dans les volets Contrat / \u00c9ch\u00e9ancier / Organisation.' +
+              'Rechargez la page pour voir les mises \u00e0 jour dans les volets Contrat / Facturation / Organisation.' +
             '</div>' +
           '</div>';
 
@@ -4978,164 +5044,439 @@
       });
     };
 
-    // ── ECHEANCIER EDIT ──
-    window.addEchRow = function(code) {
-      var tbody = document.querySelector('#echTable tbody');
-      if (!tbody) return;
-      var idx = tbody.rows.length;
-      // Utiliser les phases du contrat (ORGANISATION) comme options
-      var orgPhases = ORGANISATION[code] || [];
-      var contratPhases = [];
-      var seen = {};
-      for (var i = 0; i < orgPhases.length; i++) {
-        if (orgPhases[i] && !seen[orgPhases[i]]) { contratPhases.push(orgPhases[i]); seen[orgPhases[i]] = true; }
-      }
-      if (contratPhases.length === 0) contratPhases = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
-      var phasesOpts = '<option value="">\u2014</option>';
-      contratPhases.forEach(function(ph) {
-        phasesOpts += '<option>' + ph + '</option>';
+    // ── CONTRAT EDIT FUNCTIONS ──
+
+    // Recalculate totals for a contrat document table
+    window.recalcContratTotals = function(docIdx) {
+      var table = document.getElementById('contratTable_' + docIdx);
+      if (!table) return;
+      var rows = table.querySelectorAll('tbody tr');
+      var total = 0, facture = 0;
+      rows.forEach(function(tr) {
+        var rowId = tr.getAttribute('data-row-id');
+        if (!rowId) return;
+        var montant = parseFloat((document.getElementById(rowId + '_montant') || {}).value) || 0;
+        var statut = (document.getElementById(rowId + '_statut') || {}).value || '';
+        total += montant;
+        if (statut === 'Factur\u00e9') facture += montant;
       });
-      // B7: Add Revision option
-      phasesOpts += '<option value="R\u00e9vision">R\u00e9vision</option>';
-      phasesOpts += '<option value="_autre">Autre\u2026</option>';
+      var reste = total - facture;
+      var sumEl = document.getElementById('contrat_doc_sum_' + docIdx);
+      var factEl = document.getElementById('contrat_doc_fact_' + docIdx);
+      var resteEl = document.getElementById('contrat_doc_reste_' + docIdx);
+      var totalEl = document.getElementById('contrat_doc_total_' + docIdx);
+      if (sumEl) sumEl.textContent = fmtEuro(total);
+      if (factEl) factEl.textContent = fmtEuro(facture);
+      if (resteEl) resteEl.textContent = fmtEuro(reste);
+      if (totalEl) totalEl.textContent = fmtEuro(total);
+
+      // Recalc grand total across all documents
+      var docCount = parseInt((document.getElementById('contrat_doc_count') || {}).value) || 0;
+      var grandTotal = 0;
+      for (var d = 0; d < docCount + 10; d++) {
+        var tbl = document.getElementById('contratTable_' + d);
+        if (!tbl) continue;
+        tbl.querySelectorAll('tbody tr').forEach(function(tr2) {
+          var rid = tr2.getAttribute('data-row-id');
+          if (rid) grandTotal += parseFloat((document.getElementById(rid + '_montant') || {}).value) || 0;
+        });
+      }
+      var gtEl = document.getElementById('contrat_grand_total');
+      if (gtEl) gtEl.textContent = fmtEuro(grandTotal);
+    };
+
+    // Handle statut change in contrat table
+    window.handleContratStatutChange = function(selectEl, rowId, docIdx) {
+      var statut = selectEl.value;
+      var nFactInput = document.getElementById(rowId + '_nfact');
+      var dateFactInput = document.getElementById(rowId + '_datefact');
+      if (statut === 'Factur\u00e9') {
+        if (nFactInput) {
+          nFactInput.disabled = false;
+          nFactInput.style.opacity = '1';
+          nFactInput.style.borderColor = 'var(--accent)';
+          nFactInput.style.boxShadow = '0 0 0 2px rgba(232,96,28,0.2)';
+          if (!nFactInput.value) nFactInput.placeholder = 'Obligatoire !';
+          nFactInput.focus();
+        }
+        if (dateFactInput) {
+          dateFactInput.disabled = false;
+          dateFactInput.style.opacity = '1';
+          if (!dateFactInput.value) dateFactInput.value = new Date().toISOString().substring(0,10);
+        }
+      } else {
+        if (nFactInput) {
+          nFactInput.disabled = (statut !== '\u00c0 facturer');
+          nFactInput.style.opacity = (statut === '\u00c0 facturer') ? '1' : '0.35';
+          nFactInput.style.borderColor = '';
+          nFactInput.style.boxShadow = '';
+          nFactInput.placeholder = 'N\u00b0';
+        }
+        if (dateFactInput) {
+          dateFactInput.disabled = true;
+          dateFactInput.style.opacity = '0.35';
+        }
+      }
+      recalcContratTotals(docIdx);
+    };
+
+    // Add a new phase row to a contrat document table
+    window.addContratPhase = function(docIdx, code) {
+      var table = document.getElementById('contratTable_' + docIdx);
+      if (!table) return;
+      var tbody = table.querySelector('tbody');
+      var idx = tbody.rows.length;
+      var rowId = 'ct_' + docIdx + '_' + idx;
+
+      var phaseOpts = '';
+      ALL_PHASES.forEach(function(ph) { phaseOpts += '<option>' + ph + '</option>'; });
+
       var tr = document.createElement('tr');
+      tr.setAttribute('data-row-id', rowId);
       tr.innerHTML =
-        '<td style="text-align:left;padding-left:0.5rem"><select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_phase_'+idx+'">' + phasesOpts + '</select></td>' +
-        '<td><input type="number" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px;text-align:right" id="ech_montant_'+idx+'" value="0"></td>' +
-        '<td style="text-align:center"><input type="date" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:130px" id="ech_date_'+idx+'"></td>' +
-        '<td><input type="text" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:100px" id="ech_facture_'+idx+'" placeholder="F0000"></td>' +
-        '<td style="text-align:center"><input type="date" class="form-input" style="font-size:0.82rem;padding:0.3rem;width:130px" id="ech_datefact_'+idx+'"></td>' +
-        '<td style="text-align:center"><select class="form-select" style="font-size:0.8rem;padding:0.3rem;width:100px" id="ech_statut_'+idx+'" onchange="handleEchStatutChange(this,'+idx+')"><option>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Hypoth\u00e9tique</option></select></td>' +
-        '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="removeEchRow(this)" title="Supprimer">\u2716</button></td>';
+        '<td style="text-align:left;padding-left:0.5rem">' +
+          '<select class="form-select" id="' + rowId + '_phase" style="font-size:0.8rem;padding:0.3rem;width:90px">' +
+            '<option value="">\u2014</option>' + phaseOpts + '</select></td>' +
+        '<td style="text-align:right"><input type="number" class="form-input" id="' + rowId + '_montant" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" placeholder="0" onchange="recalcContratTotals(' + docIdx + ')"></td>' +
+        '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_dateprev" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center"></td>' +
+        '<td style="text-align:center"><input type="text" class="form-input" id="' + rowId + '_nfact" style="width:90px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center;opacity:0.35" placeholder="N\u00b0" disabled></td>' +
+        '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_datefact" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center;opacity:0.35" disabled></td>' +
+        '<td style="text-align:center"><select class="form-select" id="' + rowId + '_statut" style="font-size:0.78rem;padding:0.3rem;width:120px" onchange="handleContratStatutChange(this,\'' + rowId + '\',' + docIdx + ')">' +
+          '<option selected>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Option</option><option>Hypoth\u00e9tique</option></select></td>' +
+        '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>';
       tbody.appendChild(tr);
     };
 
-    window.removeEchRow = function(btn) {
-      var tr = btn.closest('tr');
-      if (tr) tr.remove();
-    };
-
-    // B4: Add a new contrat document (avenant, OS, etc.)
+    // Add a new contrat document (avenant, OS, etc.)
     window.addContratDocument = function(code) {
-      var p = PROJETS.find(function(pr){return pr.code === code;});
-      if (!p) return;
-      // Re-render the detail to add a new document
-      // For now, show a form inline
       var voletContrat = document.getElementById('volet-contrat');
       if (!voletContrat) return;
-      var docCount = voletContrat.querySelectorAll('.section-card').length;
-      var newRef = 'AV-' + code + '-' + String(docCount).padStart(3,'0');
+      var docCountEl = document.getElementById('contrat_doc_count');
+      var docIdx = parseInt(docCountEl ? docCountEl.value : '0');
+      var newRef = 'AV-' + (code || 'NEW') + '-' + String(docIdx).padStart(3,'0');
       var today = new Date().toISOString().substring(0,10);
 
-      var orgPhases = ORGANISATION[code] || [];
+      var orgPhases = code ? (ORGANISATION[code] || []) : [];
       var usedPhases = [];
       orgPhases.forEach(function(ph){ if (ph && usedPhases.indexOf(ph)<0) usedPhases.push(ph); });
       if (usedPhases.length === 0) usedPhases = ['APS','APD','PRO','ACT','DET','AOR'];
 
-      var newDocHtml = '<div class="section-card" style="margin-bottom:1rem;border-left:4px solid #F59E0B;padding:1rem 1.25rem">';
-      newDocHtml += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem">';
-      newDocHtml += '<div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">' +
-        '<input type="text" class="form-input" style="width:180px;font-size:0.9rem;font-weight:700" placeholder="Nom du document" value="Avenant ' + docCount + '">' +
-        '<input type="text" class="form-input" style="width:160px;font-size:0.82rem" placeholder="R\u00e9f\u00e9rence" value="' + newRef + '">' +
-        '<input type="date" class="form-input" style="width:140px;font-size:0.82rem" value="' + today + '">' +
-        '<select class="form-select" style="font-size:0.82rem;padding:0.4rem">' +
+      var h = '<div class="section-card contrat-doc-card" data-doc-idx="' + docIdx + '" style="margin-bottom:1.25rem;border-left:4px solid #F59E0B;padding:1rem 1.25rem">';
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem">';
+      h += '<div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">' +
+        '<input type="text" class="form-input" id="contrat_nom_' + docIdx + '" style="width:180px;font-size:0.9rem;font-weight:700" placeholder="Nom du document" value="Avenant ' + docIdx + '">' +
+        '<input type="text" class="form-input" id="contrat_ref_' + docIdx + '" style="width:160px;font-size:0.82rem" placeholder="R\u00e9f\u00e9rence" value="' + newRef + '">' +
+        '<input type="date" class="form-input" id="contrat_date_' + docIdx + '" style="width:140px;font-size:0.82rem" value="' + today + '">' +
+        '<select class="form-select" id="contrat_type_' + docIdx + '" style="font-size:0.82rem;padding:0.4rem">' +
           '<option>Avenant</option><option>OS</option><option>Devis compl\u00e9mentaire</option>' +
         '</select>' +
       '</div>';
-      newDocHtml += '<div class="font-din" style="font-size:1.15rem" id="newDocTotal_' + docCount + '">0 \u20ac</div>';
-      newDocHtml += '</div>';
+      h += '<div class="font-din" style="font-size:1.15rem" id="contrat_doc_total_' + docIdx + '">0 \u20ac</div>';
+      h += '</div>';
 
-      // Phase table
-      newDocHtml += '<div class="data-table-wrap"><table class="data-table" style="min-width:100%"><thead><tr>' +
-        '<th style="width:30px"></th>' +
-        '<th style="text-align:left;padding-left:0.5rem">Phase</th>' +
-        '<th style="text-align:right">Montant HT</th>' +
+      h += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_' + docIdx + '" style="min-width:100%"><thead><tr>' +
+        '<th style="text-align:left;padding-left:0.5rem;width:100px">Phase</th>' +
+        '<th style="text-align:right;width:120px">Montant HT</th>' +
+        '<th style="text-align:center;width:130px">Date pr\u00e9vi.</th>' +
+        '<th style="text-align:center;width:110px">N\u00b0 Fact</th>' +
+        '<th style="text-align:center;width:130px">Date fact.</th>' +
+        '<th style="text-align:center;width:130px">Statut</th>' +
+        '<th style="text-align:center;width:35px"></th>' +
       '</tr></thead><tbody>';
-      usedPhases.forEach(function(ph) {
+
+      usedPhases.forEach(function(ph, phIdx) {
         var cat = getPhaseCategory(ph);
         var phaseCls = 'phase-' + cat;
-        newDocHtml += '<tr>' +
-          '<td style="text-align:center;color:var(--text-muted);font-size:0.75rem">' + (cat==='travaux'?'X':'') + '</td>' +
-          '<td style="text-align:left;padding-left:0.5rem"><div class="phase-cell ' + phaseCls + '" style="display:inline-block">' + ph + '</div></td>' +
-          '<td><input type="number" class="form-input" style="width:110px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" value="0" placeholder="0 \u20ac"></td>' +
+        var rowId = 'ct_' + docIdx + '_' + phIdx;
+        h += '<tr data-row-id="' + rowId + '">' +
+          '<td style="text-align:left;padding-left:0.5rem"><div class="phase-cell ' + phaseCls + '" style="display:inline-block">' + ph + '</div>' +
+            '<input type="hidden" id="' + rowId + '_phase" value="' + ph + '">' +
+          '</td>' +
+          '<td style="text-align:right"><input type="number" class="form-input" id="' + rowId + '_montant" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" placeholder="0" onchange="recalcContratTotals(' + docIdx + ')"></td>' +
+          '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_dateprev" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center"></td>' +
+          '<td style="text-align:center"><input type="text" class="form-input" id="' + rowId + '_nfact" style="width:90px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center;opacity:0.35" placeholder="N\u00b0" disabled></td>' +
+          '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_datefact" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center;opacity:0.35" disabled></td>' +
+          '<td style="text-align:center"><select class="form-select" id="' + rowId + '_statut" style="font-size:0.78rem;padding:0.3rem;width:120px" onchange="handleContratStatutChange(this,\'' + rowId + '\',' + docIdx + ')">' +
+            '<option selected>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Option</option><option>Hypoth\u00e9tique</option></select></td>' +
+          '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>' +
         '</tr>';
       });
-      newDocHtml += '</tbody></table></div>';
-      newDocHtml += '</div>';
 
-      // Insert before the buttons div
-      var btnsDiv = voletContrat.querySelector('div:last-child');
+      h += '</tbody><tfoot>' +
+        '<tr style="font-weight:700;border-top:2px solid var(--border);background:var(--grey-bg)">' +
+          '<td style="text-align:left;padding-left:0.5rem">TOTAL</td>' +
+          '<td style="text-align:right" id="contrat_doc_sum_' + docIdx + '">0 \u20ac</td><td colspan="5"></td></tr>' +
+        '<tr style="font-size:0.82rem"><td style="text-align:left;padding-left:0.5rem;color:var(--green);font-weight:600">Factur\u00e9</td>' +
+          '<td style="text-align:right;color:var(--green);font-weight:600" id="contrat_doc_fact_' + docIdx + '">0 \u20ac</td><td colspan="5"></td></tr>' +
+        '<tr style="font-size:0.82rem"><td style="text-align:left;padding-left:0.5rem;color:var(--text-muted);font-weight:600">Reste</td>' +
+          '<td style="text-align:right;color:var(--text-muted);font-weight:600" id="contrat_doc_reste_' + docIdx + '">0 \u20ac</td><td colspan="5"></td></tr>' +
+      '</tfoot></table></div>';
+
+      h += '<div style="margin-top:0.5rem">' +
+        '<button class="btn" onclick="addContratPhase(' + docIdx + ',\'' + (code || '') + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">+ Ajouter une phase</button>' +
+      '</div>';
+      h += '</div>';
+
+      // Insert before the grand total / buttons area
+      var grandTotalCard = voletContrat.querySelector('.section-card:last-of-type');
+      if (!grandTotalCard) grandTotalCard = voletContrat.lastElementChild;
       var tempDiv = document.createElement('div');
-      tempDiv.innerHTML = newDocHtml;
-      voletContrat.insertBefore(tempDiv.firstChild, btnsDiv);
+      tempDiv.innerHTML = h;
+      var newCard = tempDiv.firstChild;
+      // Insert before the grand total or action buttons
+      var allCards = voletContrat.querySelectorAll('.contrat-doc-card');
+      var lastCard = allCards[allCards.length - 1];
+      if (lastCard && lastCard.nextSibling) {
+        voletContrat.insertBefore(newCard, lastCard.nextSibling);
+      } else {
+        voletContrat.appendChild(newCard);
+      }
+      if (docCountEl) docCountEl.value = docIdx + 1;
       showToast('Document ajout\u00e9');
     };
 
-    // B8: Facturation workflow — when changing status to Facturé, require n° facture and auto-fill date
-    window.handleEchStatutChange = function(selectEl, idx) {
-      var statut = selectEl.value;
-      var factureInput = document.getElementById('ech_facture_' + idx);
-      var dateFactInput = document.getElementById('ech_datefact_' + idx);
-      if (statut === 'Factur\u00e9') {
-        // Highlight n° facture as required
-        if (factureInput) {
-          factureInput.style.borderColor = 'var(--accent)';
-          factureInput.style.boxShadow = '0 0 0 3px rgba(232,96,28,0.2)';
-          if (!factureInput.value) factureInput.placeholder = 'Obligatoire !';
-          factureInput.focus();
-        }
-        // Auto-fill date facture to today if empty
-        if (dateFactInput && !dateFactInput.value) {
-          dateFactInput.value = new Date().toISOString().substring(0,10);
-        }
-      } else {
-        // Remove highlight
-        if (factureInput) {
-          factureInput.style.borderColor = '';
-          factureInput.style.boxShadow = '';
-          factureInput.placeholder = 'F0000';
-        }
+    // Save all contrat data to Sheet (CONTRATS + ECHEANCIER)
+    window.saveContrat = function(code) {
+      var docCount = parseInt((document.getElementById('contrat_doc_count') || {}).value) || 1;
+      var saved = 0;
+
+      for (var d = 0; d < docCount + 10; d++) {
+        var table = document.getElementById('contratTable_' + d);
+        if (!table) continue;
+
+        var card = table.closest('.contrat-doc-card');
+        var refDoc = (document.getElementById('contrat_ref_' + d) || {}).value || 'DEV-' + code + '-' + String(d+1).padStart(3,'0');
+        var nomDoc = (document.getElementById('contrat_nom_' + d) || {}).value || 'Document ' + (d+1);
+        var dateDoc = (document.getElementById('contrat_date_' + d) || {}).value || '';
+        var typeDoc = (document.getElementById('contrat_type_' + d) || {}).value || 'Devis initial';
+
+        var rows = table.querySelectorAll('tbody tr');
+        rows.forEach(function(tr, i) {
+          var rowId = tr.getAttribute('data-row-id');
+          if (!rowId) return;
+          var phase = (document.getElementById(rowId + '_phase') || {}).value || '';
+          var montant = parseFloat((document.getElementById(rowId + '_montant') || {}).value) || 0;
+          var datePrev = (document.getElementById(rowId + '_dateprev') || {}).value || '';
+          var nFacture = (document.getElementById(rowId + '_nfact') || {}).value || '';
+          var dateFacture = (document.getElementById(rowId + '_datefact') || {}).value || '';
+          var statut = (document.getElementById(rowId + '_statut') || {}).value || 'Pr\u00e9visionnel';
+
+          if (!montant && !phase) return;
+
+          // Save to CONTRATS sheet
+          if (dataMode === 'live' && apiUrl) {
+            postToSheet('upsert_contrat', {
+              code_projet: code,
+              ref_document: refDoc,
+              nom_document: nomDoc,
+              famille_document: d === 0 ? 'Montant initial' : 'Compl\u00e9mentaire',
+              type_document: typeDoc,
+              origine_document: 'ACTE 1',
+              date_document: dateDoc,
+              phase: phase,
+              montant: montant,
+              commentaire: '',
+              ordre_affichage: i + 1
+            });
+
+            // Save to ECHEANCIER sheet
+            postToSheet('upsert_echeancier', {
+              code_projet: code,
+              ref_document: refDoc,
+              phase: phase,
+              montant: montant,
+              date_prev_facturation: datePrev,
+              n_facture: nFacture,
+              date_facture: dateFacture,
+              statut: statut,
+              commentaire: '',
+              ordre_affichage: i + 1
+            });
+            saved++;
+          }
+        });
+      }
+
+      if (saved > 0) {
+        showToast(saved + ' phase(s) sauvegard\u00e9e(s) (Contrat + Facturation)');
+      } else if (dataMode !== 'live') {
+        showToast('Contrat sauvegard\u00e9 (local)');
       }
     };
 
-    window.saveEcheancier = function(code) {
-      var tbody = document.querySelector('#echTable tbody');
+    // ── FACTURATION EDIT FUNCTIONS ──
+
+    // Parse a cell value: returns {montant, isPct}
+    function parseFactCell(val, phaseMontant) {
+      if (!val) return { montant: 0, isPct: false };
+      val = String(val).trim().replace(/\s/g, '').replace(/\u20ac/g, '').replace(',', '.');
+      if (val.indexOf('%') >= 0) {
+        var pct = parseFloat(val.replace('%', '')) || 0;
+        return { montant: Math.round(phaseMontant * pct / 100), isPct: true, pct: pct };
+      }
+      return { montant: parseFloat(val) || 0, isPct: false };
+    }
+
+    // Recalculate a facturation row total and column totals
+    window.recalcFactRow = function(fIdx) {
+      var phasesStr = (document.getElementById('fact_phases') || {}).value || '';
+      var phases = phasesStr.split(',');
+      var phaseMontants = {};
+      try { phaseMontants = JSON.parse((document.getElementById('fact_phase_montants') || {}).value || '{}'); } catch(e) {}
+
+      // Recalc this row
+      var rowTotal = 0;
+      phases.forEach(function(ph, phIdx) {
+        var input = document.getElementById('fact_' + fIdx + '_ph_' + phIdx);
+        if (!input) return;
+        var parsed = parseFactCell(input.value, phaseMontants[ph] || 0);
+        rowTotal += parsed.montant;
+      });
+      var revInput = document.getElementById('fact_' + fIdx + '_rev');
+      rowTotal += parseFloat(revInput ? revInput.value : 0) || 0;
+      var totalEl = document.getElementById('fact_total_' + fIdx);
+      if (totalEl) totalEl.textContent = fmtEuro(rowTotal);
+
+      // Recalc all column totals
+      var tbody = document.querySelector('#factTable tbody');
       if (!tbody) return;
+      var allRows = tbody.querySelectorAll('tr');
+      var grandTotal = 0;
+
+      phases.forEach(function(ph, phIdx) {
+        var colSum = 0;
+        allRows.forEach(function(tr) {
+          var fi = tr.getAttribute('data-fact-idx');
+          if (fi === null) return;
+          var inp = document.getElementById('fact_' + fi + '_ph_' + phIdx);
+          if (!inp) return;
+          var p = parseFactCell(inp.value, phaseMontants[ph] || 0);
+          colSum += p.montant;
+        });
+        grandTotal += colSum;
+        var colEl = document.getElementById('fact_col_total_' + phIdx);
+        if (colEl) colEl.textContent = fmtEuro(colSum);
+      });
+
+      // Revision column total
+      var revSum = 0;
+      allRows.forEach(function(tr) {
+        var fi = tr.getAttribute('data-fact-idx');
+        if (fi === null) return;
+        var ri = document.getElementById('fact_' + fi + '_rev');
+        revSum += parseFloat(ri ? ri.value : 0) || 0;
+      });
+      grandTotal += revSum;
+      var revTotalEl = document.getElementById('fact_col_total_rev');
+      if (revTotalEl) revTotalEl.textContent = fmtEuro(revSum);
+
+      var gtEl = document.getElementById('fact_grand_total');
+      if (gtEl) gtEl.textContent = fmtEuro(grandTotal);
+    };
+
+    // Add a new facturation row
+    window.addFactRow = function(code) {
+      var tbody = document.querySelector('#factTable tbody');
+      if (!tbody) return;
+      var idx = tbody.rows.length;
+      var phasesStr = (document.getElementById('fact_phases') || {}).value || '';
+      var phases = phasesStr.split(',');
+      var phaseMontants = {};
+      try { phaseMontants = JSON.parse((document.getElementById('fact_phase_montants') || {}).value || '{}'); } catch(e) {}
+
+      var tr = document.createElement('tr');
+      tr.setAttribute('data-fact-idx', idx);
+      var rowHtml = '<td style="text-align:center"><input type="text" class="form-input" id="fact_num_' + idx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" placeholder="F0000"></td>';
+      rowHtml += '<td style="text-align:center"><input type="date" class="form-input" id="fact_date_' + idx + '" style="width:110px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + new Date().toISOString().substring(0,10) + '"></td>';
+      phases.forEach(function(ph, phIdx) {
+        rowHtml += '<td style="text-align:center"><input type="text" class="form-input" id="fact_' + idx + '_ph_' + phIdx + '" style="width:75px;font-size:0.82rem;padding:0.3rem;text-align:center" placeholder="\u20ac ou %" data-phase="' + ph + '" data-phase-montant="' + (phaseMontants[ph]||0) + '" onchange="recalcFactRow(' + idx + ')"></td>';
+      });
+      rowHtml += '<td style="text-align:center"><input type="number" class="form-input" id="fact_' + idx + '_rev" style="width:75px;font-size:0.82rem;padding:0.3rem;text-align:center" placeholder="0 \u20ac" onchange="recalcFactRow(' + idx + ')"></td>';
+      rowHtml += '<td style="text-align:right;font-weight:700;font-size:0.85rem" id="fact_total_' + idx + '">0 \u20ac</td>';
+      rowHtml += '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="removeFactRow(this)" title="Supprimer">\u2716</button></td>';
+      tr.innerHTML = rowHtml;
+      tbody.appendChild(tr);
+    };
+
+    window.removeFactRow = function(btn) {
+      var tr = btn.closest('tr');
+      if (tr) {
+        var fIdx = tr.getAttribute('data-fact-idx');
+        tr.remove();
+        // Recalc after removal
+        if (fIdx !== null) recalcFactRow(0);
+      }
+    };
+
+    // Save facturation data to Sheet
+    window.saveFacturation = function(code) {
+      var tbody = document.querySelector('#factTable tbody');
+      if (!tbody) return;
+      var phasesStr = (document.getElementById('fact_phases') || {}).value || '';
+      var phases = phasesStr.split(',');
+      var phaseMontants = {};
+      try { phaseMontants = JSON.parse((document.getElementById('fact_phase_montants') || {}).value || '{}'); } catch(e) {}
       var rows = tbody.querySelectorAll('tr');
       var saved = 0;
 
       rows.forEach(function(tr, i) {
-        var phase = (tr.querySelector('[id^="ech_phase_"]') || {}).value || '';
-        var montant = parseFloat((tr.querySelector('[id^="ech_montant_"]') || {}).value) || 0;
-        var datePrev = (tr.querySelector('[id^="ech_date_"]') || {}).value || '';
-        var nFacture = (tr.querySelector('[id^="ech_facture_"]') || {}).value || '';
-        var dateFacture = (tr.querySelector('[id^="ech_datefact_"]') || {}).value || '';
-        var statut = (tr.querySelector('[id^="ech_statut_"]') || {}).value || 'Pr\u00e9visionnel';
+        var fIdx = tr.getAttribute('data-fact-idx');
+        if (fIdx === null) return;
+        var nFacture = (document.getElementById('fact_num_' + fIdx) || {}).value || '';
+        var dateFacture = (document.getElementById('fact_date_' + fIdx) || {}).value || '';
+        if (!nFacture && !dateFacture) return;
 
-        if (!montant && !phase) return;
+        // Build phase breakdown
+        var details = [];
+        phases.forEach(function(ph, phIdx) {
+          var inp = document.getElementById('fact_' + fIdx + '_ph_' + phIdx);
+          if (!inp || !inp.value) return;
+          var parsed = parseFactCell(inp.value, phaseMontants[ph] || 0);
+          if (parsed.montant > 0) {
+            details.push({ phase: ph, montant: parsed.montant, saisie: inp.value });
+          }
+        });
+        var revision = parseFloat((document.getElementById('fact_' + fIdx + '_rev') || {}).value) || 0;
+        var totalRow = details.reduce(function(s,d){return s+d.montant;}, 0) + revision;
 
-        var echData = {
-          code_projet: code,
-          phase: phase,
-          montant: montant,
-          date_prev_facturation: datePrev,
-          n_facture: nFacture,
-          date_facture: dateFacture,
-          statut: statut,
-          commentaire: '',
-          ordre_affichage: i + 1
-        };
+        // Save each phase as a separate echeancier entry
+        details.forEach(function(det) {
+          if (dataMode === 'live' && apiUrl) {
+            postToSheet('upsert_echeancier', {
+              code_projet: code,
+              phase: det.phase,
+              montant: det.montant,
+              date_prev_facturation: '',
+              n_facture: nFacture,
+              date_facture: dateFacture,
+              statut: 'Factur\u00e9',
+              commentaire: 'Facture ' + nFacture + ' - saisie: ' + det.saisie,
+              ordre_affichage: i + 1
+            });
+            saved++;
+          }
+        });
 
-        if (dataMode === 'live' && apiUrl) {
-          postToSheet('upsert_echeancier', echData);
+        if (revision > 0 && dataMode === 'live' && apiUrl) {
+          postToSheet('upsert_echeancier', {
+            code_projet: code,
+            phase: 'R\u00e9vision',
+            montant: revision,
+            date_prev_facturation: '',
+            n_facture: nFacture,
+            date_facture: dateFacture,
+            statut: 'Factur\u00e9',
+            commentaire: 'R\u00e9vision - Facture ' + nFacture,
+            ordre_affichage: i + 1
+          });
           saved++;
         }
       });
 
       if (saved > 0) {
-        showToast(saved + ' \u00e9ch\u00e9ance(s) sauvegard\u00e9e(s)');
+        showToast(saved + ' ligne(s) de facturation sauvegard\u00e9e(s)');
       } else if (dataMode !== 'live') {
-        showToast('\u00c9ch\u00e9ancier sauvegard\u00e9 (local)');
+        showToast('Facturation sauvegard\u00e9e (local)');
       }
     };
 
@@ -5363,7 +5704,7 @@
           '<div class="ech-project-total">' +
             '<div class="font-din" style="font-size:1.15rem">' + fmtEuro(pd.total) + '</div>' +
             '<div style="font-size:0.72rem;color:var(--text-muted)">Factur\u00e9 ' + pctFact + '% &mdash; Reste ' + fmtEuro(pd.total - pd.facture) + '</div></div>' +
-          '<button class="btn" style="padding:0.35rem 0.7rem;font-size:0.78rem;white-space:nowrap" onclick="event.stopPropagation();openProjetDetail(\'' + pd.code + '\');switchVolet(\'ech\')">Modifier</button>' +
+          '<button class="btn" style="padding:0.35rem 0.7rem;font-size:0.78rem;white-space:nowrap" onclick="event.stopPropagation();openProjetDetail(\'' + pd.code + '\');switchVolet(\'facturation\')">Modifier</button>' +
         '</div>';
         html += '</div>';
 
