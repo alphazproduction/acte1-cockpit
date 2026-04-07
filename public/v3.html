@@ -4544,7 +4544,10 @@
           '</tr>';
         });
         html += '</table></div>';
+        // Récupérer le premier fileId pour le mode dossier
+        var firstFileId = files.length > 0 ? files[0].id : '';
         html += '<div style="margin-top:0.75rem;display:flex;justify-content:flex-end;gap:0.5rem">' +
+          '<button class="btn" onclick="analyserDossierComplet(\'' + firstFileId + '\',\'' + projetCode + '\')" style="font-size:0.82rem;padding:0.4rem 1rem;border-color:var(--accent);color:var(--accent)">Analyser tout le dossier (IA)</button>' +
           '<button class="btn btn-primary" onclick="analyserSelectionDrive(\'' + projetCode + '\')" style="font-size:0.82rem;padding:0.4rem 1rem">Analyser la s\u00e9lection</button>' +
         '</div>';
 
@@ -4603,7 +4606,9 @@
           });
           html += '</table></div>';
         });
+        var firstLiveId = files.length > 0 ? files[0].id : '';
         html += '<div style="margin-top:0.75rem;display:flex;justify-content:flex-end;gap:0.5rem">' +
+          '<button class="btn" onclick="analyserDossierComplet(\'' + firstLiveId + '\',\'' + projetCode + '\')" style="font-size:0.82rem;padding:0.4rem 1rem;border-color:var(--accent);color:var(--accent)">Analyser tout le dossier (IA)</button>' +
           '<button class="btn btn-primary" onclick="analyserSelectionDrive(\'' + projetCode + '\')" style="font-size:0.82rem;padding:0.4rem 1rem">Analyser la s\u00e9lection</button>' +
         '</div>';
         html += '</table></div>';
@@ -4692,6 +4697,55 @@
       }
       if (filled > 0) showToast('+' + filled + ' champs compl\u00e9t\u00e9s depuis fichier suppl\u00e9mentaire');
     }
+
+    window.analyserDossierComplet = function(fileId, projetCode) {
+      if (!apiUrl) { showToast('Configurez l\'URL API'); return; }
+      if (!fileId) { showToast('Aucun fichier de r\u00e9f\u00e9rence'); return; }
+
+      var statusEl = document.getElementById('iaStatus');
+      statusEl.innerHTML = '<div style="color:var(--accent);font-weight:600">' +
+        '<div>Analyse du dossier projet complet en cours...</div>' +
+        '<div style="font-weight:400;font-size:0.82rem;margin-top:0.3rem">L\'IA remonte au dossier racine, liste tous les fichiers, s\u00e9lectionne les plus pertinents (devis, contrats, planning) et les analyse ensemble. Cela peut prendre 1-2 minutes.</div>' +
+      '</div>';
+
+      var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId) + '&mode=folder';
+      fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (!resp.ok) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || 'inconnue') + '</span>';
+          return;
+        }
+
+        var info = '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem">' +
+          'Dossier : <strong>' + (resp.folderName || '?') + '</strong> &mdash; ' +
+          resp.filesAnalyzed + ' fichiers analys\u00e9s sur ' + resp.filesTotal + ' dans le dossier';
+        if (resp.folderUrl) info += ' &mdash; <a href="' + resp.folderUrl + '" target="_blank">Ouvrir le dossier</a>';
+        info += '</div>';
+
+        if (!resp.data) {
+          statusEl.innerHTML = info + '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>';
+          return;
+        }
+
+        statusEl.innerHTML = info + '<span style="color:var(--green)">Analyse termin\u00e9e &mdash; Confiance : <strong>' + (resp.data.confiance || 'moyenne') + '</strong></span>';
+
+        // Si on a récupéré l'URL du dossier, pré-remplir le champ Drive
+        if (resp.folderUrl) {
+          var driveInput = document.getElementById('proj_drive_projet');
+          if (driveInput && !driveInput.value) {
+            driveInput.value = resp.folderUrl;
+            driveInput.style.borderColor = 'var(--green)';
+          }
+        }
+
+        document.getElementById('driveResults').innerHTML = '';
+        remplirDepuisIA(resp.data, projetCode);
+      })
+      .catch(function(err) {
+        statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
+      });
+    };
 
     window.analyserFichierDrive = function(fileId, projetCode) {
       if (!apiUrl) { showToast('Configurez l\'URL API'); return; }
