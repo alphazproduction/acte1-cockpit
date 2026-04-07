@@ -1678,32 +1678,23 @@
     };
 
     // POST data to Sheet
+    // \u00c9criture via GET (contourne le bug POST/redirect de GAS)
     window.postToSheet = function(action, data, callback) {
       if (dataMode !== 'live' || !apiUrl) {
-        showToast('Mode d\u00e9mo — passez en mode Live dans Param\u00e8tres');
+        showToast('Mode d\u00e9mo \u2014 passez en mode Live dans Param\u00e8tres');
         if (callback) callback(false);
         return;
       }
-      fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: action, data: data }),
-        redirect: 'follow'
-      })
-      .then(function(r) {
-        // GAS renvoie parfois du HTML au lieu de JSON (redirect échoué)
-        var ct = r.headers.get('content-type') || '';
-        if (ct.indexOf('text/html') >= 0) {
-          throw new Error('La Web App a redirig\u00e9 — red\u00e9ployez en Nouvelle version');
-        }
-        return r.json();
-      })
+      var payload = JSON.stringify({ action: action, data: data });
+      var url = apiUrl + '?action=write&data=' + encodeURIComponent(payload);
+      fetch(url)
+      .then(function(r) { return r.json(); })
       .then(function(res) {
         if (res.ok) {
           showToast(res.message || 'Sauvegard\u00e9');
           if (callback) callback(true);
         } else {
-          showToast('Erreur Sheet : ' + (res.error || 'inconnue'));
+          showToast('Erreur : ' + (res.error || 'inconnue'));
           if (callback) callback(false);
         }
       })
@@ -4140,23 +4131,16 @@
         var base64 = e.target.result.split(',')[1];
         var mimeType = file.type || 'application/pdf';
 
-        // Appel via le proxy GAS (la clé API Claude est stockée côté serveur)
-        fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({
-            action: 'claude_analyze',
-            fileBase64: base64,
-            mimeType: mimeType,
-            fileName: file.name
-          }),
-          redirect: 'follow'
-        })
-        .then(function(r) {
-          var ct = r.headers.get('content-type') || '';
-          if (ct.indexOf('text/html') >= 0) throw new Error('Red\u00e9ployez la Web App (Nouvelle version)');
-          return r.json();
-        })
+        // Appel via le proxy GAS (la cl\u00e9 API Claude est stock\u00e9e c\u00f4t\u00e9 serveur)
+        var payload = JSON.stringify({
+          action: 'claude_analyze',
+          fileBase64: base64,
+          mimeType: mimeType,
+          fileName: file.name
+        });
+        var claudeUrl = apiUrl + '?action=write&data=' + encodeURIComponent(payload);
+        fetch(claudeUrl)
+        .then(function(r) { return r.json(); })
         .then(function(resp) {
           if (!resp.ok) {
             statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || 'inconnue') + '</span>';
