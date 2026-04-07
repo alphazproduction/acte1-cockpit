@@ -3615,7 +3615,8 @@
           '<button class="btn btn-primary" onclick="analyserDocument(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap">Analyser fichier</button>' +
           '<span style="color:var(--text-muted);font-size:0.82rem">ou</span>' +
           '<input type="text" id="iaSearchKeywords" class="form-input" placeholder="Mots-cl\u00e9s suppl\u00e9mentaires..." style="font-size:0.82rem;width:180px;padding:0.4rem">' +
-          '<button class="btn" onclick="chercherDansDrive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap;border-color:var(--blue);color:var(--blue)">Chercher dans le Drive</button>' +
+          '<button class="btn" onclick="chercherDansDrive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap;border-color:var(--blue);color:var(--blue)">Index Drive</button>' +
+          '<button class="btn" onclick="rechercherDriveLive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">Recherche Drive live</button>' +
         '</div>' +
         '<div id="iaStatus" style="margin-top:0.75rem;font-size:0.82rem"></div>' +
         '<div id="driveResults" style="margin-top:0.75rem"></div>' +
@@ -4544,21 +4545,29 @@
           return;
         }
 
-        var html = '<div style="font-weight:600;margin-bottom:0.5rem">' + files.length + ' fichiers trouv\u00e9s (recherche live dans tous les Drives)</div>';
-        html += '<div style="max-height:300px;overflow-y:auto">';
-        html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
-        html += '<tr style="font-weight:600;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg)"><td style="width:30px"></td><td>Fichier</td><td style="width:100px">Cat\u00e9gorie</td><td style="width:80px">Source</td><td style="width:70px">Date</td><td style="width:100px">Action</td></tr>';
+        // Grouper par dossier
+        var byFolder = {};
+        files.forEach(function(f) { var d = f.dossier || f.source; if (!byFolder[d]) byFolder[d] = []; byFolder[d].push(f); });
+        var folderNames = Object.keys(byFolder);
 
-        files.forEach(function(f, idx) {
-          var catColor = f.categorie === 'Devis / Contrat' ? 'var(--green)' : f.categorie === 'Planning' ? 'var(--blue)' : 'var(--text-muted)';
-          html += '<tr style="border-bottom:1px solid var(--border)">' +
-            '<td>' + (idx + 1) + '</td>' +
-            '<td><a href="' + f.url + '" target="_blank" style="font-size:0.8rem">' + f.nom + '</a></td>' +
-            '<td><span style="color:' + catColor + ';font-weight:600;font-size:0.78rem">' + f.categorie + '</span></td>' +
-            '<td style="font-size:0.75rem">' + f.source + '</td>' +
-            '<td style="font-size:0.75rem">' + (f.date_modif || '') + '</td>' +
-            '<td><button class="btn btn-primary" style="font-size:0.72rem;padding:0.25rem 0.5rem" onclick="analyserFichierDrive(\'' + f.id + '\',\'' + projetCode + '\')">Analyser</button></td>' +
-          '</tr>';
+        var html = '<div style="font-weight:600;margin-bottom:0.5rem">' + files.length + ' fichiers dans ' + folderNames.length + ' dossier(s)</div>';
+        html += '<div style="max-height:350px;overflow-y:auto">';
+
+        folderNames.forEach(function(folder) {
+          var fFiles = byFolder[folder];
+          html += '<div style="margin-bottom:0.75rem">';
+          html += '<div style="font-size:0.82rem;font-weight:700;color:var(--accent);padding:0.3rem 0;border-bottom:1px solid var(--border)">' + folder + ' <span style="font-weight:400;color:var(--text-muted)">(' + fFiles[0].source + ', ' + fFiles.length + ' fichiers)</span></div>';
+          html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
+          fFiles.forEach(function(f, idx) {
+            var catColor = f.categorie === 'Devis / Contrat' ? 'var(--green)' : f.categorie === 'Planning' ? 'var(--blue)' : f.categorie === 'Facturation' ? 'var(--accent)' : 'var(--text-muted)';
+            html += '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td><a href="' + f.url + '" target="_blank" style="font-size:0.8rem">' + f.nom + '</a></td>' +
+              '<td style="width:100px"><span style="color:' + catColor + ';font-weight:600;font-size:0.75rem">' + f.categorie + '</span></td>' +
+              '<td style="width:70px;font-size:0.75rem;color:var(--text-muted)">' + (f.date_modif || '') + '</td>' +
+              '<td style="width:80px"><button class="btn btn-primary" style="font-size:0.72rem;padding:0.2rem 0.5rem" onclick="analyserFichierDrive(\'' + f.id + '\',\'' + projetCode + '\')">Analyser</button></td>' +
+            '</tr>';
+          });
+          html += '</table></div>';
         });
         html += '</table></div>';
         el.innerHTML = html;
