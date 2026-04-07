@@ -788,6 +788,19 @@
     #iaDropZone.drag-over { border-color: var(--accent); background: var(--accent-light); }
     #iaDropZone.analyzing { border-color: var(--blue); background: var(--blue-bg); }
 
+    @keyframes ia-pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    @keyframes ia-slide { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    .ia-loading {
+      display: inline-flex; align-items: center; gap: 0.75rem;
+      padding: 1rem; border-radius: 10px;
+      background: linear-gradient(90deg, var(--bg-card) 25%, var(--accent-light) 50%, var(--bg-card) 75%);
+      background-size: 200% 100%; animation: ia-slide 2s ease-in-out infinite;
+      border: 1px solid var(--accent); width: 100%;
+    }
+    .ia-loading-logo { font-size: 1.8rem; font-weight: 900; color: var(--accent); animation: ia-pulse 1.5s ease-in-out infinite; font-family: 'DIN','DIN Alternate','Helvetica Neue',sans-serif; }
+    .ia-loading-text { font-size: 0.85rem; color: var(--text); }
+    .ia-loading-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; }
+
     .forecast-tip {
       display: none;
       position: absolute;
@@ -4157,7 +4170,7 @@
 
       var file = input.files[0];
       var statusEl = document.getElementById('iaStatus');
-      statusEl.innerHTML = '<span style="color:var(--blue)">Analyse en cours de <strong>' + file.name + '</strong> (' + Math.round(file.size/1024) + ' Ko)... L\'IA lit le document.</span>';
+      showIALoader(statusEl, 'Analyse de ' + file.name, Math.round(file.size/1024) + ' Ko \u2014 lecture et extraction en cours...');
 
       var reader = new FileReader();
       reader.onload = function(e) {
@@ -4703,40 +4716,57 @@
       if (filled > 0) showToast('+' + filled + ' champs compl\u00e9t\u00e9s depuis fichier suppl\u00e9mentaire');
     }
 
+    function showIALoader(el, message, detail) {
+      el.innerHTML = '<div class="ia-loading">' +
+        '<div class="ia-loading-logo">ACTE&thinsp;1</div>' +
+        '<div><div class="ia-loading-text">' + message + '</div>' +
+        (detail ? '<div class="ia-loading-sub">' + detail + '</div>' : '') +
+        '</div></div>';
+    }
+
     window.analyserDossierParUrl = function(projetCode) {
       var urlInput = document.getElementById('iaFolderUrl');
       var folderUrl = urlInput ? urlInput.value.trim() : '';
       if (!folderUrl) { showToast('Collez un lien de dossier Google Drive'); return; }
+      if (!apiUrl) { showToast('Configurez l\'URL API dans Param\u00e8tres'); return; }
 
-      // Extraire le folder ID depuis l'URL
       var match = folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/);
-      if (!match) { showToast('URL de dossier invalide — doit contenir /folders/...'); return; }
+      if (!match) { showToast('URL invalide \u2014 doit contenir /folders/...'); return; }
       var folderId = match[1];
 
-      // Sauvegarder le lien dans le champ dossier projet
+      // Sauvegarder le lien
       var driveInput = document.getElementById('proj_drive_projet');
       if (driveInput && !driveInput.value) {
         driveInput.value = folderUrl;
         driveInput.style.borderColor = 'var(--green)';
       }
 
-      // Lancer l'analyse du dossier — on utilise le folderId comme fileId en mode folder
-      // Il faut d'abord trouver un fichier dans ce dossier
+      // Loader anim\u00e9
       var statusEl = document.getElementById('iaStatus');
-      statusEl.innerHTML = '<span style="color:var(--blue)">Recherche de fichiers dans le dossier...</span>';
+      showIALoader(statusEl, 'Analyse du dossier en cours...', 'L\'IA explore le dossier, s\u00e9lectionne les fichiers cl\u00e9s (devis, contrats, planning) et les analyse. Cela prend 1-2 minutes.');
 
-      // Chercher un fichier dans ce dossier via l'API Drive
-      var searchUrl = apiUrl + '?action=drive_search_live&q=' + encodeURIComponent(folderId);
-      fetch(searchUrl)
+      // Appel direct avec le folder ID
+      var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(folderId) + '&mode=folder_direct';
+      fetch(url)
       .then(function(r) { return r.json(); })
       .then(function(resp) {
-        var files = resp.files || [];
-        if (files.length === 0) {
-          statusEl.innerHTML = '<span style="color:var(--red)">Aucun fichier trouv\u00e9 dans ce dossier</span>';
+        if (!resp.ok) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || 'inconnue') + '</span>';
           return;
         }
-        // Utiliser le premier fichier pour lancer l'analyse dossier
-        analyserDossierComplet(files[0].id, projetCode);
+        var info = '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem">' +
+          'Dossier : <strong>' + (resp.folderName || '?') + '</strong> \u2014 ' +
+          resp.filesAnalyzed + ' fichiers analys\u00e9s sur ' + resp.filesTotal + ' dans le dossier';
+        if (resp.folderUrl) info += ' \u2014 <a href="' + resp.folderUrl + '" target="_blank">Ouvrir</a>';
+        info += '</div>';
+
+        if (!resp.data) {
+          statusEl.innerHTML = info + '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>';
+          return;
+        }
+        statusEl.innerHTML = info + '<span style="color:var(--green)">Analyse termin\u00e9e \u2014 Confiance : <strong>' + (resp.data.confiance || 'moyenne') + '</strong></span>';
+        document.getElementById('driveResults').innerHTML = '';
+        remplirDepuisIA(resp.data, projetCode);
       })
       .catch(function(err) {
         statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
@@ -4748,10 +4778,7 @@
       if (!fileId) { showToast('Aucun fichier de r\u00e9f\u00e9rence'); return; }
 
       var statusEl = document.getElementById('iaStatus');
-      statusEl.innerHTML = '<div style="color:var(--accent);font-weight:600">' +
-        '<div>Analyse du dossier projet complet en cours...</div>' +
-        '<div style="font-weight:400;font-size:0.82rem;margin-top:0.3rem">L\'IA remonte au dossier racine, liste tous les fichiers, s\u00e9lectionne les plus pertinents (devis, contrats, planning) et les analyse ensemble. Cela peut prendre 1-2 minutes.</div>' +
-      '</div>';
+      showIALoader(statusEl, 'Analyse du dossier complet...', 'L\'IA remonte au dossier racine, s\u00e9lectionne les fichiers cl\u00e9s et les analyse. 1-2 minutes.');
 
       var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId) + '&mode=folder';
       fetch(url)
@@ -4795,7 +4822,7 @@
     window.analyserFichierDrive = function(fileId, projetCode) {
       if (!apiUrl) { showToast('Configurez l\'URL API'); return; }
       var statusEl = document.getElementById('iaStatus');
-      statusEl.innerHTML = '<span style="color:var(--blue)">L\'IA lit et analyse le fichier depuis le Drive... (peut prendre 30s)</span>';
+      showIALoader(statusEl, 'Analyse du fichier en cours...', 'Lecture et extraction des donn\u00e9es. ~30 secondes.');
 
       var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId);
       fetch(url)
