@@ -4536,7 +4536,8 @@
           html += '<tr style="border-bottom:1px solid var(--border)">' +
             '<td><input type="checkbox" class="drive-file-cb" data-id="' + f.id + '"' + checked + '></td>' +
             '<td style="word-break:break-word"><a href="' + f.url + '" target="_blank" style="font-size:0.8rem">' + f.nom + '</a>' +
-              '<div style="font-size:0.72rem;color:var(--text-muted)">' + (f.chemin || '').split('/').slice(0,3).join('/') + '</div></td>' +
+              '<div style="font-size:0.70rem;color:var(--text-muted)">' + (f.chemin || '') + '</div>' +
+              '<div style="font-size:0.65rem;color:var(--grey)"><a href="' + f.url + '" target="_blank" style="color:var(--grey)">' + f.url + '</a></div></td>' +
             '<td><span style="color:' + catColor + ';font-weight:600;font-size:0.78rem">' + f.categorie + '</span></td>' +
             '<td style="font-size:0.78rem">' + f.type + '</td>' +
             '<td style="font-size:0.78rem">' + Math.round(f.taille_ko) + ' Ko</td>' +
@@ -4594,7 +4595,8 @@
             var checked = f.categorie === 'Devis / Contrat' ? ' checked' : '';
             html += '<tr style="border-bottom:1px solid var(--border)">' +
               '<td style="width:30px"><input type="checkbox" class="drive-file-cb" data-id="' + f.id + '"' + checked + '></td>' +
-              '<td><a href="' + f.url + '" target="_blank" style="font-size:0.8rem">' + f.nom + '</a></td>' +
+              '<td><a href="' + f.url + '" target="_blank" style="font-size:0.8rem">' + f.nom + '</a>' +
+                '<div style="font-size:0.65rem;color:var(--grey)"><a href="' + f.url + '" target="_blank" style="color:var(--grey)">' + f.url + '</a></div></td>' +
               '<td style="width:100px"><span style="color:' + catColor + ';font-weight:600;font-size:0.75rem">' + f.categorie + '</span></td>' +
               '<td style="width:70px;font-size:0.75rem;color:var(--text-muted)">' + (f.date_modif || '') + '</td>' +
             '</tr>';
