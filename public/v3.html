@@ -4180,85 +4180,203 @@
       reader.readAsDataURL(file);
     };
 
-    function remplirDepuisIA(data, projetCode) {
-      // Pré-remplir les champs du formulaire
-      var mappings = {
-        'proj_nom': data.nom_projet,
-        'proj_code': data.code_projet || projetCode,
-        'proj_ville': data.ville,
-        'proj_client': data.client,
-        'proj_architecte': data.architecte,
-        'proj_budget': data.budget_total_ht,
-        'proj_surface': data.surface_m2,
-        'proj_date_debut': data.date_debut,
-        'proj_date_fin': data.date_fin,
-        'proj_date_travaux': data.date_travaux,
-        'proj_contact_nom': data.contact_nom,
-        'proj_contact_email': data.contact_email,
-        'proj_contact_tel': data.contact_tel,
-        'proj_resume': data.resume
-      };
+    // Données IA en attente de validation
+    var iaDataPending = null;
 
-      var filled = 0;
-      for (var id in mappings) {
-        var val = mappings[id];
-        if (val) {
-          var el = document.getElementById(id);
-          if (el && !el.value) {
-            el.value = val;
-            el.style.borderColor = 'var(--green)';
-            el.style.backgroundColor = 'rgba(6,214,160,0.05)';
-            filled++;
+    function remplirDepuisIA(data, projetCode) {
+      iaDataPending = data;
+      var el = document.getElementById('iaStatus');
+
+      // Récupérer les valeurs actuelles du formulaire pour comparaison
+      var gv = function(id) { var e = document.getElementById(id); return e ? e.value : ''; };
+
+      var PHASES_MOP = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
+
+      // ── Panneau de validation ──
+      var html = '<div style="margin-top:1rem;border:2px solid var(--accent);border-radius:12px;overflow:hidden">';
+      html += '<div style="background:var(--accent);color:white;padding:0.75rem 1rem;font-weight:700;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center">' +
+        '<span>Donn\u00e9es extraites \u2014 V\u00e9rifiez et s\u00e9lectionnez</span>' +
+        '<span style="font-size:0.8rem;font-weight:400">Confiance : ' + (data.confiance || 'moyenne') + '</span>' +
+      '</div>';
+
+      // ── Section 1 : Infos g\u00e9n\u00e9rales ──
+      html += '<div style="padding:1rem">';
+      html += '<div style="font-weight:700;font-size:0.88rem;margin-bottom:0.75rem;color:var(--accent)">1. Informations g\u00e9n\u00e9rales</div>';
+      html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
+      html += '<tr style="font-weight:600;border-bottom:1px solid var(--border)"><td style="width:30px"></td><td style="width:140px">Champ</td><td>Valeur actuelle</td><td>Valeur extraite</td><td style="width:80px">Statut</td></tr>';
+
+      var fields = [
+        {id:'proj_nom', label:'Nom projet', val:data.nom_projet},
+        {id:'proj_ville', label:'Ville', val:data.ville},
+        {id:'proj_client', label:'Client (MOA)', val:data.client},
+        {id:'proj_architecte', label:'Architecte', val:data.architecte},
+        {id:'proj_contact_nom', label:'Contact nom', val:data.contact_nom},
+        {id:'proj_contact_email', label:'Contact email', val:data.contact_email},
+        {id:'proj_contact_tel', label:'Contact t\u00e9l', val:data.contact_tel},
+        {id:'proj_budget', label:'Budget HT', val:data.budget_total_ht},
+        {id:'proj_surface', label:'Surface m\u00b2', val:data.surface_m2},
+        {id:'proj_date_debut', label:'D\u00e9but contrat', val:data.date_debut},
+        {id:'proj_date_fin', label:'Fin contrat', val:data.date_fin},
+        {id:'proj_date_travaux', label:'D\u00e9but travaux', val:data.date_travaux},
+        {id:'proj_resume', label:'R\u00e9sum\u00e9', val:data.resume},
+        {id:'proj_type_client', label:'Type client', val:data.type_client, isSel:true},
+        {id:'proj_type_marche', label:'Type march\u00e9', val:data.type_marche, isSel:true},
+        {id:'proj_type_secteur', label:'Secteur', val:data.type_secteur, isSel:true},
+        {id:'proj_type_mission', label:'Mission', val:data.type_mission, isSel:true},
+      ];
+
+      fields.forEach(function(f, idx) {
+        if (!f.val && f.val !== 0) return;
+        var current = gv(f.id);
+        var isNew = !current || current === '0' || current === '';
+        var isDiff = current && String(current) !== String(f.val);
+        var statusTag = isNew ? '<span style="color:var(--green);font-weight:600">Nouveau</span>' :
+                        isDiff ? '<span style="color:var(--accent);font-weight:600">\u0394 Diff\u00e9rent</span>' :
+                        '<span style="color:var(--grey)">Identique</span>';
+        var checked = isNew ? ' checked' : '';
+        var valDisplay = typeof f.val === 'number' ? f.val.toLocaleString('fr-FR') + (f.id.indexOf('budget') >= 0 ? ' \u20ac' : '') : f.val;
+
+        html += '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td><input type="checkbox" id="ia_chk_' + idx + '" data-field="' + f.id + '" data-value="' + String(f.val).replace(/"/g, '&quot;') + '"' + (f.isSel ? ' data-select="1"' : '') + checked + '></td>' +
+          '<td style="font-weight:500">' + f.label + '</td>' +
+          '<td style="color:var(--text-muted)">' + (current || '<em>vide</em>') + '</td>' +
+          '<td style="font-weight:600;color:' + (isNew ? 'var(--green)' : isDiff ? 'var(--accent)' : 'var(--text)') + '">' + valDisplay + '</td>' +
+          '<td>' + statusTag + '</td>' +
+        '</tr>';
+      });
+      html += '</table></div>';
+
+      // ── Section 2 : Phases / \u00c9ch\u00e9ancier ──
+      if (data.phases && data.phases.length > 0) {
+        var totalPhases = 0;
+        var phasesBase = []; // phases "normales"
+        var phasesOption = []; // options, variantes
+
+        data.phases.forEach(function(ph) {
+          var name = (ph.phase || '').toUpperCase();
+          var isOption = name.indexOf('OPTION') >= 0 || name.indexOf('VARIANTE') >= 0 || name.indexOf('TRANCHE COND') >= 0;
+          var isMOP = PHASES_MOP.indexOf(name) >= 0;
+          if (isOption) {
+            phasesOption.push(ph);
+          } else {
+            phasesBase.push(ph);
+            totalPhases += ph.montant || 0;
           }
+        });
+
+        html += '<div style="padding:0 1rem 1rem">';
+        html += '<div style="font-weight:700;font-size:0.88rem;margin-bottom:0.5rem;color:var(--accent)">2. Phases et montants</div>';
+
+        // Alerte coh\u00e9rence budget vs total phases
+        if (data.budget_total_ht && Math.abs(data.budget_total_ht - totalPhases) > 100) {
+          html += '<div style="background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:6px;padding:0.5rem 0.75rem;margin-bottom:0.75rem;font-size:0.82rem">' +
+            '\u26a0 <strong>\u00c9cart d\u00e9tect\u00e9</strong> : budget total (' + (data.budget_total_ht || 0).toLocaleString('fr-FR') + ' \u20ac) \u2260 somme des phases (' + totalPhases.toLocaleString('fr-FR') + ' \u20ac). V\u00e9rifiez.' +
+          '</div>';
         }
+
+        // Phases de base
+        html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin-bottom:0.5rem">';
+        html += '<tr style="font-weight:600;border-bottom:1px solid var(--border)"><td style="width:30px"></td><td>Phase</td><td style="text-align:right">Montant</td><td>Date</td><td>Type</td></tr>';
+        phasesBase.forEach(function(ph, idx) {
+          var name = (ph.phase || '').toUpperCase();
+          var isMOP = PHASES_MOP.indexOf(name) >= 0;
+          var catCls = isMOP ? (['ACT','VISA','DET','AOR','GPA'].indexOf(name) >= 0 ? 'cat-travaux' : 'cat-etudes') : '';
+          html += '<tr style="border-bottom:1px solid var(--border)">' +
+            '<td><input type="checkbox" id="ia_phase_' + idx + '" checked></td>' +
+            '<td><span class="phase-cat ' + catCls + '" style="display:inline-block;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.78rem">' + ph.phase + '</span>' +
+              (!isMOP ? ' <span style="color:var(--yellow);font-size:0.75rem">\u26a0 hors MOP</span>' : '') + '</td>' +
+            '<td style="text-align:right;font-weight:600">' + (ph.montant ? ph.montant.toLocaleString('fr-FR') + ' \u20ac' : '\u2014') + '</td>' +
+            '<td>' + (ph.date_prevue || '\u2014') + '</td>' +
+            '<td style="font-size:0.75rem;color:var(--text-muted)">' + (isMOP ? (['ACT','VISA','DET','AOR','GPA'].indexOf(name) >= 0 ? 'Travaux' : '\u00c9tudes') : 'Autre') + '</td>' +
+          '</tr>';
+        });
+        html += '<tr style="font-weight:700;border-top:2px solid var(--accent)"><td></td><td>TOTAL phases</td><td style="text-align:right">' + totalPhases.toLocaleString('fr-FR') + ' \u20ac</td><td colspan="2"></td></tr>';
+        html += '</table>';
+
+        // Options / variantes (d\u00e9coch\u00e9es par d\u00e9faut)
+        if (phasesOption.length > 0) {
+          var totalOptions = phasesOption.reduce(function(s, p) { return s + (p.montant || 0); }, 0);
+          html += '<div style="background:var(--blue-bg);border:1px solid var(--blue);border-radius:6px;padding:0.75rem;margin-top:0.5rem">';
+          html += '<div style="font-weight:700;font-size:0.85rem;color:var(--blue);margin-bottom:0.5rem">Options / Variantes / Tranches conditionnelles (' + totalOptions.toLocaleString('fr-FR') + ' \u20ac)</div>';
+          html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
+          phasesOption.forEach(function(ph, idx) {
+            html += '<tr><td style="width:30px"><input type="checkbox" id="ia_option_' + idx + '"></td>' +
+              '<td>' + ph.phase + '</td>' +
+              '<td style="text-align:right;font-weight:600">' + (ph.montant ? ph.montant.toLocaleString('fr-FR') + ' \u20ac' : '\u2014') + '</td>' +
+              '<td>' + (ph.date_prevue || '\u2014') + '</td></tr>';
+          });
+          html += '</table>';
+          html += '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem">\u2139 D\u00e9coch\u00e9es par d\u00e9faut. Cochez pour les inclure.</div>';
+          html += '</div>';
+        }
+
+        html += '</div>';
       }
 
-      // Selects
-      var selMappings = {
-        'proj_type_client': data.type_client,
-        'proj_type_marche': data.type_marche,
-        'proj_type_secteur': data.type_secteur,
-        'proj_type_mission': data.type_mission
-      };
-      for (var sid in selMappings) {
-        var sval = selMappings[sid];
-        if (sval) {
-          var sel = document.getElementById(sid);
-          if (sel) {
-            for (var oi = 0; oi < sel.options.length; oi++) {
-              if (sel.options[oi].text === sval || sel.options[oi].value === sval) {
-                sel.selectedIndex = oi;
-                sel.style.borderColor = 'var(--green)';
-                filled++;
-                break;
-              }
+      // ── Section 3 : Notes IA ──
+      if (data.notes) {
+        html += '<div style="padding:0 1rem 1rem">';
+        html += '<div style="font-weight:700;font-size:0.88rem;margin-bottom:0.25rem;color:var(--accent)">3. Notes de l\'IA</div>';
+        html += '<div style="font-size:0.82rem;color:var(--text-muted);font-style:italic;background:var(--grey-bg);padding:0.6rem;border-radius:6px">' + data.notes + '</div>';
+        html += '</div>';
+      }
+
+      // ── Boutons d'action ──
+      html += '<div style="padding:1rem;border-top:1px solid var(--border);display:flex;gap:0.75rem;justify-content:flex-end;background:var(--grey-bg)">' +
+        '<button class="btn" onclick="document.getElementById(\'iaStatus\').innerHTML=\'\'; iaDataPending=null;">Annuler</button>' +
+        '<button class="btn" onclick="iaSelectAll(true)">Tout cocher</button>' +
+        '<button class="btn" onclick="iaSelectAll(false)">Tout d\u00e9cocher</button>' +
+        '<button class="btn btn-primary" onclick="appliquerImportIA(\'' + projetCode + '\')">Appliquer la s\u00e9lection</button>' +
+      '</div>';
+
+      html += '</div>'; // fin panneau
+
+      el.innerHTML += html;
+    }
+
+    window.iaSelectAll = function(checked) {
+      document.querySelectorAll('[id^="ia_chk_"],[id^="ia_phase_"],[id^="ia_option_"]').forEach(function(cb) {
+        cb.checked = checked;
+      });
+    };
+
+    window.appliquerImportIA = function(projetCode) {
+      if (!iaDataPending) { showToast('Pas de donn\u00e9es \u00e0 importer'); return; }
+      var filled = 0;
+
+      // Appliquer les champs coch\u00e9s
+      document.querySelectorAll('[id^="ia_chk_"]').forEach(function(cb) {
+        if (!cb.checked) return;
+        var fieldId = cb.getAttribute('data-field');
+        var val = cb.getAttribute('data-value');
+        var isSel = cb.getAttribute('data-select');
+        var el = document.getElementById(fieldId);
+        if (!el) return;
+
+        if (isSel) {
+          for (var i = 0; i < el.options.length; i++) {
+            if (el.options[i].text === val || el.options[i].value === val) {
+              el.selectedIndex = i; filled++; break;
             }
           }
+        } else {
+          el.value = val; filled++;
         }
-      }
+        el.style.borderColor = 'var(--green)';
+        el.style.backgroundColor = 'rgba(6,214,160,0.05)';
+      });
 
-      // Afficher les phases extraites
-      if (data.phases && data.phases.length > 0) {
-        var phasesHtml = '<div style="margin-top:1rem;padding:1rem;background:var(--green-bg);border:1px solid var(--green);border-radius:8px">' +
-          '<div style="font-weight:700;margin-bottom:0.5rem;color:var(--green)">Phases extraites du document</div>' +
-          '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">' +
-          '<tr style="font-weight:600"><td>Phase</td><td style="text-align:right">Montant</td><td>Date pr\u00e9vue</td></tr>';
-        var totalPhases = 0;
-        data.phases.forEach(function(ph) {
-          totalPhases += ph.montant || 0;
-          phasesHtml += '<tr><td>' + ph.phase + '</td><td style="text-align:right">' + (ph.montant ? ph.montant.toLocaleString('fr-FR') + ' \u20ac' : '\u2014') + '</td><td>' + (ph.date_prevue || '\u2014') + '</td></tr>';
-        });
-        phasesHtml += '<tr style="font-weight:700;border-top:2px solid var(--green)"><td>TOTAL</td><td style="text-align:right">' + totalPhases.toLocaleString('fr-FR') + ' \u20ac</td><td></td></tr>';
-        phasesHtml += '</table>';
-        if (data.notes) {
-          phasesHtml += '<div style="margin-top:0.5rem;font-size:0.78rem;color:var(--text-muted);font-style:italic">' + data.notes + '</div>';
-        }
-        phasesHtml += '</div>';
-        document.getElementById('iaStatus').innerHTML += phasesHtml;
-      }
+      // Compter les phases s\u00e9lectionn\u00e9es pour info
+      var phasesCount = 0;
+      document.querySelectorAll('[id^="ia_phase_"]').forEach(function(cb) { if (cb.checked) phasesCount++; });
+      document.querySelectorAll('[id^="ia_option_"]').forEach(function(cb) { if (cb.checked) phasesCount++; });
 
-      showToast(filled + ' champs pr\u00e9-remplis par l\'IA');
-    }
+      showToast(filled + ' champs appliqu\u00e9s' + (phasesCount > 0 ? ', ' + phasesCount + ' phases s\u00e9lectionn\u00e9es' : ''));
+
+      // Masquer le panneau
+      document.getElementById('iaStatus').innerHTML = '<span style="color:var(--green)">\u2713 Import termin\u00e9 \u2014 ' + filled + ' champs, ' + phasesCount + ' phases. <strong>Cliquez Enregistrer</strong> pour sauvegarder.</span>';
+      iaDataPending = null;
+    };
 
     // ── ECHEANCIER EDIT ──
     window.addEchRow = function(code) {
