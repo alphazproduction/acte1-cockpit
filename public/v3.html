@@ -4500,21 +4500,24 @@
         }
         html += '<div style="max-height:300px;overflow-y:auto">';
         html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
-        html += '<tr style="font-weight:600;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg)"><td style="width:30px"></td><td>Fichier</td><td style="width:120px">Cat\u00e9gorie</td><td style="width:70px">Type</td><td style="width:70px">Taille</td><td style="width:100px">Action</td></tr>';
+        html += '<tr style="font-weight:600;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg)"><td style="width:30px"><input type="checkbox" onclick="toggleAllDriveFiles(this)"></td><td>Fichier</td><td style="width:110px">Cat\u00e9gorie</td><td style="width:65px">Type</td><td style="width:60px">Taille</td></tr>';
 
         files.forEach(function(f, idx) {
           var catColor = f.categorie === 'Devis / Contrat' ? 'var(--green)' : f.categorie === 'Planning' ? 'var(--blue)' : 'var(--text-muted)';
+          var checked = f.categorie === 'Devis / Contrat' ? ' checked' : '';
           html += '<tr style="border-bottom:1px solid var(--border)">' +
-            '<td>' + (idx + 1) + '</td>' +
+            '<td><input type="checkbox" class="drive-file-cb" data-id="' + f.id + '"' + checked + '></td>' +
             '<td style="word-break:break-word"><a href="' + f.url + '" target="_blank" style="font-size:0.8rem">' + f.nom + '</a>' +
-              '<div style="font-size:0.72rem;color:var(--text-muted)">' + f.chemin.split('/').slice(0,3).join('/') + '</div></td>' +
+              '<div style="font-size:0.72rem;color:var(--text-muted)">' + (f.chemin || '').split('/').slice(0,3).join('/') + '</div></td>' +
             '<td><span style="color:' + catColor + ';font-weight:600;font-size:0.78rem">' + f.categorie + '</span></td>' +
             '<td style="font-size:0.78rem">' + f.type + '</td>' +
             '<td style="font-size:0.78rem">' + Math.round(f.taille_ko) + ' Ko</td>' +
-            '<td><button class="btn btn-primary" style="font-size:0.72rem;padding:0.25rem 0.5rem" onclick="analyserFichierDrive(\'' + f.id + '\',\'' + projetCode + '\')">Analyser</button></td>' +
           '</tr>';
         });
         html += '</table></div>';
+        html += '<div style="margin-top:0.75rem;display:flex;justify-content:flex-end;gap:0.5rem">' +
+          '<button class="btn btn-primary" onclick="analyserSelectionDrive(\'' + projetCode + '\')" style="font-size:0.82rem;padding:0.4rem 1rem">Analyser la s\u00e9lection</button>' +
+        '</div>';
 
         el.innerHTML = html;
       })
@@ -4560,15 +4563,19 @@
           html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
           fFiles.forEach(function(f, idx) {
             var catColor = f.categorie === 'Devis / Contrat' ? 'var(--green)' : f.categorie === 'Planning' ? 'var(--blue)' : f.categorie === 'Facturation' ? 'var(--accent)' : 'var(--text-muted)';
+            var checked = f.categorie === 'Devis / Contrat' ? ' checked' : '';
             html += '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td style="width:30px"><input type="checkbox" class="drive-file-cb" data-id="' + f.id + '"' + checked + '></td>' +
               '<td><a href="' + f.url + '" target="_blank" style="font-size:0.8rem">' + f.nom + '</a></td>' +
               '<td style="width:100px"><span style="color:' + catColor + ';font-weight:600;font-size:0.75rem">' + f.categorie + '</span></td>' +
               '<td style="width:70px;font-size:0.75rem;color:var(--text-muted)">' + (f.date_modif || '') + '</td>' +
-              '<td style="width:80px"><button class="btn btn-primary" style="font-size:0.72rem;padding:0.2rem 0.5rem" onclick="analyserFichierDrive(\'' + f.id + '\',\'' + projetCode + '\')">Analyser</button></td>' +
             '</tr>';
           });
           html += '</table></div>';
         });
+        html += '<div style="margin-top:0.75rem;display:flex;justify-content:flex-end;gap:0.5rem">' +
+          '<button class="btn btn-primary" onclick="analyserSelectionDrive(\'' + projetCode + '\')" style="font-size:0.82rem;padding:0.4rem 1rem">Analyser la s\u00e9lection</button>' +
+        '</div>';
         html += '</table></div>';
         el.innerHTML = html;
       })
@@ -4576,6 +4583,85 @@
         el.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
       });
     };
+
+    window.toggleAllDriveFiles = function(masterCb) {
+      document.querySelectorAll('.drive-file-cb').forEach(function(cb) { cb.checked = masterCb.checked; });
+    };
+
+    window.analyserSelectionDrive = function(projetCode) {
+      var selected = [];
+      document.querySelectorAll('.drive-file-cb:checked').forEach(function(cb) {
+        selected.push(cb.getAttribute('data-id'));
+      });
+      if (selected.length === 0) { showToast('S\u00e9lectionnez au moins un fichier'); return; }
+
+      var statusEl = document.getElementById('iaStatus');
+      var total = selected.length;
+      var done = 0;
+
+      statusEl.innerHTML = '<span style="color:var(--blue)">Analyse de <strong>' + total + '</strong> fichier(s) en cours... (0/' + total + ')</span>';
+
+      // Analyser séquentiellement (un par un pour ne pas surcharger)
+      function analyseNext() {
+        if (done >= selected.length) {
+          statusEl.innerHTML = '<span style="color:var(--green)">\u2713 Analyse termin\u00e9e \u2014 ' + total + ' fichier(s) trait\u00e9(s). Les donn\u00e9es ont \u00e9t\u00e9 fusionn\u00e9es ci-dessous.</span>';
+          return;
+        }
+        var fileId = selected[done];
+        done++;
+        statusEl.innerHTML = '<span style="color:var(--blue)">Analyse fichier ' + done + '/' + total + '...</span>';
+
+        var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId);
+        fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+          if (resp.ok && resp.data) {
+            // Si c'est le premier fichier, afficher le panneau de validation
+            // Si c'est un fichier suivant, fusionner les données
+            if (done === 1) {
+              remplirDepuisIA(resp.data, projetCode);
+            } else {
+              // Fusionner : remplir les champs encore vides
+              mergeIAData(resp.data);
+            }
+          }
+          // Passer au suivant (avec délai pour ne pas saturer)
+          setTimeout(analyseNext, 1000);
+        })
+        .catch(function(err) {
+          statusEl.innerHTML += '<br><span style="color:var(--red)">Erreur fichier ' + done + ': ' + err + '</span>';
+          setTimeout(analyseNext, 1000);
+        });
+      }
+
+      analyseNext();
+    };
+
+    // Fusionner les données d'un fichier supplémentaire dans le panneau existant
+    function mergeIAData(data) {
+      // Remplir les champs du formulaire qui sont encore vides
+      var mappings = {
+        'proj_nom': data.nom_projet, 'proj_ville': data.ville, 'proj_client': data.client,
+        'proj_architecte': data.architecte, 'proj_budget': data.budget_total_ht,
+        'proj_date_debut': data.date_debut, 'proj_date_fin': data.date_fin,
+        'proj_contact_nom': data.contact_nom, 'proj_contact_email': data.contact_email,
+        'proj_contact_tel': data.contact_tel
+      };
+      var filled = 0;
+      for (var id in mappings) {
+        var val = mappings[id];
+        if (val) {
+          var el = document.getElementById(id);
+          if (el && !el.value) {
+            el.value = val;
+            el.style.borderColor = 'var(--blue)';
+            el.style.backgroundColor = 'rgba(59,130,246,0.05)';
+            filled++;
+          }
+        }
+      }
+      if (filled > 0) showToast('+' + filled + ' champs compl\u00e9t\u00e9s depuis fichier suppl\u00e9mentaire');
+    }
 
     window.analyserFichierDrive = function(fileId, projetCode) {
       if (!apiUrl) { showToast('Configurez l\'URL API'); return; }
