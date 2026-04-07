@@ -4262,8 +4262,76 @@
       return data;
     }
 
+    // Convertir les dates textuelles en YYYY-MM-DD
+    function normaliserDates(data) {
+      if (!data || !data.phases) return data;
+      var MOIS_MAP = {jan:'01',fev:'02','fév':'02',mar:'03',avr:'04',avril:'04',mai:'05',jun:'06',juin:'06',jul:'07',juil:'07','aoû':'08',aout:'08',sep:'09',oct:'10',nov:'11',dec:'12','déc':'12'};
+      var currentYear = new Date().getFullYear();
+      var lastDate = null;
+
+      data.phases.forEach(function(ph, idx) {
+        var d = (ph.date_prevue || '').trim();
+        if (!d) {
+          // Pas de date → estimer à partir de la précédente + 1-2 mois
+          if (lastDate) {
+            var est = new Date(lastDate);
+            est.setMonth(est.getMonth() + (idx < 4 ? 1 : 2));
+            ph.date_prevue = est.toISOString().substring(0, 10);
+          }
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+          // Déjà bon format
+        } else {
+          // Texte → parser
+          var year = currentYear;
+          var ym = d.match(/(20\d{2})/);
+          if (ym) year = parseInt(ym[1]);
+          var month = null;
+          for (var m in MOIS_MAP) {
+            if (d.toLowerCase().indexOf(m) >= 0) { month = MOIS_MAP[m]; break; }
+          }
+          if (month) {
+            var day = '15';
+            if (d.toLowerCase().indexOf('fin') >= 0 || d.toLowerCase().indexOf('30') >= 0 || d.toLowerCase().indexOf('31') >= 0) day = '28';
+            if (d.toLowerCase().indexOf('début') >= 0 || d.toLowerCase().indexOf('debut') >= 0) day = '05';
+            // Si "Avril à Juin" → prendre le dernier mois
+            var secondMonth = null;
+            var parts = d.split(/[àa\-]/);
+            if (parts.length > 1) {
+              for (var m2 in MOIS_MAP) {
+                if (parts[1].toLowerCase().indexOf(m2) >= 0) { secondMonth = MOIS_MAP[m2]; break; }
+              }
+            }
+            if (secondMonth) month = secondMonth; // prendre la fin de la période
+            ph.date_prevue = year + '-' + month + '-' + day;
+          }
+        }
+        if (ph.date_prevue && /^\d{4}-\d{2}-\d{2}$/.test(ph.date_prevue)) {
+          lastDate = ph.date_prevue;
+        }
+      });
+
+      // Aussi normaliser date_debut, date_fin, date_travaux
+      ['date_debut','date_fin','date_travaux'].forEach(function(field) {
+        var v = (data[field] || '').trim();
+        if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+          var year = currentYear;
+          var ym = v.match(/(20\d{2})/);
+          if (ym) year = parseInt(ym[1]);
+          for (var m in MOIS_MAP) {
+            if (v.toLowerCase().indexOf(m) >= 0) {
+              data[field] = year + '-' + MOIS_MAP[m] + '-15';
+              break;
+            }
+          }
+        }
+      });
+
+      return data;
+    }
+
     function remplirDepuisIA(data, projetCode) {
       data = normaliserPhases(data);
+      data = normaliserDates(data);
       iaDataPending = data;
       var el = document.getElementById('iaStatus');
 
