@@ -3616,13 +3616,18 @@
       html += '<div id="iaDropZone" style="margin-bottom:1.5rem;border:2px dashed var(--border);border-radius:12px;padding:1.25rem;transition:all 0.2s;background:var(--bg)">' +
         '<div style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem;text-align:center">Analyser un document avec l\'IA</div>' +
         '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;text-align:center">D\u00e9posez un fichier local ou cherchez dans le Drive du projet</div>' +
-        '<div style="display:flex;gap:0.75rem;justify-content:center;align-items:center;flex-wrap:wrap">' +
-          '<input type="file" id="iaFileInput" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.doc,.docx" style="font-size:0.82rem;max-width:300px">' +
-          '<button class="btn btn-primary" onclick="analyserDocument(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap">Analyser fichier</button>' +
-          '<span style="color:var(--text-muted);font-size:0.82rem">ou</span>' +
-          '<input type="text" id="iaSearchKeywords" class="form-input" placeholder="Mots-cl\u00e9s suppl\u00e9mentaires..." style="font-size:0.82rem;width:180px;padding:0.4rem">' +
-          '<button class="btn" onclick="chercherDansDrive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap;border-color:var(--blue);color:var(--blue)">Index Drive</button>' +
-          '<button class="btn" onclick="rechercherDriveLive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">Recherche Drive live</button>' +
+        '<div style="display:flex;gap:0.5rem;justify-content:center;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem">' +
+          '<input type="file" id="iaFileInput" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.doc,.docx" style="font-size:0.82rem;max-width:280px">' +
+          '<button class="btn btn-primary" onclick="analyserDocument(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.4rem 0.8rem;white-space:nowrap">Analyser fichier</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:0.5rem;justify-content:center;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem;padding-top:0.75rem;border-top:1px dashed var(--border)">' +
+          '<input type="url" id="iaFolderUrl" class="form-input" placeholder="Coller un lien de dossier Google Drive..." style="font-size:0.82rem;flex:1;min-width:250px;padding:0.4rem">' +
+          '<button class="btn btn-primary" onclick="analyserDossierParUrl(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.4rem 0.8rem;white-space:nowrap;background:var(--accent)">Analyser ce dossier</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:0.5rem;justify-content:center;align-items:center;flex-wrap:wrap">' +
+          '<input type="text" id="iaSearchKeywords" class="form-input" placeholder="Mots-cl\u00e9s..." style="font-size:0.82rem;width:180px;padding:0.4rem">' +
+          '<button class="btn" onclick="chercherDansDrive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.4rem 0.8rem;white-space:nowrap;border-color:var(--blue);color:var(--blue)">Index Drive</button>' +
+          '<button class="btn" onclick="rechercherDriveLive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.4rem 0.8rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">Recherche Drive live</button>' +
         '</div>' +
         '<div id="iaStatus" style="margin-top:0.75rem;font-size:0.82rem"></div>' +
         '<div id="driveResults" style="margin-top:0.75rem"></div>' +
@@ -4697,6 +4702,46 @@
       }
       if (filled > 0) showToast('+' + filled + ' champs compl\u00e9t\u00e9s depuis fichier suppl\u00e9mentaire');
     }
+
+    window.analyserDossierParUrl = function(projetCode) {
+      var urlInput = document.getElementById('iaFolderUrl');
+      var folderUrl = urlInput ? urlInput.value.trim() : '';
+      if (!folderUrl) { showToast('Collez un lien de dossier Google Drive'); return; }
+
+      // Extraire le folder ID depuis l'URL
+      var match = folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (!match) { showToast('URL de dossier invalide — doit contenir /folders/...'); return; }
+      var folderId = match[1];
+
+      // Sauvegarder le lien dans le champ dossier projet
+      var driveInput = document.getElementById('proj_drive_projet');
+      if (driveInput && !driveInput.value) {
+        driveInput.value = folderUrl;
+        driveInput.style.borderColor = 'var(--green)';
+      }
+
+      // Lancer l'analyse du dossier — on utilise le folderId comme fileId en mode folder
+      // Il faut d'abord trouver un fichier dans ce dossier
+      var statusEl = document.getElementById('iaStatus');
+      statusEl.innerHTML = '<span style="color:var(--blue)">Recherche de fichiers dans le dossier...</span>';
+
+      // Chercher un fichier dans ce dossier via l'API Drive
+      var searchUrl = apiUrl + '?action=drive_search_live&q=' + encodeURIComponent(folderId);
+      fetch(searchUrl)
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        var files = resp.files || [];
+        if (files.length === 0) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Aucun fichier trouv\u00e9 dans ce dossier</span>';
+          return;
+        }
+        // Utiliser le premier fichier pour lancer l'analyse dossier
+        analyserDossierComplet(files[0].id, projetCode);
+      })
+      .catch(function(err) {
+        statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
+      });
+    };
 
     window.analyserDossierComplet = function(fileId, projetCode) {
       if (!apiUrl) { showToast('Configurez l\'URL API'); return; }
