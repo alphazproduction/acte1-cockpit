@@ -1561,7 +1561,9 @@
                 client_code: sp.client_code || '',
                 date_debut: sp.date_debut || '',
                 date_fin: sp.date_fin || '',
-                date_travaux: sp.date_debut_travaux || ''
+                date_travaux: sp.date_debut_travaux || '',
+                drive_projet: sp.lien_dossier_drive || '',
+                drive_commercial: sp.lien_dossier_commercial || ''
               });
             });
             // A1 fix: Clear mock PROJETS immediately so they never mix with live data
@@ -1842,7 +1844,9 @@
               client_code: pb.client_code || '',
               date_debut: pb.date_debut || '',
               date_fin: pb.date_fin || '',
-              date_travaux: pb.date_travaux || ''
+              date_travaux: pb.date_travaux || '',
+              drive_projet: pb.drive_projet || '',
+              drive_commercial: pb.drive_commercial || ''
             });
           }
         });
@@ -3592,14 +3596,16 @@
         date_debut: p.date_debut || '', date_fin: p.date_fin || '', date_travaux: p.date_travaux || '',
         client: p.client || p.client_code || '', architecte: '', moa_delegue: '', via: '',
         contact_nom: '', contact_prenom: '', contact_fonction: '', contact_tel: '', contact_email: '', contact_societe: '',
-        budget_total: p.budget || '', budget_sceno: '', surface: '', resume: ''
+        budget_total: p.budget || '', budget_sceno: '', surface: '', resume: '',
+        drive_projet: p.drive_projet || '', drive_commercial: p.drive_commercial || ''
       } : {
         code: '', nom: '', ville: '', type_client: 'Public', type_mission: 'MOE',
         type_marche: 'Neuf', type_secteur: '', etat: 'En cours', chef: 'Am\u00e9lie',
         date_debut: '', date_fin: '', date_travaux: '',
         client: '', architecte: '', moa_delegue: '', via: '',
         contact_nom: '', contact_prenom: '', contact_fonction: '', contact_tel: '', contact_email: '', contact_societe: '',
-        budget_total: '', budget_sceno: '', surface: '', resume: ''
+        budget_total: '', budget_sceno: '', surface: '', resume: '',
+        drive_projet: '', drive_commercial: ''
       };
 
       var html = '<a class="back-link" onclick="navigateTo(\'projets\')">&larr; Retour aux projets</a>';
@@ -3738,6 +3744,22 @@
         fg('D\u00e9but contrat', 'date', 'proj_date_debut', v.date_debut) +
         fg('Fin contrat', 'date', 'proj_date_fin', v.date_fin) +
         fg('D\u00e9but travaux', 'date', 'proj_date_travaux', v.date_travaux) +
+      '</div>';
+
+      html += '<div class="form-section-title">Dossiers Drive</div>';
+      html += '<div class="form-grid">' +
+        '<div class="form-group"><label class="form-label">Dossier projet (Drive)</label>' +
+          '<div style="display:flex;gap:0.5rem;align-items:center">' +
+            '<input type="url" class="form-input" id="proj_drive_projet" value="' + (v.drive_projet || '') + '" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">' +
+            (v.drive_projet ? '<a href="' + v.drive_projet + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="form-group"><label class="form-label">Dossier commercial (Drive)</label>' +
+          '<div style="display:flex;gap:0.5rem;align-items:center">' +
+            '<input type="url" class="form-input" id="proj_drive_commercial" value="' + (v.drive_commercial || '') + '" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">' +
+            (v.drive_commercial ? '<a href="' + v.drive_commercial + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
+          '</div>' +
+        '</div>' +
       '</div>';
 
       html += '<div class="form-section-title">Acteurs du projet</div>';
@@ -4475,6 +4497,12 @@
       el.innerHTML = '<span style="color:var(--blue)">Recherche dans le Drive pour <strong>' + projetCode + '</strong>...</span>';
 
       var extraKW = (document.getElementById('iaSearchKeywords') || {}).value || '';
+      // Si un dossier Drive est déjà lié, l'ajouter aux mots-clés
+      var driveLink = (document.getElementById('proj_drive_projet') || {}).value || '';
+      if (driveLink) {
+        var folderId = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
+        if (folderId) extraKW += ' ' + folderId[1];
+      }
       var url = apiUrl + '?action=drive_search&projet=' + encodeURIComponent(projetCode) + '&keywords=' + encodeURIComponent(extraKW);
       fetch(url)
       .then(function(r) { return r.json(); })
@@ -4930,6 +4958,8 @@
         montant_travaux_estime: parseFloat(gv('proj_mt_estime')) || 0,
         montant_travaux_reel: parseFloat(gv('proj_mt_reel')) || 0,
         resume_reference: gv('proj_resume'),
+        lien_dossier_drive: gv('proj_drive_projet'),
+        lien_dossier_commercial: gv('proj_drive_commercial'),
         notes: ''
       };
 
