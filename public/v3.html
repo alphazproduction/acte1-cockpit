@@ -3614,6 +3614,7 @@
           '<input type="file" id="iaFileInput" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.doc,.docx" style="font-size:0.82rem;max-width:300px">' +
           '<button class="btn btn-primary" onclick="analyserDocument(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap">Analyser fichier</button>' +
           '<span style="color:var(--text-muted);font-size:0.82rem">ou</span>' +
+          '<input type="text" id="iaSearchKeywords" class="form-input" placeholder="Mots-cl\u00e9s suppl\u00e9mentaires..." style="font-size:0.82rem;width:180px;padding:0.4rem">' +
           '<button class="btn" onclick="chercherDansDrive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap;border-color:var(--blue);color:var(--blue)">Chercher dans le Drive</button>' +
         '</div>' +
         '<div id="iaStatus" style="margin-top:0.75rem;font-size:0.82rem"></div>' +
@@ -4472,7 +4473,8 @@
       var el = document.getElementById('driveResults');
       el.innerHTML = '<span style="color:var(--blue)">Recherche dans le Drive pour <strong>' + projetCode + '</strong>...</span>';
 
-      var url = apiUrl + '?action=drive_search&projet=' + encodeURIComponent(projetCode);
+      var extraKW = (document.getElementById('iaSearchKeywords') || {}).value || '';
+      var url = apiUrl + '?action=drive_search&projet=' + encodeURIComponent(projetCode) + '&keywords=' + encodeURIComponent(extraKW);
       fetch(url)
       .then(function(r) { return r.json(); })
       .then(function(resp) {
@@ -4484,7 +4486,15 @@
           return;
         }
 
-        var html = '<div style="font-weight:600;margin-bottom:0.5rem">' + files.length + ' fichiers trouv\u00e9s dans le Drive :</div>';
+        var dossiers = resp.dossiers_matches || [];
+        var kws = resp.keywords || '';
+        var html = '<div style="font-weight:600;margin-bottom:0.5rem">' + files.length + ' fichiers trouv\u00e9s dans ' + dossiers.length + ' dossier(s)</div>';
+        if (dossiers.length > 0) {
+          html += '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">Dossiers : <strong>' + dossiers.join(', ') + '</strong></div>';
+        }
+        if (kws) {
+          html += '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Mots-cl\u00e9s : ' + kws + '</div>';
+        }
         html += '<div style="max-height:300px;overflow-y:auto">';
         html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
         html += '<tr style="font-weight:600;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg)"><td style="width:30px"></td><td>Fichier</td><td style="width:120px">Cat\u00e9gorie</td><td style="width:70px">Type</td><td style="width:70px">Taille</td><td style="width:100px">Action</td></tr>';
