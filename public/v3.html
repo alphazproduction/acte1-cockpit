@@ -4342,9 +4342,10 @@
 
     window.appliquerImportIA = function(projetCode) {
       if (!iaDataPending) { showToast('Pas de donn\u00e9es \u00e0 importer'); return; }
+      var data = iaDataPending;
       var filled = 0;
 
-      // Appliquer les champs coch\u00e9s
+      // ── 1. Appliquer les champs info projet coch\u00e9s ──
       document.querySelectorAll('[id^="ia_chk_"]').forEach(function(cb) {
         if (!cb.checked) return;
         var fieldId = cb.getAttribute('data-field');
@@ -4352,7 +4353,6 @@
         var isSel = cb.getAttribute('data-select');
         var el = document.getElementById(fieldId);
         if (!el) return;
-
         if (isSel) {
           for (var i = 0; i < el.options.length; i++) {
             if (el.options[i].text === val || el.options[i].value === val) {
@@ -4366,15 +4366,115 @@
         el.style.backgroundColor = 'rgba(6,214,160,0.05)';
       });
 
-      // Compter les phases s\u00e9lectionn\u00e9es pour info
-      var phasesCount = 0;
-      document.querySelectorAll('[id^="ia_phase_"]').forEach(function(cb) { if (cb.checked) phasesCount++; });
-      document.querySelectorAll('[id^="ia_option_"]').forEach(function(cb) { if (cb.checked) phasesCount++; });
+      // ── 2. Collecter les phases s\u00e9lectionn\u00e9es ──
+      var selectedPhases = [];
+      if (data.phases) {
+        var basePh = data.phases.filter(function(ph) {
+          var name = (ph.phase || '').toUpperCase();
+          return name.indexOf('OPTION') < 0 && name.indexOf('VARIANTE') < 0 && name.indexOf('TRANCHE COND') < 0;
+        });
+        var optPh = data.phases.filter(function(ph) {
+          var name = (ph.phase || '').toUpperCase();
+          return name.indexOf('OPTION') >= 0 || name.indexOf('VARIANTE') >= 0 || name.indexOf('TRANCHE COND') >= 0;
+        });
 
-      showToast(filled + ' champs appliqu\u00e9s' + (phasesCount > 0 ? ', ' + phasesCount + ' phases s\u00e9lectionn\u00e9es' : ''));
+        basePh.forEach(function(ph, idx) {
+          var cb = document.getElementById('ia_phase_' + idx);
+          if (cb && cb.checked) selectedPhases.push(ph);
+        });
+        optPh.forEach(function(ph, idx) {
+          var cb = document.getElementById('ia_option_' + idx);
+          if (cb && cb.checked) selectedPhases.push(ph);
+        });
+      }
 
-      // Masquer le panneau
-      document.getElementById('iaStatus').innerHTML = '<span style="color:var(--green)">\u2713 Import termin\u00e9 \u2014 ' + filled + ' champs, ' + phasesCount + ' phases. <strong>Cliquez Enregistrer</strong> pour sauvegarder.</span>';
+      // ── 3. Si mode live, sauvegarder dans le Sheet ──
+      if (dataMode === 'live' && apiUrl && projetCode && selectedPhases.length > 0) {
+        var savedCount = 0;
+        var totalToSave = selectedPhases.length * 3; // contrat + ech + orga par phase
+        var refDevis = data.ref_devis || 'Devis import\u00e9';
+
+        selectedPhases.forEach(function(ph, idx) {
+          var montant = ph.montant || 0;
+          var datePrev = ph.date_prevue || '';
+
+          // Si pas de date, estimer en \u00e9talant sur les prochains mois
+          if (!datePrev) {
+            var now = new Date();
+            var moisDecale = now.getMonth() + 1 + idx;
+            var annee = now.getFullYear() + Math.floor(moisDecale / 12);
+            var mois = (moisDecale % 12) + 1;
+            datePrev = annee + '-' + String(mois).padStart(2, '0') + '-15';
+          }
+
+          // 3a. CONTRAT : phase + montant + r\u00e9f\u00e9rence devis
+          postToSheet('upsert_contrat', {
+            code_projet: projetCode,
+            ref_document: refDevis,
+            nom_document: refDevis,
+            famille_document: 'Montant initial',
+            type_document: 'Devis initial',
+            origine_document: 'ACTE 1',
+            date_document: data.date_debut || '',
+            phase: ph.phase,
+            montant: montant,
+            commentaire: 'Import IA',
+            ordre_affichage: idx + 1
+          });
+
+          // 3b. ECHEANCIER : phase + montant + date pr\u00e9visionnelle
+          postToSheet('upsert_echeancier', {
+            code_projet: projetCode,
+            ref_document: refDevis,
+            phase: ph.phase,
+            montant: montant,
+            date_prev_facturation: datePrev,
+            n_facture: '',
+            date_facture: '',
+            statut: 'Pr\u00e9visionnel',
+            commentaire: 'Import IA',
+            montant_soustraitance: '',
+            ordre_affichage: idx + 1
+          });
+
+          // 3c. ORGANISATION : phase + date de rendu pr\u00e9vue
+          postToSheet('upsert_organisation', {
+            code_projet: projetCode,
+            phase: ph.phase,
+            date_rendu_prev: datePrev,
+            date_validation: '',
+            validee: 'FALSE',
+            commentaire: 'Import IA \u2014 ' + (montant ? montant.toLocaleString('fr-FR') + ' \u20ac' : ''),
+            ordre_affichage: idx + 1
+          });
+
+          savedCount++;
+        });
+
+        // R\u00e9sum\u00e9
+        var totalMontant = selectedPhases.reduce(function(s, p) { return s + (p.montant || 0); }, 0);
+        document.getElementById('iaStatus').innerHTML =
+          '<div style="padding:1rem;background:var(--green-bg);border:1px solid var(--green);border-radius:8px">' +
+            '<div style="font-weight:700;color:var(--green);margin-bottom:0.5rem">\u2713 Import appliqu\u00e9 et sauvegard\u00e9</div>' +
+            '<div style="font-size:0.85rem">' +
+              '<strong>' + filled + '</strong> champs info projet mis \u00e0 jour<br>' +
+              '<strong>' + savedCount + '</strong> phases sauvegard\u00e9es dans Contrat + \u00c9ch\u00e9ancier + Organisation<br>' +
+              'Montant total : <strong>' + totalMontant.toLocaleString('fr-FR') + ' \u20ac</strong><br>' +
+              'R\u00e9f\u00e9rence devis : ' + refDevis +
+            '</div>' +
+            '<div style="margin-top:0.75rem;font-size:0.82rem;color:var(--text-muted)">' +
+              'Cliquez <strong>Enregistrer</strong> pour sauvegarder aussi les infos projet. ' +
+              'Rechargez la page pour voir les mises \u00e0 jour dans les volets Contrat / \u00c9ch\u00e9ancier / Organisation.' +
+            '</div>' +
+          '</div>';
+
+      } else if (selectedPhases.length > 0 && dataMode !== 'live') {
+        document.getElementById('iaStatus').innerHTML = '<span style="color:var(--yellow)">\u26a0 Mode d\u00e9mo \u2014 ' + filled + ' champs appliqu\u00e9s localement, ' + selectedPhases.length + ' phases non sauvegard\u00e9es (passez en Live).</span>';
+      } else {
+        document.getElementById('iaStatus').innerHTML = '<span style="color:var(--green)">\u2713 ' + filled + ' champs appliqu\u00e9s. Cliquez Enregistrer pour sauvegarder.</span>';
+      }
+
+      showToast(filled + ' champs + ' + selectedPhases.length + ' phases appliqu\u00e9s');
       iaDataPending = null;
     };
 
