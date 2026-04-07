@@ -4478,7 +4478,17 @@
         var totalToSave = selectedPhases.length * 3; // contrat + ech + orga par phase
         var refDevis = data.ref_devis || 'Devis import\u00e9';
 
+        // Double-check normalisation des codes phase
+        var MOP_CODES = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
         selectedPhases.forEach(function(ph, idx) {
+          var code = (ph.phase || '').toUpperCase().replace(/\s*\(OPTION\)/i,'').trim();
+          if (MOP_CODES.indexOf(code) < 0) {
+            // Dernier recours : extraire le premier code MOP du texte
+            for (var mi = 0; mi < MOP_CODES.length; mi++) {
+              if (code.indexOf(MOP_CODES[mi]) >= 0) { code = MOP_CODES[mi]; break; }
+            }
+          }
+          ph.phase = MOP_CODES.indexOf(code) >= 0 ? code : ph.phase;
           var montant = ph.montant || 0;
           var datePrev = ph.date_prevue || '';
 
