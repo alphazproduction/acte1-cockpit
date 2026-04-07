@@ -1151,9 +1151,7 @@
       <a class="nav-item" data-page="projets" onclick="navigateTo('projets')">
         <span class="nav-icon">&#9830;</span> Projets
       </a>
-      <a class="nav-item" data-page="echeancier" onclick="navigateTo('echeancier')">
-        <span class="nav-icon">&#9776;</span> &Eacute;ch. consolid&eacute;
-      </a>
+      <!-- Échéancier consolidé retiré (V3) -->
       <a class="nav-item" data-page="forecast" onclick="navigateTo('forecast')">
         <span class="nav-icon">&#9650;</span> Forecast
       </a>
@@ -1941,11 +1939,25 @@
       else te = tempsEcoulePondere();
       var effectue = caEffectue();
       var previsionnel = caPrevisionnel();
-      console.log('KPI debug: effectue=' + effectue + ' prev=' + previsionnel + ' seuil=' + getSeuil(selectedYear) + ' obj=' + getObjectif(selectedYear));
-      var pctEffSeuil = effectue / getSeuil(selectedYear);
-      var pctPrevSeuil = previsionnel / getSeuil(selectedYear);
-      var pctEffObj = effectue / getObjectif(selectedYear);
-      var pctPrevObj = previsionnel / getObjectif(selectedYear);
+      var seuilVal = getSeuil(selectedYear);
+      var objVal = getObjectif(selectedYear);
+
+      // Sécurité : si pas de données ou objectifs incohérents, afficher 0%
+      if (!seuilVal || seuilVal < 10000) seuilVal = 350000;
+      if (!objVal || objVal < 10000) objVal = 450000;
+
+      console.log('KPI: effectue=' + effectue + ' prev=' + previsionnel + ' seuil=' + seuilVal + ' obj=' + objVal + ' nbProjets=' + PROJETS.length);
+
+      var pctEffSeuil = seuilVal > 0 ? effectue / seuilVal : 0;
+      var pctPrevSeuil = seuilVal > 0 ? previsionnel / seuilVal : 0;
+      var pctEffObj = objVal > 0 ? effectue / objVal : 0;
+      var pctPrevObj = objVal > 0 ? previsionnel / objVal : 0;
+
+      // Plafond à 999% pour éviter des affichages absurdes
+      pctEffSeuil = Math.min(pctEffSeuil, 9.99);
+      pctPrevSeuil = Math.min(pctPrevSeuil, 9.99);
+      pctEffObj = Math.min(pctEffObj, 9.99);
+      pctPrevObj = Math.min(pctPrevObj, 9.99);
       var colorPrevSeuil = kpiColor(pctPrevSeuil, 1.0);  // prev vs 100%
       var colorPrevObj = kpiColor(pctPrevObj, 1.0);
       var today = getToday();
@@ -1973,7 +1985,7 @@
             '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + '</div></div>' +
             ecartBadge(pctEffSeuil, te) +
           '</div>' +
-          '<div class="kpi-footer">Seuil ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(getSeuil(selectedYear)) + '</a></div>' +
+          '<div class="kpi-footer">Seuil ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(seuilVal) + '</a></div>' +
         '</div>' +
         // Card 3: Objectif CA — PREVISIONNEL en gros + couleur
         '<div class="kpi-card">' +
@@ -1986,7 +1998,7 @@
             '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + '</div></div>' +
             ecartBadge(pctEffObj, te) +
           '</div>' +
-          '<div class="kpi-footer">Objectif ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(getObjectif(selectedYear)) + '</a></div>' +
+          '<div class="kpi-footer">Objectif ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(objVal) + '</a></div>' +
         '</div>';
     }
 
@@ -2023,7 +2035,7 @@
       var cumul = [];
       var cs = 0;
       monthData.forEach(function(d) { cs += d.total; cumul.push(cs); });
-      var maxCum = Math.max(cs, getObjectif(selectedYear), getSeuil(selectedYear)) * 1.15;
+      var maxCum = Math.max(cs, objVal, seuilVal) * 1.15;
 
       var barGroupW = cw / 12;
       var barW = barGroupW * 0.6;
@@ -2153,8 +2165,8 @@
       }
 
       // Compute curve values
-      var seuilVals = coeffCumul.map(function(c) { return getSeuil(selectedYear) * c; });
-      var objVals = coeffCumul.map(function(c) { return getObjectif(selectedYear) * c; });
+      var seuilVals = coeffCumul.map(function(c) { return seuilVal * c; });
+      var objVals = coeffCumul.map(function(c) { return objVal * c; });
 
       var ptsSeuil = curvePoints(seuilVals);
       var ptsObj = curvePoints(objVals);
@@ -2185,14 +2197,14 @@
         ctx.font = 'bold 11px system-ui, sans-serif';
         ctx.textAlign = 'left';
         ctx.fillStyle = '#EF476F';
-        ctx.fillText('Seuil ' + fmt(getSeuil(selectedYear)/1000) + 'k', margin.left + cw + 8, ptsSeuil[11].y + 4);
+        ctx.fillText('Seuil ' + fmt(seuilVal/1000) + 'k', margin.left + cw + 8, ptsSeuil[11].y + 4);
       }
       if (chartCurves.objectif) {
         drawCurveLine(ptsObj, '#06D6A0', 2.5, [8, 5], 3);
         ctx.font = 'bold 11px system-ui, sans-serif';
         ctx.textAlign = 'left';
         ctx.fillStyle = '#06D6A0';
-        ctx.fillText('Obj ' + fmt(getObjectif(selectedYear)/1000) + 'k', margin.left + cw + 8, ptsObj[11].y + 4);
+        ctx.fillText('Obj ' + fmt(objVal/1000) + 'k', margin.left + cw + 8, ptsObj[11].y + 4);
       }
 
       // Cumulative line
@@ -2510,7 +2522,7 @@
           '</div>' +
           '<div class="coeff-grid">';
 
-      var objMensuel = getObjectif(selectedYear) / coeffTotal();
+      var objMensuel = objVal / coeffTotal();
       for (var i = 0; i < 12; i++) {
         var c = params.coefficients[i];
         var isReduced = c < 1.0;
@@ -2547,7 +2559,7 @@
         sum += v;
       }
       document.getElementById('coeffTotalDisplay').textContent = sum.toFixed(1);
-      var objMensuel = getObjectif(selectedYear) / (sum || 1);
+      var objMensuel = objVal / (sum || 1);
       var cards = document.querySelectorAll('.coeff-card');
       for (var j = 0; j < 12; j++) {
         var card = cards[j];
@@ -4627,6 +4639,13 @@
 
       // Connection badge
       updateConnectionBadge();
+
+      // En mode live, VIDER les données mock immédiatement pour ne JAMAIS les afficher
+      if (dataMode === 'live') {
+        PROJETS.length = 0;
+        for (var k in ORGANISATION) delete ORGANISATION[k];
+        for (var k2 in PHASES_VALIDEES) delete PHASES_VALIDEES[k2];
+      }
 
       // Auto-load from Sheet if live mode
       if (dataMode === 'live' && apiUrl) {
