@@ -3606,14 +3606,18 @@
       html += '<div class="page-header"><div class="page-title">' + title + '</div></div>';
 
       // ── DROP ZONE IA ──
-      html += '<div id="iaDropZone" style="margin-bottom:1.5rem;border:2px dashed var(--border);border-radius:12px;padding:1.25rem;text-align:center;transition:all 0.2s;background:var(--bg)">' +
-        '<div style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem">Analyser un document avec l\'IA</div>' +
-        '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem">D\u00e9posez un devis, contrat, DPGF ou tout document projet (PDF, Excel, image)</div>' +
-        '<div style="display:flex;gap:0.75rem;justify-content:center;align-items:center">' +
+      var pCode = p ? p.code : '';
+      html += '<div id="iaDropZone" style="margin-bottom:1.5rem;border:2px dashed var(--border);border-radius:12px;padding:1.25rem;transition:all 0.2s;background:var(--bg)">' +
+        '<div style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem;text-align:center">Analyser un document avec l\'IA</div>' +
+        '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;text-align:center">D\u00e9posez un fichier local ou cherchez dans le Drive du projet</div>' +
+        '<div style="display:flex;gap:0.75rem;justify-content:center;align-items:center;flex-wrap:wrap">' +
           '<input type="file" id="iaFileInput" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.doc,.docx" style="font-size:0.82rem;max-width:300px">' +
-          '<button class="btn btn-primary" onclick="analyserDocument(\'' + (p ? p.code : '') + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap">Analyser</button>' +
+          '<button class="btn btn-primary" onclick="analyserDocument(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap">Analyser fichier</button>' +
+          '<span style="color:var(--text-muted);font-size:0.82rem">ou</span>' +
+          '<button class="btn" onclick="chercherDansDrive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.45rem 1rem;white-space:nowrap;border-color:var(--blue);color:var(--blue)">Chercher dans le Drive</button>' +
         '</div>' +
         '<div id="iaStatus" style="margin-top:0.75rem;font-size:0.82rem"></div>' +
+        '<div id="driveResults" style="margin-top:0.75rem"></div>' +
       '</div>';
 
       // ── SUMMARY CARD for existing projects ──
@@ -4460,6 +4464,76 @@
 
       showToast(filled + ' champs + ' + selectedPhases.length + ' phases appliqu\u00e9s');
       iaDataPending = null;
+    };
+
+    // ── RECHERCHE DRIVE ──
+    window.chercherDansDrive = function(projetCode) {
+      if (!apiUrl) { showToast('Configurez l\'URL API'); return; }
+      var el = document.getElementById('driveResults');
+      el.innerHTML = '<span style="color:var(--blue)">Recherche dans le Drive pour <strong>' + projetCode + '</strong>...</span>';
+
+      var url = apiUrl + '?action=drive_search&projet=' + encodeURIComponent(projetCode);
+      fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (!resp.ok) { el.innerHTML = '<span style="color:var(--red)">' + (resp.error || 'Erreur') + '</span>'; return; }
+
+        var files = resp.files || [];
+        if (files.length === 0) {
+          el.innerHTML = '<span style="color:var(--text-muted)">Aucun fichier pertinent trouv\u00e9 pour ce projet.</span>';
+          return;
+        }
+
+        var html = '<div style="font-weight:600;margin-bottom:0.5rem">' + files.length + ' fichiers trouv\u00e9s dans le Drive :</div>';
+        html += '<div style="max-height:300px;overflow-y:auto">';
+        html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
+        html += '<tr style="font-weight:600;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg)"><td style="width:30px"></td><td>Fichier</td><td style="width:120px">Cat\u00e9gorie</td><td style="width:70px">Type</td><td style="width:70px">Taille</td><td style="width:100px">Action</td></tr>';
+
+        files.forEach(function(f, idx) {
+          var catColor = f.categorie === 'Devis / Contrat' ? 'var(--green)' : f.categorie === 'Planning' ? 'var(--blue)' : 'var(--text-muted)';
+          html += '<tr style="border-bottom:1px solid var(--border)">' +
+            '<td>' + (idx + 1) + '</td>' +
+            '<td style="word-break:break-word"><a href="' + f.url + '" target="_blank" style="font-size:0.8rem">' + f.nom + '</a>' +
+              '<div style="font-size:0.72rem;color:var(--text-muted)">' + f.chemin.split('/').slice(0,3).join('/') + '</div></td>' +
+            '<td><span style="color:' + catColor + ';font-weight:600;font-size:0.78rem">' + f.categorie + '</span></td>' +
+            '<td style="font-size:0.78rem">' + f.type + '</td>' +
+            '<td style="font-size:0.78rem">' + Math.round(f.taille_ko) + ' Ko</td>' +
+            '<td><button class="btn btn-primary" style="font-size:0.72rem;padding:0.25rem 0.5rem" onclick="analyserFichierDrive(\'' + f.id + '\',\'' + projetCode + '\')">Analyser</button></td>' +
+          '</tr>';
+        });
+        html += '</table></div>';
+
+        el.innerHTML = html;
+      })
+      .catch(function(err) {
+        el.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
+      });
+    };
+
+    window.analyserFichierDrive = function(fileId, projetCode) {
+      if (!apiUrl) { showToast('Configurez l\'URL API'); return; }
+      var statusEl = document.getElementById('iaStatus');
+      statusEl.innerHTML = '<span style="color:var(--blue)">L\'IA lit et analyse le fichier depuis le Drive... (peut prendre 30s)</span>';
+
+      var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId);
+      fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (!resp.ok) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || 'inconnue') + '</span>';
+          return;
+        }
+        if (!resp.data) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>';
+          return;
+        }
+        statusEl.innerHTML = '<span style="color:var(--green)">Analyse de <strong>' + (resp.fileName || 'fichier') + '</strong> termin\u00e9e &mdash; Confiance : ' + (resp.data.confiance || 'moyenne') + '</span>';
+        document.getElementById('driveResults').innerHTML = '';
+        remplirDepuisIA(resp.data, projetCode);
+      })
+      .catch(function(err) {
+        statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
+      });
     };
 
     // ── ECHEANCIER EDIT ──
