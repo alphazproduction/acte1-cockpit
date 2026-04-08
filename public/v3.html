@@ -1361,91 +1361,11 @@
     var MOIS_LABELS = ['Jan','F\u00e9v','Mar','Avr','Mai','Jun','Jul','Ao\u00fb','Sep','Oct','Nov','D\u00e9c'];
     var MOIS_FULL = ['Janvier','F\u00e9vrier','Mars','Avril','Mai','Juin','Juillet','Ao\u00fbt','Septembre','Octobre','Novembre','D\u00e9cembre'];
 
-    var PROJETS = [
-      { code:'PAL', nom:'PALC - Chalons - Moatti', etat:'En cours', cat:'etudes', chef:'Am\u00e9lie', mois:[0,9565,0,7515,0,12525,0,0,0,21050,0,0] },
-      { code:'RMD', nom:'Roanne - Mus\u00e9e Dechelette', etat:'En cours', cat:'etudes', chef:'Am\u00e9lie', mois:[0,0,5575,11551,0,0,0,0,0,0,9975,0] },
-      { code:'RTE', nom:'RTE : Base et Avenant', etat:'En cours', cat:'etudes', chef:'R\u00e9gis', mois:[0,0,3675,5250,7875,3150,3150,1575,0,0,0,0] },
-      { code:'ORA', nom:'Centre de la M\u00e9moire d\'Oradour', etat:'En cours', cat:'etudes', chef:'Am\u00e9lie', mois:[1627,2826,2709,0,7846,0,0,0,0,0,6068,0] },
-      { code:'AIR', nom:'AIRBUS - B25 - MOE', etat:'En cours', cat:'etudes', chef:'R\u00e9gis', mois:[0,0,12255,0,8645,0,0,0,0,0,0,0] },
-      { code:'INS', nom:'Insight : ACT2 + DET + AOR', etat:'Attente signature', cat:'travaux', chef:'R\u00e9gis', mois:[0,3150,0,0,0,0,0,12075,0,0,0,4725] },
-      { code:'TFN', nom:'Tour First N27 & N44', etat:'En cours', cat:'travaux', chef:'R\u00e9gis', mois:[0,0,7770,0,0,2100,6825,0,0,0,0,2625] },
-      { code:'26H', nom:'26H - partie Chantier', etat:'En cours', cat:'travaux', chef:'Am\u00e9lie', mois:[0,0,7600,1425,5035,3800,0,0,0,0,0,0] },
-      { code:'OP12', nom:'OPUS12 - Phase Etude avenant', etat:'V\u00e9rification avenant', cat:'etudes', chef:'Am\u00e9lie', mois:[0,11025,0,0,5225,0,0,0,0,0,0,0] },
-      { code:'GL1', nom:'GoodLife 1', etat:'Reste le DET', cat:'travaux', chef:'Am\u00e9lie', mois:[10925,0,0,4750,0,0,0,0,0,0,0,0] },
-      { code:'AJN', nom:'AJN Falcon Nest', etat:'En cours', cat:'etudes', chef:'R\u00e9gis', mois:[0,1570,9135,0,0,4620,0,0,0,0,0,0] },
-      { code:'CCN', nom:'CC Notaires', etat:'Attente contrat', cat:'etudes', chef:'Am\u00e9lie', mois:[0,1500,0,0,0,0,0,0,0,8000,0,3500] },
-      { code:'SGA', nom:'SGP - Gare des Ardoines', etat:'En cours', cat:'etudes', chef:'R\u00e9gis', mois:[0,0,0,5540,0,0,3850,0,0,2200,0,0] },
-      { code:'CHB', nom:'Cheval Blanc v2', etat:'Valid\u00e9 par mail', cat:'etudes', chef:'Am\u00e9lie', mois:[0,0,1575,5250,0,4200,0,0,0,0,0,0] },
-      { code:'S29', nom:'SG - 29H - Eclairage + DET', etat:'En cours', cat:'travaux', chef:'R\u00e9gis', mois:[0,0,3675,2415,0,4830,0,0,0,0,0,0] },
-      { code:'BOB', nom:'Cin\u00e9ma Bobigny - Suite', etat:'En cours', cat:'travaux', chef:'Am\u00e9lie', mois:[0,1850,0,3800,3800,0,0,0,0,0,0,0] },
-      { code:'NAU', nom:'Nausica\u00e1', etat:'En cours', cat:'etudes', chef:'Am\u00e9lie', mois:[0,0,0,0,7901,0,0,0,0,0,0,0] },
-      { code:'SUM', nom:'SUMMIT : Affichage dynamique', etat:'En cours', cat:'etudes', chef:'R\u00e9gis', mois:[0,0,800,0,0,0,5400,0,0,0,0,0] },
-      { code:'CAU', nom:'Caudalie Base ERP + avenant', etat:'Mise \u00e0 jour', cat:'etudes', chef:'R\u00e9gis', mois:[5775,0,0,0,0,0,0,0,0,0,0,0] },
-      { code:'OCE', nom:'Oc\u00e9anopolis', etat:'En cours', cat:'etudes', chef:'Am\u00e9lie', mois:[0,1545,1000,1000,1000,1000,0,0,0,0,0,0] },
-      { code:'CTL', nom:'Cin\u00e9math\u00e8que de Toulouse', etat:'En cours', cat:'etudes', chef:'Am\u00e9lie', mois:[2662,0,1692,0,0,0,0,0,0,0,0,0] },
-      { code:'PBA', nom:'Palais Bourbon - audito', etat:'V\u00e9rifier montants', cat:'etudes', chef:'R\u00e9gis', mois:[1255,627,0,0,2971,0,0,0,0,0,0,0] },
-      { code:'PBM', nom:'Palais Bourbon Moatti - mus\u00e9o', etat:'Attente OS avenant', cat:'etudes', chef:'Am\u00e9lie', mois:[1800,900,900,0,0,0,0,0,0,0,0,0] },
-      { code:'PAC', nom:'PACE - M\u00e9diath\u00e8que de Rennes', etat:'Attente GPA', cat:'travaux', chef:'R\u00e9gis', mois:[0,0,0,0,0,550,0,0,0,0,0,0] },
-      { code:'MHN', nom:'Mus\u00e9e Hist. naturelle Nantes', etat:'Attente signature', cat:'etudes', chef:'Am\u00e9lie', mois:[0,3200,0,1500,0,400,0,0,0,0,0,0] },
-      { code:'TFC', nom:'Tour First CBRE', etat:'Attente fin AOR', cat:'travaux', chef:'R\u00e9gis', mois:[0,1425,0,0,0,0,0,0,0,0,0,0] },
-      { code:'CBA', nom:'Cheval Blanc - avenant serrurerie', etat:'En cours', cat:'travaux', chef:'Am\u00e9lie', mois:[0,0,1050,0,0,0,0,0,0,0,0,0] },
-      { code:'MDA', nom:'Mus\u00e9e de l\'Arm\u00e9e - Phase 1', etat:'Gel\u00e9', cat:'etudes', chef:'R\u00e9gis', mois:[0,1200,0,0,0,0,0,0,0,0,0,0] }
-    ];
-
-    /* ==============================================================
-       ALERTS MOCK — phases \u00e9chues non factur\u00e9es
-       ============================================================== */
-    var ALERTES = [
-      { code:'OP12', nom:'OPUS12 - Phase Etude', phase:'APS', montant:11025, mois_prevu:'F\u00e9vrier 2026', retard:1 },
-      { code:'INS', nom:'Insight : ACT2 + DET', phase:'ACT', montant:3150, mois_prevu:'F\u00e9vrier 2026', retard:1 },
-      { code:'TFC', nom:'Tour First CBRE', phase:'AOR', montant:1425, mois_prevu:'F\u00e9vrier 2026', retard:1 },
-      { code:'MDA', nom:'Mus\u00e9e de l\'Arm\u00e9e', phase:'DET', montant:1200, mois_prevu:'F\u00e9vrier 2026', retard:1 },
-      { code:'PBM', nom:'Palais Bourbon mus\u00e9o', phase:'PRO', montant:900, mois_prevu:'F\u00e9vrier 2026', retard:1 }
-    ];
-
-    /* ==============================================================
-       ORGANISATION — Phases actives par projet par mois (mock)
-       ============================================================== */
-    var ORGANISATION = {
-      'PAL': [null,'APD',null,'PRO',null,'PRO',null,null,null,'DCE',null,null],
-      'RMD': [null,null,'APS','APD',null,null,null,null,null,null,'PRO',null],
-      'RTE': [null,null,'APS','APS','APD','PRO','PRO','DCE',null,null,null,null],
-      'ORA': ['DET','DET','AOR',null,'AOR',null,null,null,null,null,'GPA',null],
-      'AIR': [null,null,'APD',null,'PRO',null,null,null,null,null,null,null],
-      'INS': [null,'ACT',null,null,null,null,null,'DET',null,null,null,'AOR'],
-      'TFN': [null,null,'VISA',null,null,'DET','DET',null,null,null,null,'AOR'],
-      '26H': [null,null,'DET','DET','DET','AOR',null,null,null,null,null,null],
-      'OP12':[null,'APS',null,null,'APD',null,null,null,null,null,null,null],
-      'GL1': ['DET',null,null,'AOR',null,null,null,null,null,null,null,null],
-      'AJN': [null,'APS','APD',null,null,'PRO',null,null,null,null,null,null],
-      'CCN': [null,'DIAG',null,null,null,null,null,null,null,'APS',null,'APD'],
-      'SGA': [null,null,null,'APD',null,null,'PRO',null,null,'DCE',null,null],
-      'CHB': [null,null,'APS','APD',null,'PRO',null,null,null,null,null,null],
-      'S29': [null,null,'VISA','DET',null,'DET',null,null,null,null,null,null],
-      'BOB': [null,'DET',null,'DET','AOR',null,null,null,null,null,null,null],
-      'NAU': [null,null,null,null,'APS',null,null,null,null,null,null,null],
-      'SUM': [null,null,'DIAG',null,null,null,'APS',null,null,null,null,null],
-      'CAU': ['PRO',null,null,null,null,null,null,null,null,null,null,null],
-      'OCE': [null,'DET','DET','DET','DET','DET',null,null,null,null,null,null],
-      'CTL': ['APD',null,'PRO',null,null,null,null,null,null,null,null,null],
-      'PBA': ['PRO','PRO',null,null,'DCE',null,null,null,null,null,null,null],
-      'PBM': ['APD','APD','APD',null,null,null,null,null,null,null,null,null],
-      'PAC': [null,null,null,null,null,'GPA',null,null,null,null,null,null],
-      'MHN': [null,'APS',null,'APD',null,'PRO',null,null,null,null,null,null],
-      'TFC': [null,'AOR',null,null,null,null,null,null,null,null,null,null],
-      'CBA': [null,null,'VISA',null,null,null,null,null,null,null,null,null],
-      'MDA': [null,'DET',null,null,null,null,null,null,null,null,null,null]
-    };
-
-    // Phases validées (passées, livrées) — mock
-    var PHASES_VALIDEES = {
-      'ORA': [true,true,false,false,false,false,false,false,false,false,false,false],
-      'PBM': [true,true,false,false,false,false,false,false,false,false,false,false],
-      'CAU': [true,false,false,false,false,false,false,false,false,false,false,false],
-      'CTL': [true,false,false,false,false,false,false,false,false,false,false,false],
-      'PBA': [true,true,false,false,false,false,false,false,false,false,false,false],
-      'GL1': [true,false,false,false,false,false,false,false,false,false,false,false]
-    };
+    // Données chargées depuis le Google Sheet (plus de mock)
+    var PROJETS = [];
+    var ALERTES = [];
+    var ORGANISATION = {};
+    var PHASES_VALIDEES = {};
 
     /* ==============================================================
        DEFAULT PARAMS
@@ -1585,7 +1505,7 @@
             });
             // A1 fix: Clear mock PROJETS immediately so they never mix with live data
             PROJETS.length = 0;
-            MOCK_PROJETS = null; // Prevent mock fallback
+            // Données live chargées
             console.log('[Live] projetsBase loaded:', projetsBase.length, 'projects. Mock PROJETS cleared.');
           }
 
@@ -1852,79 +1772,31 @@
       return sum / coeffTotal();
     }
 
-    // Année de référence des données mock (les PROJETS initiaux sont pour 2026)
-    var MOCK_YEAR = 2026;
-    var MOCK_PROJETS = null; // sauvegarde des données mock originales
-
     // Appliquer les données prévisionnelles d'une année aux PROJETS
     function applyYearData(annee) {
       var yr = String(annee);
       var yearData = prevParAnnee[yr] || {};
-      console.log('[applyYearData] year=' + yr + ', projetsBase.length=' + projetsBase.length + ', yearData keys=' + Object.keys(yearData).length);
 
       if (projetsBase.length > 0) {
-        // Mode live : reconstruire PROJETS depuis projetsBase + prévisionnel de l'année
         PROJETS.length = 0;
         projetsBase.forEach(function(pb) {
           var mois = yearData[pb.code_projet] || yearData[pb.code] || [0,0,0,0,0,0,0,0,0,0,0,0];
           var total = mois.reduce(function(a,b) { return a+b; }, 0);
           if (total > 0 || annee === new Date().getFullYear()) {
             PROJETS.push({
-              code: pb.code,
-              nom: pb.nom,
-              etat: pb.etat,
-              cat: pb.cat,
-              chef: pb.chef,
-              mois: mois.slice(),
-              phase_courante: pb.phase_courante || '',
-              lien_devis: pb.lien_devis || '',
-              ville: pb.ville || '',
-              type_secteur: pb.type_secteur || '',
-              budget: pb.budget || 0,
-              client: pb.client || pb.client_code || '',
-              client_code: pb.client_code || '',
-              date_debut: pb.date_debut || '',
-              date_fin: pb.date_fin || '',
+              code: pb.code, nom: pb.nom, etat: pb.etat, cat: pb.cat, chef: pb.chef,
+              mois: mois.slice(), phase_courante: pb.phase_courante || '',
+              lien_devis: pb.lien_devis || '', ville: pb.ville || '',
+              type_secteur: pb.type_secteur || '', budget: pb.budget || 0,
+              client: pb.client || pb.client_code || '', client_code: pb.client_code || '',
+              date_debut: pb.date_debut || '', date_fin: pb.date_fin || '',
               date_travaux: pb.date_travaux || '',
-              drive_projet: pb.drive_projet || '',
-              drive_commercial: pb.drive_commercial || ''
+              drive_projet: pb.drive_projet || '', drive_commercial: pb.drive_commercial || ''
             });
           }
         });
-        console.log('[applyYearData] Live mode: PROJETS rebuilt with ' + PROJETS.length + ' projects for year ' + yr);
-        return; // A1 fix: NEVER fall through to mock branch when in live mode
-      } else {
-        // Mode mock : les PROJETS ne sont valides que pour MOCK_YEAR
-        // Sauvegarder les données mock originales la première fois
-        if (!MOCK_PROJETS) {
-          MOCK_PROJETS = PROJETS.map(function(p) {
-            return { code:p.code, nom:p.nom, etat:p.etat, cat:p.cat, chef:p.chef, mois:p.mois.slice(),
-                     phase_courante:p.phase_courante||'', lien_devis:p.lien_devis||'',
-                     ville:p.ville||'', type_secteur:p.type_secteur||'', budget:p.budget||0, client:p.client||'' };
-          });
-        }
-        PROJETS.length = 0;
-        if (annee === MOCK_YEAR) {
-          // Restaurer les données mock originales
-          MOCK_PROJETS.forEach(function(mp) {
-            PROJETS.push({
-              code:mp.code, nom:mp.nom, etat:mp.etat, cat:mp.cat, chef:mp.chef, mois:mp.mois.slice(),
-              phase_courante:mp.phase_courante, lien_devis:mp.lien_devis,
-              ville:mp.ville, type_secteur:mp.type_secteur, budget:mp.budget, client:mp.client
-            });
-          });
-        } else {
-          // Autre année en mock : projets avec mois à zéro
-          MOCK_PROJETS.forEach(function(mp) {
-            PROJETS.push({
-              code:mp.code, nom:mp.nom, etat:mp.etat, cat:mp.cat, chef:mp.chef,
-              mois:[0,0,0,0,0,0,0,0,0,0,0,0],
-              phase_courante:mp.phase_courante, lien_devis:mp.lien_devis,
-              ville:mp.ville, type_secteur:mp.type_secteur, budget:mp.budget, client:mp.client
-            });
-          });
-        }
       }
+      // Plus de mode mock — données uniquement depuis le Google Sheet
     }
 
     function computeMonthlyTotals() {
@@ -2500,7 +2372,7 @@
         '</div>' +
         '<div style="display:flex;gap:1.5rem;align-items:center">' +
           '<label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.85rem">' +
-            '<input type="radio" name="dataMode" value="mock"' + mockChecked + ' onchange="setDataMode(\'mock\')" style="accent-color:var(--accent)"> Donn\u00e9es d\u00e9mo (mock)' +
+            '<input type="radio" name="dataMode" value="mock"' + mockChecked + ' onchange="setDataMode(\'mock\')" style="accent-color:var(--accent)"> D\u00e9connect\u00e9 (hors ligne)' +
           '</label>' +
           '<label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.85rem">' +
             '<input type="radio" name="dataMode" value="live"' + liveChecked + ' onchange="setDataMode(\'live\')" style="accent-color:var(--green)"> Live (Google Sheet)' +
@@ -6334,12 +6206,7 @@
       // Connection badge
       updateConnectionBadge();
 
-      // En mode live, VIDER les données mock immédiatement pour ne JAMAIS les afficher
-      if (dataMode === 'live') {
-        PROJETS.length = 0;
-        for (var k in ORGANISATION) delete ORGANISATION[k];
-        for (var k2 in PHASES_VALIDEES) delete PHASES_VALIDEES[k2];
-      }
+      // Plus de données mock — tout vient du Google Sheet
 
       // Auto-load from Sheet if live mode
       if (dataMode === 'live' && apiUrl) {
