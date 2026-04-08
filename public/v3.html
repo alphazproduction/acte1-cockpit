@@ -1098,10 +1098,10 @@
     }
     .pipeline-phase {
       position: relative;
-      width: 36px; height: 28px;
+      width: 38px; height: 26px;
       border-radius: 4px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.6rem; font-weight: 800; letter-spacing: 0.3px;
+      font-size: 0.55rem; font-weight: 800; letter-spacing: 0.2px;
       overflow: hidden;
       text-transform: uppercase;
     }
@@ -1124,11 +1124,12 @@
     .pipeline-phase.planned .pipeline-phase-label { color: var(--text-muted); }
     .pipeline-phase.not-planned .pipeline-phase-label { color: var(--grey); opacity: 0.4; }
     .pipeline-phase.not-planned .pipeline-phase-bg { opacity: 0.3; }
+    .pipeline-phase.current { outline: 2px solid var(--accent); outline-offset: 1px; transform: scale(1.15); z-index: 2; }
     .pipeline-counter {
       font-size: 0.75rem; font-weight: 700; color: var(--text-muted);
       margin-left: 0.5rem; white-space: nowrap;
     }
-    .pipeline-lg .pipeline-phase { width: 46px; height: 34px; font-size: 0.7rem; }
+    .pipeline-lg .pipeline-phase { width: 50px; height: 32px; font-size: 0.65rem; }
 
     /* Back button */
     .back-link {
@@ -3396,8 +3397,8 @@
     /* ==============================================================
        PIPELINE — phases visuelles par projet
        ============================================================== */
-    var ALL_PHASES = ['ESQ','DIAG','APS','APD','PRO','DCE','ACT','VISA','DET','AOR','GPA'];
-    var PHASE_SHORT = {ESQ:'ES',DIAG:'DI',APS:'APS',APD:'APD',PRO:'PRO',DCE:'DCE',ACT:'ACT',VISA:'VIS',DET:'DET',AOR:'AOR',GPA:'GPA'};
+    var ALL_PHASES = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
+    var PHASE_SHORT = {ESQ:'ESQ',DIAG:'DIAG',APS:'APS',APD:'APD',AVP:'AVP',PRO:'PRO',DCE:'DCE',ACT:'ACT',VISA:'VISA',DET:'DET',AOR:'AOR',GPA:'GPA',CONSEIL:'CSL'};
     var PHASE_COLORS = {
       etudes: '#06D6A0',
       travaux: '#E8601C',
@@ -3409,13 +3410,16 @@
       var valids = PHASES_VALIDEES[code] || [];
       var mi = getCurrentMonthIndex();
 
+      // Trouver la phase courante du projet
+      var proj = PROJETS.find(function(p){return p.code===code;});
+      var phaseCourante = (proj && proj.phase_courante) ? proj.phase_courante.toUpperCase() : '';
+
       // Which phases are planned for this project + their fill %
       var phaseData = {};
       for (var m = 0; m < 12; m++) {
         if (phases[m]) {
           var base = phases[m].replace(/\s*\d+$/, '').toUpperCase();
           if (!phaseData[base]) phaseData[base] = { totalAmount: 0, factAmount: 0, planned: true };
-          var proj = PROJETS.find(function(p){return p.code===code;});
           var amount = proj ? proj.mois[m] : 0;
           phaseData[base].totalAmount += amount;
           if (m < mi || valids[m]) phaseData[base].factAmount += amount;
@@ -3446,7 +3450,8 @@
           else { cls = 'planned'; }
         }
 
-        html += '<div class="pipeline-phase ' + cls + '">';
+        var isCurrent = (ph === phaseCourante);
+        html += '<div class="pipeline-phase ' + cls + (isCurrent ? ' current' : '') + '">';
         html += '<div class="pipeline-phase-bg"></div>';
         if (fillPct > 0) {
           html += '<div class="pipeline-phase-fill" style="width:' + fillPct + '%;background:' + color + '"></div>';
