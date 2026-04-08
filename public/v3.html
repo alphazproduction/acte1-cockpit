@@ -4837,18 +4837,13 @@
               'R\u00e9f\u00e9rence devis : ' + refDevis +
             '</div>' +
             '<div style="margin-top:0.75rem;font-size:0.82rem;color:var(--text-muted)">' +
-              'Cliquez <strong>Enregistrer</strong> pour sauvegarder aussi les infos projet. ' +
-              'L\'affichage sera rafra\u00eechi automatiquement.' +
+              '\u2714 Donn\u00e9es import\u00e9es dans Contrat + Organisation + Pr\u00e9visionnel.<br>' +
+              'Cliquez <strong>Enregistrer le contrat</strong> dans le volet Contrat pour confirmer, puis <strong>Enregistrer</strong> en bas pour les infos projet.' +
             '</div>' +
           '</div>';
 
-        // ── 5. Auto-refresh the project detail after a short delay ──
-        setTimeout(function() {
-          if (projetCode) {
-            var projRefresh = PROJETS.find(function(p) { return p.code === projetCode; });
-            if (projRefresh) renderProjetDetail(projRefresh);
-          }
-        }, 2000);
+        // NE PAS re-render automatiquement — ça écrase les champs pré-remplis
+        // L'utilisateur doit cliquer "Enregistrer" puis recharger si besoin
 
       } else if (selectedPhases.length > 0 && dataMode !== 'live') {
         document.getElementById('iaStatus').innerHTML = '<span style="color:var(--yellow)">\u26a0 Mode d\u00e9mo \u2014 ' + filled + ' champs appliqu\u00e9s localement, ' + selectedPhases.length + ' phases non sauvegard\u00e9es (passez en Live).</span>';
