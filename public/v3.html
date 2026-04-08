@@ -4383,7 +4383,36 @@
       if (!data || !data.phases) return data;
       var MOIS_MAP = {jan:'01',fev:'02','fév':'02',mar:'03',avr:'04',avril:'04',mai:'05',jun:'06',juin:'06',jul:'07',juil:'07','aoû':'08',aout:'08',sep:'09',oct:'10',nov:'11',dec:'12','déc':'12'};
       var currentYear = new Date().getFullYear();
+
+      // Infer context year from date_debut or date_fin if available
+      var contextYear = currentYear;
+      var ctxMatch = (data.date_debut || '').match(/(20\d{2})/) || (data.date_fin || '').match(/(20\d{2})/);
+      if (ctxMatch) contextYear = parseInt(ctxMatch[1]);
+
       var lastDate = null;
+
+      // Normalise date_debut, date_fin, date_travaux FIRST so we can use them for context
+      ['date_debut','date_fin','date_travaux'].forEach(function(field) {
+        var v = (data[field] || '').trim();
+        if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+          var year = contextYear;
+          var ym = v.match(/(20\d{2})/);
+          if (ym) year = parseInt(ym[1]);
+          for (var m in MOIS_MAP) {
+            if (v.toLowerCase().indexOf(m) >= 0) {
+              data[field] = year + '-' + MOIS_MAP[m] + '-15';
+              break;
+            }
+          }
+        }
+      });
+
+      // Re-check context year after normalisation
+      if (data.date_debut && /^\d{4}/.test(data.date_debut)) {
+        contextYear = parseInt(data.date_debut.substring(0, 4));
+      } else if (data.date_fin && /^\d{4}/.test(data.date_fin)) {
+        contextYear = parseInt(data.date_fin.substring(0, 4));
+      }
 
       data.phases.forEach(function(ph, idx) {
         var d = (ph.date_prevue || '').trim();
@@ -4397,8 +4426,8 @@
         } else if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
           // Déjà bon format
         } else {
-          // Texte → parser
-          var year = currentYear;
+          // Texte → parser — use contextYear when no explicit year in text
+          var year = contextYear;
           var ym = d.match(/(20\d{2})/);
           if (ym) year = parseInt(ym[1]);
           var month = null;
@@ -4423,22 +4452,6 @@
         }
         if (ph.date_prevue && /^\d{4}-\d{2}-\d{2}$/.test(ph.date_prevue)) {
           lastDate = ph.date_prevue;
-        }
-      });
-
-      // Aussi normaliser date_debut, date_fin, date_travaux
-      ['date_debut','date_fin','date_travaux'].forEach(function(field) {
-        var v = (data[field] || '').trim();
-        if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-          var year = currentYear;
-          var ym = v.match(/(20\d{2})/);
-          if (ym) year = parseInt(ym[1]);
-          for (var m in MOIS_MAP) {
-            if (v.toLowerCase().indexOf(m) >= 0) {
-              data[field] = year + '-' + MOIS_MAP[m] + '-15';
-              break;
-            }
-          }
         }
       });
 
@@ -4670,6 +4683,21 @@
 
         // Double-check normalisation des codes phase
         var MOP_CODES = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
+
+        // ── 3bis. Prepare in-memory data updates ──
+        // Reset ORGANISATION for this project
+        ORGANISATION[projetCode] = [null,null,null,null,null,null,null,null,null,null,null,null];
+        if (!PHASES_VALIDEES[projetCode]) PHASES_VALIDEES[projetCode] = [false,false,false,false,false,false,false,false,false,false,false,false];
+        // Reset contratsData and echeancierData for this project
+        contratsData[projetCode] = [];
+        echeancierData[projetCode] = [];
+        // Prepare prevParAnnee update
+        var yr = String(selectedYear);
+        if (!prevParAnnee[yr]) prevParAnnee[yr] = {};
+        if (!prevParAnnee[yr][projetCode]) prevParAnnee[yr][projetCode] = [0,0,0,0,0,0,0,0,0,0,0,0];
+        // Reset mois for this project in prevParAnnee
+        prevParAnnee[yr][projetCode] = [0,0,0,0,0,0,0,0,0,0,0,0];
+
         selectedPhases.forEach(function(ph, idx) {
           var code = (ph.phase || '').toUpperCase().replace(/\s*\(OPTION\)/i,'').trim();
           if (MOP_CODES.indexOf(code) < 0) {
@@ -4692,8 +4720,7 @@
           }
 
           // 3a. CONTRAT : phase + montant + r\u00e9f\u00e9rence devis
-          console.log('Saving phase ' + ph.phase + ' montant=' + montant + ' code=' + projetCode);
-          postToSheet('upsert_contrat', {
+          var contratLine = {
             code_projet: projetCode,
             ref_document: refDevis,
             nom_document: refDevis,
@@ -4705,10 +4732,15 @@
             montant: montant,
             commentaire: 'Import IA',
             ordre_affichage: idx + 1
-          });
+          };
+          console.log('Saving phase ' + ph.phase + ' montant=' + montant + ' code=' + projetCode);
+          postToSheet('upsert_contrat', contratLine);
+
+          // Update in-memory contratsData
+          contratsData[projetCode].push(contratLine);
 
           // 3b. ECHEANCIER : phase + montant + date pr\u00e9visionnelle
-          postToSheet('upsert_echeancier', {
+          var echLine = {
             code_projet: projetCode,
             ref_document: refDevis,
             phase: ph.phase,
@@ -4720,7 +4752,11 @@
             commentaire: 'Import IA',
             montant_soustraitance: '',
             ordre_affichage: idx + 1
-          });
+          };
+          postToSheet('upsert_echeancier', echLine);
+
+          // Update in-memory echeancierData
+          echeancierData[projetCode].push(echLine);
 
           // 3c. ORGANISATION : phase + date de rendu pr\u00e9vue
           postToSheet('upsert_organisation', {
@@ -4733,8 +4769,31 @@
             ordre_affichage: idx + 1
           });
 
+          // Update in-memory ORGANISATION: place phase at the right month index
+          if (datePrev && /^\d{4}-\d{2}-\d{2}$/.test(datePrev)) {
+            var mIdx = parseInt(datePrev.substring(5, 7)) - 1;
+            if (mIdx >= 0 && mIdx < 12) {
+              ORGANISATION[projetCode][mIdx] = ph.phase;
+              // Update prevParAnnee mois with the montant at the right month
+              var dateYr = datePrev.substring(0, 4);
+              if (dateYr === yr) {
+                prevParAnnee[yr][projetCode][mIdx] += montant;
+              }
+            }
+          }
+
           savedCount++;
         });
+
+        // ── 4. Update in-memory PROJETS with new mois data ──
+        var proj = PROJETS.find(function(p) { return p.code === projetCode; });
+        if (proj && prevParAnnee[yr] && prevParAnnee[yr][projetCode]) {
+          proj.mois = prevParAnnee[yr][projetCode].slice();
+        }
+        // Also update phase_courante to the first phase
+        if (proj && selectedPhases.length > 0) {
+          proj.phase_courante = selectedPhases[0].phase;
+        }
 
         // R\u00e9sum\u00e9
         var totalMontant = selectedPhases.reduce(function(s, p) { return s + (p.montant || 0); }, 0);
@@ -4749,9 +4808,17 @@
             '</div>' +
             '<div style="margin-top:0.75rem;font-size:0.82rem;color:var(--text-muted)">' +
               'Cliquez <strong>Enregistrer</strong> pour sauvegarder aussi les infos projet. ' +
-              'Rechargez la page pour voir les mises \u00e0 jour dans les volets Contrat / Facturation / Organisation.' +
+              'L\'affichage sera rafra\u00eechi automatiquement.' +
             '</div>' +
           '</div>';
+
+        // ── 5. Auto-refresh the project detail after a short delay ──
+        setTimeout(function() {
+          if (projetCode) {
+            var projRefresh = PROJETS.find(function(p) { return p.code === projetCode; });
+            if (projRefresh) renderProjetDetail(projRefresh);
+          }
+        }, 2000);
 
       } else if (selectedPhases.length > 0 && dataMode !== 'live') {
         document.getElementById('iaStatus').innerHTML = '<span style="color:var(--yellow)">\u26a0 Mode d\u00e9mo \u2014 ' + filled + ' champs appliqu\u00e9s localement, ' + selectedPhases.length + ' phases non sauvegard\u00e9es (passez en Live).</span>';
@@ -5415,10 +5482,17 @@
       showToast('Document ajout\u00e9');
     };
 
-    // Save all contrat data to Sheet (CONTRATS + ECHEANCIER)
+    // Save all contrat data to Sheet (CONTRATS + ECHEANCIER + ORGANISATION) and update in-memory
     window.saveContrat = function(code) {
       var docCount = parseInt((document.getElementById('contrat_doc_count') || {}).value) || 1;
       var saved = 0;
+
+      // Reset in-memory data for this project before rebuilding
+      var newContrats = [];
+      var newEcheancier = [];
+      var newOrga = [null,null,null,null,null,null,null,null,null,null,null,null];
+      var yr = String(selectedYear);
+      var newMois = [0,0,0,0,0,0,0,0,0,0,0,0];
 
       for (var d = 0; d < docCount + 10; d++) {
         var table = document.getElementById('contratTable_' + d);
@@ -5444,42 +5518,85 @@
 
           if (!montant && !phase) return;
 
+          var contratLine = {
+            code_projet: code,
+            ref_document: refDoc,
+            nom_document: nomDoc,
+            famille_document: d === 0 ? 'Montant initial' : 'Compl\u00e9mentaire',
+            type_document: typeDoc,
+            origine_document: 'ACTE 1',
+            date_document: dateDoc,
+            phase: phase,
+            montant: montant,
+            commentaire: '',
+            ordre_affichage: i + 1
+          };
+          var echLine = {
+            code_projet: code,
+            ref_document: refDoc,
+            phase: phase,
+            montant: montant,
+            date_prev_facturation: datePrev,
+            n_facture: nFacture,
+            date_facture: dateFacture,
+            statut: statut,
+            commentaire: '',
+            ordre_affichage: i + 1
+          };
+
+          // Update in-memory
+          newContrats.push(contratLine);
+          newEcheancier.push(echLine);
+
+          // Update ORGANISATION array from datePrev
+          if (datePrev && /^\d{4}-\d{2}-\d{2}$/.test(datePrev)) {
+            var mIdx = parseInt(datePrev.substring(5, 7)) - 1;
+            if (mIdx >= 0 && mIdx < 12 && phase) {
+              newOrga[mIdx] = phase;
+              var dateYr = datePrev.substring(0, 4);
+              if (dateYr === yr) {
+                newMois[mIdx] += montant;
+              }
+            }
+          }
+
           // Save to CONTRATS sheet
           if (dataMode === 'live' && apiUrl) {
-            postToSheet('upsert_contrat', {
-              code_projet: code,
-              ref_document: refDoc,
-              nom_document: nomDoc,
-              famille_document: d === 0 ? 'Montant initial' : 'Compl\u00e9mentaire',
-              type_document: typeDoc,
-              origine_document: 'ACTE 1',
-              date_document: dateDoc,
-              phase: phase,
-              montant: montant,
-              commentaire: '',
-              ordre_affichage: i + 1
-            });
+            postToSheet('upsert_contrat', contratLine);
+            postToSheet('upsert_echeancier', echLine);
 
-            // Save to ECHEANCIER sheet
-            postToSheet('upsert_echeancier', {
-              code_projet: code,
-              ref_document: refDoc,
-              phase: phase,
-              montant: montant,
-              date_prev_facturation: datePrev,
-              n_facture: nFacture,
-              date_facture: dateFacture,
-              statut: statut,
-              commentaire: '',
-              ordre_affichage: i + 1
-            });
+            // Also save to ORGANISATION sheet
+            if (phase && datePrev) {
+              postToSheet('upsert_organisation', {
+                code_projet: code,
+                phase: phase,
+                date_rendu_prev: datePrev,
+                date_validation: dateFacture || '',
+                validee: (statut === 'Factur\u00e9') ? 'TRUE' : 'FALSE',
+                commentaire: '',
+                ordre_affichage: i + 1
+              });
+            }
             saved++;
           }
         });
       }
 
+      // Apply in-memory updates
+      contratsData[code] = newContrats;
+      echeancierData[code] = newEcheancier;
+      ORGANISATION[code] = newOrga;
+      if (!prevParAnnee[yr]) prevParAnnee[yr] = {};
+      prevParAnnee[yr][code] = newMois;
+
+      // Update PROJETS mois
+      var proj = PROJETS.find(function(p) { return p.code === code; });
+      if (proj) {
+        proj.mois = newMois.slice();
+      }
+
       if (saved > 0) {
-        showToast(saved + ' phase(s) sauvegard\u00e9e(s) (Contrat + Facturation)');
+        showToast(saved + ' phase(s) sauvegard\u00e9e(s) (Contrat + Facturation + Organisation)');
       } else if (dataMode !== 'live') {
         showToast('Contrat sauvegard\u00e9 (local)');
       }
@@ -5680,10 +5797,14 @@
       document.getElementById('orga_count').value = idx + 1;
     };
 
-    // B6: Save organisation to Sheet
+    // B6: Save organisation to Sheet + update in-memory ORGANISATION
     window.saveOrganisation = function(code) {
       var count = parseInt(document.getElementById('orga_count')?.value || '0');
       var saved = 0;
+      // Reset in-memory ORGANISATION for this project
+      var newOrga = [null,null,null,null,null,null,null,null,null,null,null,null];
+      var newValid = [false,false,false,false,false,false,false,false,false,false,false,false];
+
       for (var i = 0; i < count; i++) {
         var phaseEl = document.getElementById('orga_phase_' + i);
         var phase = phaseEl ? (phaseEl.value || phaseEl.textContent || '') : '';
@@ -5692,6 +5813,15 @@
         var dateValid = (document.getElementById('orga_datevalid_' + i) || {}).value || '';
         var validee = (document.getElementById('orga_validee_' + i) || {}).checked || false;
         var comment = (document.getElementById('orga_comment_' + i) || {}).value || '';
+
+        // Update in-memory ORGANISATION from dateRendu
+        if (dateRendu && /^\d{4}-\d{2}-\d{2}$/.test(dateRendu)) {
+          var mIdx = parseInt(dateRendu.substring(5, 7)) - 1;
+          if (mIdx >= 0 && mIdx < 12) {
+            newOrga[mIdx] = phase;
+            newValid[mIdx] = validee;
+          }
+        }
 
         var orgData = {
           code_projet: code,
@@ -5708,6 +5838,11 @@
           saved++;
         }
       }
+
+      // Apply in-memory updates
+      ORGANISATION[code] = newOrga;
+      PHASES_VALIDEES[code] = newValid;
+
       if (saved > 0) {
         showToast(saved + ' phase(s) sauvegard\u00e9e(s)');
       } else {
