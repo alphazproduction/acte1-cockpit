@@ -3443,23 +3443,45 @@
     };
 
     function buildPipeline(code, large) {
-      var phases = ORGANISATION[code] || [];
-      var valids = PHASES_VALIDEES[code] || [];
-      var mi = getCurrentMonthIndex();
-
-      // Trouver la phase courante du projet
       var proj = PROJETS.find(function(p){return p.code===code;});
       var phaseCourante = (proj && proj.phase_courante) ? proj.phase_courante.toUpperCase() : '';
 
-      // Which phases are planned for this project + their fill %
+      // Source de vérité pour les phases = CONTRATS > ORGANISATION > rien
       var phaseData = {};
-      for (var m = 0; m < 12; m++) {
-        if (phases[m]) {
-          var base = phases[m].replace(/\s*\d+$/, '').toUpperCase();
-          if (!phaseData[base]) phaseData[base] = { totalAmount: 0, factAmount: 0, planned: true };
-          var amount = proj ? proj.mois[m] : 0;
-          phaseData[base].totalAmount += amount;
-          if (m < mi || valids[m]) phaseData[base].factAmount += amount;
+
+      // 1. D'abord depuis contratsData (source principale)
+      var contrats = contratsData[code] || [];
+      if (contrats.length > 0) {
+        contrats.forEach(function(c) {
+          var ph = (c.phase || '').toUpperCase();
+          if (ph && ALL_PHASES.indexOf(ph) >= 0) {
+            if (!phaseData[ph]) phaseData[ph] = { totalAmount: 0, factAmount: 0, planned: true };
+            phaseData[ph].totalAmount += parseFloat(c.montant) || 0;
+          }
+        });
+        // Vérifier ce qui est facturé depuis echeancierData
+        var echs = echeancierData[code] || [];
+        echs.forEach(function(e) {
+          var ph = (e.phase || '').toUpperCase();
+          if (ph && phaseData[ph] && (e.statut === 'Factur\u00e9' || e.statut === 'Facture')) {
+            phaseData[ph].factAmount += parseFloat(e.montant) || 0;
+          }
+        });
+      }
+
+      // 2. Fallback sur ORGANISATION si pas de contrats
+      if (Object.keys(phaseData).length === 0) {
+        var phases = ORGANISATION[code] || [];
+        var valids = PHASES_VALIDEES[code] || [];
+        var mi = getCurrentMonthIndex();
+        for (var m = 0; m < 12; m++) {
+          if (phases[m]) {
+            var base = phases[m].replace(/\s*\d+$/, '').toUpperCase();
+            if (!phaseData[base]) phaseData[base] = { totalAmount: 0, factAmount: 0, planned: true };
+            var amount = proj ? proj.mois[m] : 0;
+            phaseData[base].totalAmount += amount;
+            if (m < mi || valids[m]) phaseData[base].factAmount += amount;
+          }
         }
       }
 
@@ -4074,9 +4096,22 @@
       html += '<div class="volet-panel" id="volet-facturation">';
       html += '<div class="volet-header volet-header-facturation">Facturation &mdash; Suivi des factures</div>';
       if (p) {
-        // Build phase options for dropdown (ALL_PHASES + Revision)
+        // Build phase options : phases du contrat en priorité, puis les autres
+        var contratPhasesList = [];
+        (contratsData[p.code] || []).forEach(function(c) {
+          var ph = (c.phase || '').toUpperCase();
+          if (ph && contratPhasesList.indexOf(ph) < 0) contratPhasesList.push(ph);
+        });
         var factPhaseOpts = '<option value="">\u2014</option>';
-        ALL_PHASES.forEach(function(ph) { factPhaseOpts += '<option value="' + ph + '">' + ph + '</option>'; });
+        if (contratPhasesList.length > 0) {
+          factPhaseOpts += '<optgroup label="Phases du contrat">';
+          contratPhasesList.forEach(function(ph) { factPhaseOpts += '<option value="' + ph + '">' + ph + '</option>'; });
+          factPhaseOpts += '</optgroup><optgroup label="Autres phases">';
+          ALL_PHASES.forEach(function(ph) { if (contratPhasesList.indexOf(ph) < 0) factPhaseOpts += '<option value="' + ph + '">' + ph + '</option>'; });
+          factPhaseOpts += '</optgroup>';
+        } else {
+          ALL_PHASES.forEach(function(ph) { factPhaseOpts += '<option value="' + ph + '">' + ph + '</option>'; });
+        }
         factPhaseOpts += '<option value="R\u00e9vision">R\u00e9vision</option>';
 
         // Pre-fill from echeancierData where statut = "Factur\u00e9"
@@ -4159,10 +4194,45 @@
       // ── VOLET ORGANISATION ──
       html += '<div class="volet-panel" id="volet-orga">';
       html += '<div class="volet-header volet-header-orga">Organisation &mdash; Dates de rendu</div>';
-      if (p && ORGANISATION[p.code]) {
+      // Organisation : lire depuis CONTRATS en priorité, fallback ORGANISATION
+      var orgaSourcePhases = [];
+      var contratsPourOrga = contratsData[p ? p.code : ''] || [];
+      if (contratsPourOrga.length > 0) {
+        // Phases du contrat = source de vérité
+        var seenOrga = {};
+        contratsPourOrga.forEach(function(c) {
+          var ph = (c.phase || '').toUpperCase();
+          if (!ph || seenOrga[ph]) return;
+          seenOrga[ph] = true;
+          // Chercher la date dans echeancierData ou contrat
+          var echMatch = (echeancierData[p.code] || []).find(function(e) { return (e.phase||'').toUpperCase() === ph; });
+          var dateRendu = echMatch ? (echMatch.date_prev_facturation || '') : '';
+          // Chercher validation dans ORGANISATION
+          var orgPhases = ORGANISATION[p ? p.code : ''] || [];
+          var orgValids = PHASES_VALIDEES[p ? p.code : ''] || [];
+          var isVal = false;
+          for (var oi = 0; oi < orgPhases.length; oi++) {
+            if ((orgPhases[oi]||'').toUpperCase() === ph && orgValids[oi]) { isVal = true; break; }
+          }
+          orgaSourcePhases.push({ phase: ph, dateRendu: dateRendu, isVal: isVal, comment: '' });
+        });
+      } else if (p && ORGANISATION[p.code]) {
+        // Fallback : ORGANISATION
         var phases3 = ORGANISATION[p.code];
         var valids3 = PHASES_VALIDEES[p.code] || [];
+        for (var om = 0; om < 12; om++) {
+          if (phases3[om]) {
+            orgaSourcePhases.push({
+              phase: phases3[om],
+              dateRendu: selectedYear + '-' + String(om+1).padStart(2,'0') + '-15',
+              isVal: valids3[om] || false,
+              comment: ''
+            });
+          }
+        }
+      }
 
+      if (p && orgaSourcePhases.length > 0) {
         // B6: Reference dates at top
         if (v.date_debut || v.date_fin) {
           html += '<div style="display:flex;gap:2rem;margin-bottom:1rem;font-size:0.82rem;color:var(--text-muted)">';
@@ -4171,7 +4241,7 @@
           html += '</div>';
         }
 
-        // Build phase dropdown options for organisation
+        // Build phase dropdown
         var orgaPhaseOpts = '<option value="">\u2014</option>';
         ALL_PHASES.forEach(function(ph) { orgaPhaseOpts += '<option value="' + ph + '">' + ph + '</option>'; });
 
@@ -4185,15 +4255,15 @@
             '<th style="width:75px"></th>' +
           '</tr></thead><tbody>';
         var orgaIdx = 0;
-        for (var om=0;om<12;om++) {
-          if (phases3[om]) {
-            var isVal = valids3[om] || false;
-            var dateRendu = selectedYear + '-' + String(om+1).padStart(2,'0') + '-15';
-            var dateValid = isVal ? selectedYear + '-' + String(om+1).padStart(2,'0') + '-20' : '';
+
+        orgaSourcePhases.forEach(function(osp) {
+            var isVal = osp.isVal;
+            var dateRendu = osp.dateRendu;
+            var dateValid = isVal ? dateRendu : '';
 
             html += '<tr data-orga-idx="' + orgaIdx + '">' +
               '<td style="text-align:left;padding-left:0.75rem">' +
-                '<select class="form-select" id="orga_phase_' + orgaIdx + '" style="font-size:0.8rem;padding:0.3rem;width:110px">' + orgaPhaseOpts.replace('value="' + phases3[om] + '"', 'value="' + phases3[om] + '" selected') + '</select>' +
+                '<select class="form-select" id="orga_phase_' + orgaIdx + '" style="font-size:0.8rem;padding:0.3rem;width:110px">' + orgaPhaseOpts.replace('value="' + osp.phase + '"', 'value="' + osp.phase + '" selected') + '</select>' +
               '</td>' +
               '<td style="text-align:center"><input type="date" class="form-input" id="orga_daterendu_' + orgaIdx + '" style="width:140px;font-size:0.82rem;padding:0.35rem 0.5rem;text-align:center" value="' + dateRendu + '"></td>' +
               '<td style="text-align:center">' +
@@ -4208,8 +4278,7 @@
               '</td>' +
             '</tr>';
             orgaIdx++;
-          }
-        }
+        });
         html += '</tbody></table></div>';
         html += '<input type="hidden" id="orga_count" value="' + orgaIdx + '">';
         html += '<div style="margin-top:1rem;display:flex;gap:0.5rem">' +
