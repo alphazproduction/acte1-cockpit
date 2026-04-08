@@ -3598,8 +3598,8 @@
           '<button class="btn btn-primary" onclick="analyserDocument(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.4rem 0.8rem;white-space:nowrap">Analyser fichier</button>' +
         '</div>' +
         '<div style="display:flex;gap:0.5rem;justify-content:center;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem;padding-top:0.75rem;border-top:1px dashed var(--border)">' +
-          '<input type="url" id="iaFolderUrl" class="form-input" placeholder="Coller un lien de dossier Google Drive..." style="font-size:0.82rem;flex:1;min-width:250px;padding:0.4rem">' +
-          '<button class="btn btn-primary" onclick="analyserDossierParUrl(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.4rem 0.8rem;white-space:nowrap;background:var(--accent)">Analyser ce dossier</button>' +
+          '<input type="url" id="iaDriveFileUrl" class="form-input" placeholder="Coller un lien Google Drive (fichier ou dossier)..." style="font-size:0.82rem;flex:1;min-width:250px;padding:0.4rem">' +
+          '<button class="btn btn-primary" onclick="analyserLienDrive(\'' + pCode + '\')" style="font-size:0.82rem;padding:0.4rem 0.8rem;white-space:nowrap;background:var(--accent)">Analyser</button>' +
         '</div>' +
         '<div style="display:flex;gap:0.5rem;justify-content:center;align-items:center;flex-wrap:wrap">' +
           '<input type="text" id="iaSearchKeywords" class="form-input" placeholder="Mots-cl\u00e9s..." style="font-size:0.82rem;width:180px;padding:0.4rem">' +
@@ -5199,6 +5199,49 @@
       .catch(function(err) {
         statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
       });
+    };
+
+    // Analyser un lien Drive (fichier OU dossier — détection auto)
+    window.analyserLienDrive = function(projetCode) {
+      var urlInput = document.getElementById('iaDriveFileUrl');
+      var driveUrl = urlInput ? urlInput.value.trim() : '';
+      if (!driveUrl) { showToast('Collez un lien Google Drive'); return; }
+      if (!apiUrl) { showToast('Configurez l\'URL API dans Param\u00e8tres'); return; }
+
+      var statusEl = document.getElementById('iaStatus');
+
+      // Détecter si c'est un dossier ou un fichier
+      var folderMatch = driveUrl.match(/folders\/([a-zA-Z0-9_-]+)/);
+      var fileMatch = driveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+
+      if (folderMatch) {
+        // C'est un dossier → analyse dossier complet
+        var folderId = folderMatch[1];
+        document.getElementById('iaFolderUrl').value = driveUrl;
+        showIALoader(statusEl, 'Analyse du dossier Drive...', 'L\'IA explore le dossier et analyse les fichiers pertinents. 1-2 minutes.');
+        var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(folderId) + '&mode=folder_direct';
+        fetch(url).then(function(r) { return r.json(); }).then(function(resp) {
+          if (!resp.ok) { statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || '') + '</span>'; return; }
+          if (!resp.data) { statusEl.innerHTML = '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>'; return; }
+          statusEl.innerHTML = '<span style="color:var(--green)">Analyse termin\u00e9e \u2014 ' + (resp.filesAnalyzed || '?') + ' fichiers analys\u00e9s</span>';
+          remplirDepuisIA(resp.data, projetCode);
+        }).catch(function(err) { statusEl.innerHTML = '<span style="color:var(--red)">' + err + '</span>'; });
+
+      } else if (fileMatch) {
+        // C'est un fichier → analyse fichier unique
+        var fileId = fileMatch[1];
+        showIALoader(statusEl, 'Analyse du fichier Drive...', 'Lecture et extraction des donn\u00e9es. ~30 secondes.');
+        var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId) + '&mode=file';
+        fetch(url).then(function(r) { return r.json(); }).then(function(resp) {
+          if (!resp.ok) { statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || '') + '</span>'; return; }
+          if (!resp.data) { statusEl.innerHTML = '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>'; return; }
+          statusEl.innerHTML = '<span style="color:var(--green)">Analyse de <strong>' + (resp.fileName || 'fichier') + '</strong> termin\u00e9e</span>';
+          remplirDepuisIA(resp.data, projetCode);
+        }).catch(function(err) { statusEl.innerHTML = '<span style="color:var(--red)">' + err + '</span>'; });
+
+      } else {
+        showToast('Lien non reconnu \u2014 doit contenir /d/... (fichier) ou /folders/... (dossier)');
+      }
     };
 
     window.analyserDossierComplet = function(fileId, projetCode) {
