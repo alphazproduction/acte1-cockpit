@@ -1119,12 +1119,12 @@
       position: relative; z-index: 1;
       line-height: 1;
     }
-    .pipeline-phase.done .pipeline-phase-label { color: #fff; }
+    .pipeline-phase.done .pipeline-phase-label { color: #fff; opacity: 0.5; }
+    .pipeline-phase.done .pipeline-phase-bg { opacity: 0.4; }
     .pipeline-phase.partial .pipeline-phase-label { color: #fff; }
-    .pipeline-phase.planned .pipeline-phase-label { color: var(--text-muted); }
-    .pipeline-phase.not-planned .pipeline-phase-label { color: var(--grey); opacity: 0.4; }
-    .pipeline-phase.not-planned .pipeline-phase-bg { opacity: 0.3; }
-    .pipeline-phase.current { outline: 2px solid var(--accent); outline-offset: 1px; transform: scale(1.15); z-index: 2; }
+    .pipeline-phase.planned .pipeline-phase-label { color: #fff; }
+    .pipeline-phase.not-planned .pipeline-phase-label { color: var(--grey); opacity: 0.3; }
+    .pipeline-phase.not-planned .pipeline-phase-bg { opacity: 0.2; }
     .pipeline-counter {
       font-size: 0.75rem; font-weight: 700; color: var(--text-muted);
       margin-left: 0.5rem; white-space: nowrap;
@@ -3369,23 +3369,21 @@
         var cls, fillPct;
 
         if (!d) {
-          // Not planned
           cls = 'not-planned';
           fillPct = 0;
         } else {
           planned++;
           var pct = d.totalAmount > 0 ? Math.round(d.factAmount / d.totalAmount * 100) : 0;
-          fillPct = pct;
-          if (pct >= 100) { cls = 'done'; done++; }
+          fillPct = 100; // toujours rempli en couleur
+          if (pct >= 100) { cls = 'done'; done++; } // grisé quand terminé
           else if (pct > 0) { cls = 'partial'; }
-          else { cls = 'planned'; }
+          else { cls = 'planned'; } // couleur pleine = à faire
         }
 
-        var isCurrent = (ph === phaseCourante);
-        html += '<div class="pipeline-phase ' + cls + (isCurrent ? ' current' : '') + '">';
+        html += '<div class="pipeline-phase ' + cls + '">';
         html += '<div class="pipeline-phase-bg"></div>';
-        if (fillPct > 0) {
-          html += '<div class="pipeline-phase-fill" style="width:' + fillPct + '%;background:' + color + '"></div>';
+        if (d) {
+          html += '<div class="pipeline-phase-fill" style="width:100%;background:' + color + '"></div>';
         }
         html += '<div class="pipeline-phase-label">' + shortName + '</div>';
         html += '</div>';
@@ -3497,12 +3495,10 @@
           }
         }
 
-        html += '<div class="projet-card" style="grid-template-columns:auto 1fr auto auto auto;align-items:center" onclick="openProjetDetail(\'' + p.code + '\')">' +
+        html += '<div class="projet-card" style="grid-template-columns:auto 1fr auto;align-items:center" onclick="openProjetDetail(\'' + p.code + '\')">' +
           '<div><span class="code-badge" style="font-size:0.85rem">' + p.code + '</span></div>' +
           '<div><div class="projet-card-name">' + p.nom + clientTag + (p.ville ? ' <span style="color:var(--text-muted);font-size:0.8rem">' + p.ville + '</span>' : '') + '</div>' +
-          '<div class="projet-card-meta">' + p.chef + ' &middot; <span class="etat-badge ' + etatCls + '">' + p.etat + '</span>' + phaseTag + '</div>' + phasePipeline + '</div>' +
-          '<div style="display:flex;align-items:center;justify-content:center">' + (ORGANISATION[p.code] ? buildPipeline(p.code, false) : '') + '</div>' +
-          '<div style="display:flex;align-items:center;gap:0.5rem">' + devisLink + '</div>' +
+          '<div class="projet-card-meta">' + p.chef + ' &middot; <span class="etat-badge ' + etatCls + '">' + p.etat + '</span>' + phaseTag + '</div></div>' +
           '<div class="projet-card-amount">' + fmtEuro(total) + '</div>' +
         '</div>';
       });
