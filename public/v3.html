@@ -3861,16 +3861,18 @@
 
           html += '<div class="section-card contrat-doc-card" data-doc-idx="' + docIdx + '" style="margin-bottom:1.25rem;border-left:4px solid ' + borderColor + ';padding:1rem 1.25rem">';
 
-          // Document header row
+          // Document header row — éditable
           html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem">';
-          html += '<div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">';
-          html += '<span style="font-weight:700;font-size:0.95rem">' + doc.nom + '</span>';
-          html += '<span style="font-size:0.82rem;font-weight:600;color:var(--text-muted)">' + doc.ref + '</span>';
-          html += '<span style="font-size:0.82rem;color:var(--text-muted)">' + doc.date + '</span>';
+          html += '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">';
+          html += '<input type="text" class="form-input" id="contrat_doc_nom_' + docIdx + '" value="' + doc.nom + '" style="font-weight:700;font-size:0.92rem;width:180px;padding:0.3rem 0.5rem">';
+          html += '<input type="text" class="form-input" id="contrat_doc_ref_' + docIdx + '" value="' + doc.ref + '" placeholder="R\u00e9f\u00e9rence" style="font-size:0.82rem;width:140px;padding:0.3rem 0.5rem">';
+          html += '<input type="date" class="form-input" id="contrat_doc_date_' + docIdx + '" value="' + (doc.date || '') + '" style="font-size:0.82rem;width:130px;padding:0.3rem 0.5rem">';
           if (doc.fige) html += '<span style="background:var(--green-bg);color:var(--green);font-size:0.72rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:999px">Fig\u00e9</span>';
           html += '</div>';
+          html += '<div style="display:flex;align-items:center;gap:0.75rem">';
           html += '<div class="font-din" style="font-size:1.15rem" id="contrat_doc_total_' + docIdx + '">' + fmtEuro(doc.montant) + '</div>';
-          html += '</div>';
+          html += '<button class="btn" onclick="supprimerContratDoc(this,' + docIdx + ',\'' + p.code + '\')" style="font-size:0.7rem;padding:0.2rem 0.4rem;color:var(--red);border-color:var(--red)" title="Supprimer ce document">\u2716</button>';
+          html += '</div></div>';
 
           // Consolidated table: Phase | Montant HT | Date Prev | N Fact | Date Fact | Statut
           html += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_' + docIdx + '" style="min-width:100%"><thead><tr>' +
@@ -5259,6 +5261,27 @@
       tbody.appendChild(tr);
     };
 
+    // Supprimer un document contrat (devis, avenant, OS)
+    window.supprimerContratDoc = function(btn, docIdx, code) {
+      var card = btn.closest('.contrat-doc-card');
+      if (!card) return;
+      var nom = (document.getElementById('contrat_doc_nom_' + docIdx) || document.getElementById('contrat_nom_' + docIdx) || {}).value || 'ce document';
+      if (!confirm('Supprimer "' + nom + '" et toutes ses phases ?\n\nCette action est irr\u00e9versible.')) return;
+
+      // Supprimer du Sheet si en mode live
+      if (dataMode === 'live' && apiUrl && code) {
+        var ref = (document.getElementById('contrat_doc_ref_' + docIdx) || document.getElementById('contrat_ref_' + docIdx) || {}).value || '';
+        if (ref) {
+          postToSheet('delete_ligne', { onglet: 'CONTRATS', keys: ['code_projet','ref_document'], values: [code, ref] });
+        }
+      }
+
+      card.remove();
+      showToast('"' + nom + '" supprim\u00e9');
+      // Recalculer le grand total
+      recalcContratTotals(0);
+    };
+
     // Add a new contrat document (avenant, OS, etc.)
     window.addContratDocument = function(code) {
       var voletContrat = document.getElementById('volet-contrat');
@@ -5283,8 +5306,10 @@
           '<option>Avenant</option><option>OS</option><option>Devis compl\u00e9mentaire</option>' +
         '</select>' +
       '</div>';
+      h += '<div style="display:flex;align-items:center;gap:0.75rem">';
       h += '<div class="font-din" style="font-size:1.15rem" id="contrat_doc_total_' + docIdx + '">0 \u20ac</div>';
-      h += '</div>';
+      h += '<button class="btn" onclick="supprimerContratDoc(this,' + docIdx + ',\'' + code + '\')" style="font-size:0.7rem;padding:0.2rem 0.4rem;color:var(--red);border-color:var(--red)" title="Supprimer">\u2716</button>';
+      h += '</div></div>';
 
       h += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_' + docIdx + '" style="min-width:100%"><thead><tr>' +
         '<th style="text-align:left;padding-left:0.5rem;width:100px">Phase</th>' +
@@ -5357,10 +5382,11 @@
         if (!table) continue;
 
         var card = table.closest('.contrat-doc-card');
-        var refDoc = (document.getElementById('contrat_ref_' + d) || {}).value || 'DEV-' + code + '-' + String(d+1).padStart(3,'0');
-        var nomDoc = (document.getElementById('contrat_nom_' + d) || {}).value || 'Document ' + (d+1);
-        var dateDoc = (document.getElementById('contrat_date_' + d) || {}).value || '';
-        var typeDoc = (document.getElementById('contrat_type_' + d) || {}).value || 'Devis initial';
+        // Chercher les champs avec les deux formats d'ID possibles
+        var refDoc = (document.getElementById('contrat_doc_ref_' + d) || document.getElementById('contrat_ref_' + d) || {}).value || 'DEV-' + code + '-' + String(d+1).padStart(3,'0');
+        var nomDoc = (document.getElementById('contrat_doc_nom_' + d) || document.getElementById('contrat_nom_' + d) || {}).value || 'Document ' + (d+1);
+        var dateDoc = (document.getElementById('contrat_doc_date_' + d) || document.getElementById('contrat_date_' + d) || {}).value || '';
+        var typeDoc = (document.getElementById('contrat_type_' + d) || {}).value || (d === 0 ? 'Devis initial' : 'Avenant');
 
         var rows = table.querySelectorAll('tbody tr');
         rows.forEach(function(tr, i) {
