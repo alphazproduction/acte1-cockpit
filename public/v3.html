@@ -4401,6 +4401,12 @@
       iaDataPending = data;
       var el = document.getElementById('iaStatus');
 
+      // Si c'est une facture, traiter différemment
+      if (data.type_document === 'facture' && data.factures && data.factures.length > 0) {
+        remplirFactureDepuisIA(data, projetCode);
+        return;
+      }
+
       // Récupérer les valeurs actuelles du formulaire pour comparaison
       var gv = function(id) { var e = document.getElementById(id); return e ? e.value : ''; };
 
@@ -4705,6 +4711,107 @@
 
       showToast(filled + ' champs + ' + selectedPhases.length + ' phases appliqu\u00e9s');
       iaDataPending = null;
+    };
+
+    // ── IMPORT FACTURE DEPUIS IA ──
+    function remplirFactureDepuisIA(data, projetCode) {
+      var el = document.getElementById('iaStatus');
+
+      var html = '<div style="margin-top:1rem;border:2px solid var(--green);border-radius:12px;overflow:hidden">';
+      html += '<div style="background:var(--green);color:white;padding:0.75rem 1rem;font-weight:700;font-size:0.95rem">' +
+        'Facture d\u00e9tect\u00e9e \u2014 ' + data.factures.length + ' facture(s) extraite(s)</div>';
+
+      html += '<div style="padding:1rem">';
+
+      data.factures.forEach(function(fac, idx) {
+        html += '<div style="margin-bottom:1rem;padding:0.75rem;border:1px solid var(--border);border-radius:8px">';
+        html += '<div style="font-weight:700;margin-bottom:0.5rem">Facture <strong>' + (fac.numero || 'N\u00b0?') + '</strong> \u2014 ' + (fac.date || '') + ' \u2014 ' + (fac.montant_total || 0).toLocaleString('fr-FR') + ' \u20ac</div>';
+
+        if (fac.phases_facturees && fac.phases_facturees.length > 0) {
+          html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse">';
+          html += '<tr style="font-weight:600;border-bottom:1px solid var(--border)"><td style="width:30px"></td><td>Phase</td><td style="text-align:right">Montant</td><td style="text-align:right">%</td></tr>';
+          fac.phases_facturees.forEach(function(ph) {
+            html += '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td><input type="checkbox" checked></td>' +
+              '<td><span class="phase-cat cat-etudes" style="padding:0.1rem 0.4rem;border-radius:3px;font-size:0.78rem">' + ph.phase + '</span></td>' +
+              '<td style="text-align:right;font-weight:600">' + (ph.montant ? ph.montant.toLocaleString('fr-FR') + ' \u20ac' : '\u2014') + '</td>' +
+              '<td style="text-align:right;color:var(--text-muted)">' + (ph.pourcentage ? ph.pourcentage + '%' : '\u2014') + '</td>' +
+            '</tr>';
+          });
+          html += '</table>';
+        }
+
+        if (fac.revision) {
+          html += '<div style="margin-top:0.5rem;font-size:0.82rem">R\u00e9vision : <strong>' + fac.revision.toLocaleString('fr-FR') + ' \u20ac</strong></div>';
+        }
+        html += '</div>';
+      });
+
+      html += '<div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:0.75rem">' +
+        '<button class="btn" onclick="document.getElementById(\'iaStatus\').innerHTML=\'\'">Annuler</button>' +
+        '<button class="btn btn-primary" onclick="appliquerFactureIA(\'' + projetCode + '\')">Appliquer dans Facturation</button>' +
+      '</div>';
+
+      html += '</div></div>';
+      el.innerHTML += html;
+    }
+
+    window.appliquerFactureIA = function(projetCode) {
+      if (!iaDataPending || !iaDataPending.factures) { showToast('Pas de facture \u00e0 importer'); return; }
+
+      // Aller dans le volet Facturation
+      switchVolet('facturation');
+
+      // Pour chaque facture, ajouter une ligne dans le tableau de facturation
+      iaDataPending.factures.forEach(function(fac) {
+        // Cliquer sur "+ Ajouter une facture" pour créer la ligne
+        if (typeof addFactRow === 'function') addFactRow(projetCode);
+
+        // Remplir les champs de la dernière ligne ajoutée
+        var table = document.getElementById('factTable');
+        if (!table) return;
+        var rows = table.querySelectorAll('tbody tr');
+        var lastRow = rows[rows.length - 1];
+        if (!lastRow) return;
+
+        // N° facture
+        var numInput = lastRow.querySelector('[id^="fact_num_"]');
+        if (numInput && fac.numero) { numInput.value = fac.numero; numInput.style.borderColor = 'var(--green)'; }
+
+        // Date facture
+        var dateInput = lastRow.querySelector('[id^="fact_date_"]');
+        if (dateInput && fac.date) { dateInput.value = fac.date; dateInput.style.borderColor = 'var(--green)'; }
+
+        // Montants par phase
+        if (fac.phases_facturees) {
+          fac.phases_facturees.forEach(function(ph) {
+            // Trouver la cellule de la bonne phase
+            var inputs = lastRow.querySelectorAll('[id*="_phase_"]');
+            inputs.forEach(function(inp) {
+              var phName = inp.getAttribute('data-phase');
+              if (phName && phName.toUpperCase() === (ph.phase || '').toUpperCase()) {
+                if (ph.pourcentage) {
+                  inp.value = ph.pourcentage + '%';
+                } else if (ph.montant) {
+                  inp.value = ph.montant;
+                }
+                inp.style.borderColor = 'var(--green)';
+                inp.style.backgroundColor = 'rgba(6,214,160,0.05)';
+              }
+            });
+          });
+        }
+
+        // Révision
+        if (fac.revision) {
+          var revInput = lastRow.querySelector('[id*="_revision"]');
+          if (revInput) { revInput.value = fac.revision; revInput.style.borderColor = 'var(--green)'; }
+        }
+      });
+
+      showToast(iaDataPending.factures.length + ' facture(s) import\u00e9e(s) dans Facturation');
+      iaDataPending = null;
+      document.getElementById('iaStatus').innerHTML = '<span style="color:var(--green)">\u2713 Facture(s) import\u00e9e(s). V\u00e9rifiez le volet Facturation puis cliquez Enregistrer.</span>';
     };
 
     // ── RECHERCHE DRIVE ──
