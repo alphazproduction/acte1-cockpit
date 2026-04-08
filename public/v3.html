@@ -2967,11 +2967,22 @@
                 '<span class="chef-badge ' + chefCls + '">' + p.chef + '</span>' + tip + '</td>';
         for (var m2=0;m2<12;m2++) {
           var v = p.mois[m2];
+          // Vérifier si ce mois a été facturé (écheancier statut=Facturé)
+          var isFactured = false;
+          var pEch = echeancierData[p.code] || [];
+          pEch.forEach(function(ech) {
+            if (ech.statut === 'Factur\u00e9' && ech.date_prev_facturation) {
+              var echMonth = parseInt(String(ech.date_prev_facturation).substring(5,7)) - 1;
+              var echYear = parseInt(String(ech.date_prev_facturation).substring(0,4));
+              if (echMonth === m2 && echYear === forecastYear) isFactured = true;
+            }
+          });
           var cls = '';
           if (v === 0) cls = 'cell-zero';
-          else if (m2 < mi) cls = 'cell-facture';
-          else if (m2 === mi) cls = 'cell-current';
-          else cls = 'cell-prev';
+          else if (isFactured) cls = 'cell-facture'; // facturé = vert
+          else if (m2 < mi) cls = 'cell-facture'; // mois passé = vert
+          else if (m2 === mi) cls = 'cell-current'; // mois en cours = orange
+          else cls = 'cell-prev'; // futur = jaune
           var tooltip = p.nom + ' \u2014 ' + MOIS_FULL[m2] + ' : ' + fmtEuro(v);
           var clickAttr = v > 0 ? ' style="cursor:pointer" onclick="openProjetDetail(\'' + p.code + '\')"' : '';
           html += '<td class="' + cls + '" title="' + tooltip + '"' + clickAttr + '>' +
@@ -3667,8 +3678,9 @@
 
       // ── DROP ZONE IA ──
       var pCode = p ? p.code : '';
-      html += '<div id="iaDropZone" style="margin-bottom:1.5rem;border:2px dashed var(--border);border-radius:12px;padding:1.25rem;transition:all 0.2s;background:var(--bg)">' +
-        '<div style="font-size:0.9rem;font-weight:600;margin-bottom:0.5rem;text-align:center">Analyser un document avec l\'IA</div>' +
+      html += '<details id="iaDropZone" style="margin-bottom:1rem;border:1px solid var(--border);border-radius:10px;transition:all 0.2s;background:var(--bg)">' +
+        '<summary style="padding:0.75rem 1rem;cursor:pointer;font-size:0.88rem;font-weight:600;color:var(--accent);list-style:none;display:flex;align-items:center;gap:0.5rem"><span style="font-size:1.1rem">&#128196;</span> Importer / Analyser un document (IA) <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400;margin-left:auto">cliquer pour ouvrir</span></summary>' +
+        '<div style="padding:0.75rem 1rem 1rem">' +
         '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;text-align:center">D\u00e9posez un fichier local ou cherchez dans le Drive du projet</div>' +
         '<div style="display:flex;gap:0.5rem;justify-content:center;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem">' +
           '<input type="file" id="iaFileInput" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.doc,.docx" style="font-size:0.82rem;max-width:280px">' +
@@ -3685,7 +3697,7 @@
         '</div>' +
         '<div id="iaStatus" style="margin-top:0.75rem;font-size:0.82rem"></div>' +
         '<div id="driveResults" style="margin-top:0.75rem"></div>' +
-      '</div>';
+      '</div></details>';
 
       // ── SUMMARY CARD for existing projects ──
       if (p) {
@@ -4081,116 +4093,80 @@
       }
       html += '</div>'; // end volet-contrat
 
-      // ── VOLET FACTURATION (invoice tracking table) ──
+      // ── VOLET FACTURATION (simple invoice table) ──
       html += '<div class="volet-panel" id="volet-facturation">';
-      html += '<div class="volet-header volet-header-facturation">Facturation &mdash; Suivi des factures \u00e9mises</div>';
+      html += '<div class="volet-header volet-header-facturation">Facturation &mdash; Suivi des factures</div>';
       if (p) {
-        // Build phase list from ORGANISATION (same as contrat)
-        var orgPhasesF = ORGANISATION[p.code] || [];
-        var factPhases = [];
-        orgPhasesF.forEach(function(ph){ if (ph && factPhases.indexOf(ph)<0) factPhases.push(ph); });
-        if (factPhases.length === 0) factPhases = ['APS','APD','PRO','ACT','DET','AOR'];
+        // Build phase options for dropdown (ALL_PHASES + Revision)
+        var factPhaseOpts = '<option value="">\u2014</option>';
+        ALL_PHASES.forEach(function(ph) { factPhaseOpts += '<option value="' + ph + '">' + ph + '</option>'; });
+        factPhaseOpts += '<option value="R\u00e9vision">R\u00e9vision</option>';
 
-        // Phase montants from contrat (mock: evenly distributed)
-        var totalProjetF = p.mois.reduce(function(a,b){return a+b;},0);
-        var phaseMontants = {};
-        var nbPhasesF = factPhases.length;
-        var baseF = Math.round(totalProjetF / nbPhasesF);
-        var sumF = 0;
-        factPhases.forEach(function(ph, idx) {
-          var m = idx === nbPhasesF - 1 ? totalProjetF - sumF : baseF;
-          phaseMontants[ph] = m;
-          sumF += m;
-        });
-
-        // Build mock invoices from months with data
-        var mi4 = getCurrentMonthIndex();
-        var mockInvoices = [];
-        var invIdx = 0;
-        for (var em4 = 0; em4 < 12; em4++) {
-          if (p.mois[em4] > 0 && em4 < mi4) {
-            var phF = orgPhasesF[em4] || 'Divers';
-            mockInvoices.push({
-              n_facture: 'F' + (2650 + invIdx*3 + PROJETS.indexOf(p)%15),
-              date_facture: selectedYear + '-' + String(em4+1).padStart(2,'0') + '-20',
-              ventilation: {},
-              revision: 0
+        // Pre-fill from echeancierData where statut = "Factur\u00e9"
+        var existingInvoices = [];
+        var echData = echeancierData[p.code] || [];
+        echData.forEach(function(e) {
+          if (e.statut === 'Factur\u00e9' || e.statut === 'Facture') {
+            existingInvoices.push({
+              n_facture: e.n_facture || '',
+              date_facture: e.date_facture || '',
+              phase: e.phase || '',
+              montant: e.montant || 0,
+              avancement: e.avancement || '',
+              revision: e.phase === 'R\u00e9vision' ? (e.montant || 0) : 0,
+              commentaire: e.commentaire || ''
             });
-            // 100% of that phase
-            mockInvoices[invIdx].ventilation[phF] = { type: 'pct', value: 100, montant: p.mois[em4] };
-            invIdx++;
           }
-        }
+        });
 
         // Info bar
         html += '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem">' +
-          'Colonnes = phases du contrat. Saisissez un montant (\u20ac) ou un pourcentage (%) dans chaque cellule. ' +
-          'La colonne R\u00c9VISION accepte uniquement un montant.</p>';
+          'Chaque ligne = une facture (une phase par ligne). Un m\u00eame n\u00b0 de facture peut avoir plusieurs lignes.</p>';
 
-        // Build the facturation table
+        // Build the simple facturation table
         html += '<div class="data-table-wrap" style="overflow-x:auto"><table class="data-table" id="factTable" style="min-width:100%"><thead><tr>' +
-          '<th style="text-align:center;width:100px">N\u00b0 Fact</th>' +
-          '<th style="text-align:center;width:120px">Date fact.</th>';
-        factPhases.forEach(function(ph) {
-          var cat = getPhaseCategory(ph);
-          var bg = cat === 'etudes' ? 'rgba(59,130,246,0.1)' : cat === 'travaux' ? 'rgba(232,96,28,0.1)' : 'rgba(148,163,184,0.1)';
-          html += '<th style="text-align:center;width:90px;background:' + bg + ';font-size:0.75rem">' + ph + '<div style="font-size:0.68rem;font-weight:400;color:var(--text-muted)">' + fmtEuro(phaseMontants[ph]) + '</div></th>';
-        });
-        html += '<th style="text-align:center;width:90px;background:rgba(148,163,184,0.1);font-size:0.75rem">R\u00c9VISION</th>' +
-          '<th style="text-align:right;width:100px;font-weight:700">TOTAL</th>' +
-          '<th style="width:35px"></th>' +
+          '<th style="text-align:center;width:100px">N\u00b0 Facture</th>' +
+          '<th style="text-align:center;width:120px">Date</th>' +
+          '<th style="text-align:center;width:110px">Phase</th>' +
+          '<th style="text-align:right;width:110px">Montant HT</th>' +
+          '<th style="text-align:center;width:100px">% avanc.</th>' +
+          '<th style="text-align:right;width:100px">R\u00e9vision</th>' +
+          '<th style="text-align:left">Commentaire</th>' +
+          '<th style="width:75px"></th>' +
         '</tr></thead><tbody>';
 
-        // Render existing mock invoice rows
-        mockInvoices.forEach(function(inv, fIdx) {
-          html += '<tr data-fact-idx="' + fIdx + '">';
-          html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_num_' + fIdx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + inv.n_facture + '"></td>';
-          html += '<td style="text-align:center"><input type="date" class="form-input" id="fact_date_' + fIdx + '" style="width:110px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + inv.date_facture + '"></td>';
-          factPhases.forEach(function(ph, phIdx) {
-            var cellVal = '';
-            if (inv.ventilation[ph]) {
-              if (inv.ventilation[ph].type === 'pct') cellVal = inv.ventilation[ph].value + '%';
-              else cellVal = inv.ventilation[ph].montant;
-            }
-            html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_' + fIdx + '_ph_' + phIdx + '" style="width:75px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + cellVal + '" placeholder="\u20ac ou %" data-phase="' + ph + '" data-phase-montant="' + phaseMontants[ph] + '" onchange="recalcFactRow(' + fIdx + ')"></td>';
+        // Render existing invoice rows from echeancierData
+        var grandFactTotal = 0;
+        if (existingInvoices.length > 0) {
+          existingInvoices.forEach(function(inv, fIdx) {
+            var montantVal = inv.phase === 'R\u00e9vision' ? 0 : (parseFloat(inv.montant) || 0);
+            var revVal = inv.phase === 'R\u00e9vision' ? (parseFloat(inv.montant) || 0) : (parseFloat(inv.revision) || 0);
+            grandFactTotal += montantVal + revVal;
+            html += '<tr data-fact-idx="' + fIdx + '">';
+            html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_num_' + fIdx + '" style="width:90px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + (inv.n_facture || '') + '"></td>';
+            html += '<td style="text-align:center"><input type="date" class="form-input" id="fact_date_' + fIdx + '" style="width:115px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + (inv.date_facture || '') + '"></td>';
+            html += '<td style="text-align:center"><select class="form-select" id="fact_phase_' + fIdx + '" style="font-size:0.8rem;padding:0.3rem;width:100px" onchange="recalcFactTotal()">' + factPhaseOpts.replace('value="' + inv.phase + '"', 'value="' + inv.phase + '" selected') + '</select></td>';
+            html += '<td style="text-align:right"><input type="number" class="form-input" id="fact_montant_' + fIdx + '" style="width:100px;font-size:0.82rem;padding:0.3rem;text-align:right" value="' + (montantVal || '') + '" placeholder="0" onchange="recalcFactTotal()"></td>';
+            html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_avanc_' + fIdx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + (inv.avancement || '') + '" placeholder="ex: 50%"></td>';
+            html += '<td style="text-align:right"><input type="number" class="form-input" id="fact_rev_' + fIdx + '" style="width:90px;font-size:0.82rem;padding:0.3rem;text-align:right" value="' + (revVal || '') + '" placeholder="0" onchange="recalcFactTotal()"></td>';
+            html += '<td><input type="text" class="form-input" id="fact_comment_' + fIdx + '" style="width:100%;font-size:0.82rem;padding:0.3rem" value="' + (inv.commentaire || '').replace(/"/g, '&quot;') + '" placeholder="Commentaire\u2026"></td>';
+            html += '<td style="text-align:center;white-space:nowrap">' +
+              '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveFactRow(this,-1)" title="Monter">\u25b2</button>' +
+              '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveFactRow(this,1)" title="Descendre">\u25bc</button>' +
+              '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="removeFactRow(this)" title="Supprimer">\u2716</button></td>';
+            html += '</tr>';
           });
-          // Revision column
-          html += '<td style="text-align:center"><input type="number" class="form-input" id="fact_' + fIdx + '_rev" style="width:75px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + (inv.revision || '') + '" placeholder="0 \u20ac" onchange="recalcFactRow(' + fIdx + ')"></td>';
-          // Total column
-          var rowTotal = 0;
-          factPhases.forEach(function(ph2) {
-            if (inv.ventilation[ph2]) rowTotal += inv.ventilation[ph2].montant || 0;
-          });
-          rowTotal += inv.revision || 0;
-          html += '<td style="text-align:right;font-weight:700;font-size:0.85rem" id="fact_total_' + fIdx + '">' + fmtEuro(rowTotal) + '</td>';
-          html += '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="removeFactRow(this)" title="Supprimer">\u2716</button></td>';
-          html += '</tr>';
-        });
+        }
 
         html += '</tbody><tfoot>';
-        // Column totals
         html += '<tr style="font-weight:700;border-top:2px solid var(--border);background:var(--grey-bg)">';
-        html += '<td colspan="2" style="text-align:left;padding-left:0.5rem">TOTAL</td>';
-        var grandFactTotal = 0;
-        factPhases.forEach(function(ph, phIdx) {
-          var colTotal = 0;
-          mockInvoices.forEach(function(inv) {
-            if (inv.ventilation[ph]) colTotal += inv.ventilation[ph].montant || 0;
-          });
-          grandFactTotal += colTotal;
-          html += '<td style="text-align:center;font-size:0.82rem" id="fact_col_total_' + phIdx + '">' + fmtEuro(colTotal) + '</td>';
-        });
-        // Revision total
-        var revTotal = mockInvoices.reduce(function(s,inv){return s+(inv.revision||0);},0);
-        grandFactTotal += revTotal;
-        html += '<td style="text-align:center;font-size:0.82rem" id="fact_col_total_rev">' + fmtEuro(revTotal) + '</td>';
+        html += '<td colspan="3" style="text-align:left;padding-left:0.5rem">TOTAL FACTUR\u00c9</td>';
         html += '<td style="text-align:right;font-size:0.95rem" id="fact_grand_total">' + fmtEuro(grandFactTotal) + '</td>';
-        html += '<td></td>';
+        html += '<td></td><td></td><td></td><td></td>';
         html += '</tr></tfoot></table></div>';
 
-        // Hidden metadata
-        html += '<input type="hidden" id="fact_phases" value="' + factPhases.join(',') + '">';
-        html += '<input type="hidden" id="fact_phase_montants" value=\'' + JSON.stringify(phaseMontants) + '\'>';
+        // Hidden metadata for phase options
+        html += '<input type="hidden" id="fact_phase_opts" value="' + encodeURIComponent(factPhaseOpts) + '">';
 
         // Buttons
         html += '<div style="margin-top:0.75rem;display:flex;gap:0.5rem;justify-content:flex-end">' +
@@ -4218,26 +4194,29 @@
           html += '</div>';
         }
 
+        // Build phase dropdown options for organisation
+        var orgaPhaseOpts = '<option value="">\u2014</option>';
+        ALL_PHASES.forEach(function(ph) { orgaPhaseOpts += '<option value="' + ph + '">' + ph + '</option>'; });
+
         html += '<div class="data-table-wrap"><table class="data-table" id="orgaTable" style="min-width:100%">' +
           '<thead><tr>' +
-            '<th style="text-align:left;padding-left:0.75rem;width:100px">Phase</th>' +
+            '<th style="text-align:left;padding-left:0.75rem;width:120px">Phase</th>' +
             '<th style="text-align:center;width:160px">Date rendu pr\u00e9v.</th>' +
             '<th style="text-align:center;width:160px">Date validation</th>' +
             '<th style="text-align:center;width:80px">Valid\u00e9e</th>' +
             '<th style="text-align:left">Commentaire</th>' +
+            '<th style="width:75px"></th>' +
           '</tr></thead><tbody>';
         var orgaIdx = 0;
         for (var om=0;om<12;om++) {
           if (phases3[om]) {
             var isVal = valids3[om] || false;
-            var cat3 = getPhaseCategory(phases3[om]);
-            var phaseCls3 = 'phase-' + cat3;
             var dateRendu = selectedYear + '-' + String(om+1).padStart(2,'0') + '-15';
             var dateValid = isVal ? selectedYear + '-' + String(om+1).padStart(2,'0') + '-20' : '';
 
             html += '<tr data-orga-idx="' + orgaIdx + '">' +
-              '<td style="text-align:left;padding-left:0.75rem"><div class="phase-cell ' + phaseCls3 + '" style="display:inline-block">' + phases3[om] + '</div>' +
-                '<input type="hidden" id="orga_phase_' + orgaIdx + '" value="' + phases3[om] + '">' +
+              '<td style="text-align:left;padding-left:0.75rem">' +
+                '<select class="form-select" id="orga_phase_' + orgaIdx + '" style="font-size:0.8rem;padding:0.3rem;width:110px">' + orgaPhaseOpts.replace('value="' + phases3[om] + '"', 'value="' + phases3[om] + '" selected') + '</select>' +
               '</td>' +
               '<td style="text-align:center"><input type="date" class="form-input" id="orga_daterendu_' + orgaIdx + '" style="width:140px;font-size:0.82rem;padding:0.35rem 0.5rem;text-align:center" value="' + dateRendu + '"></td>' +
               '<td style="text-align:center">' +
@@ -4245,6 +4224,11 @@
               '</td>' +
               '<td style="text-align:center"><input type="checkbox" id="orga_validee_' + orgaIdx + '"' + (isVal ? ' checked' : '') + ' style="width:18px;height:18px;cursor:pointer;accent-color:var(--green)"></td>' +
               '<td><input type="text" class="form-input" id="orga_comment_' + orgaIdx + '" style="width:100%;font-size:0.82rem;padding:0.35rem 0.5rem" placeholder="Commentaire\u2026" value=""></td>' +
+              '<td style="text-align:center;white-space:nowrap">' +
+                '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveOrgaRow(this,-1)" title="Monter">\u25b2</button>' +
+                '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveOrgaRow(this,1)" title="Descendre">\u25bc</button>' +
+                '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="removeOrgaRow(this)" title="Supprimer">\u2716</button>' +
+              '</td>' +
             '</tr>';
             orgaIdx++;
           }
@@ -4948,52 +4932,82 @@
       // Aller dans le volet Facturation
       switchVolet('facturation');
 
-      // Pour chaque facture, ajouter une ligne dans le tableau de facturation
+      // Pour chaque facture, ajouter une ligne par phase dans le tableau de facturation
       iaDataPending.factures.forEach(function(fac) {
-        // Cliquer sur "+ Ajouter une facture" pour créer la ligne
-        if (typeof addFactRow === 'function') addFactRow(projetCode);
-
-        // Remplir les champs de la dernière ligne ajoutée
-        var table = document.getElementById('factTable');
-        if (!table) return;
-        var rows = table.querySelectorAll('tbody tr');
-        var lastRow = rows[rows.length - 1];
-        if (!lastRow) return;
-
-        // N° facture
-        var numInput = lastRow.querySelector('[id^="fact_num_"]');
-        if (numInput && fac.numero) { numInput.value = fac.numero; numInput.style.borderColor = 'var(--green)'; }
-
-        // Date facture
-        var dateInput = lastRow.querySelector('[id^="fact_date_"]');
-        if (dateInput && fac.date) { dateInput.value = fac.date; dateInput.style.borderColor = 'var(--green)'; }
-
-        // Montants par phase
-        if (fac.phases_facturees) {
-          fac.phases_facturees.forEach(function(ph) {
-            // Trouver la cellule de la bonne phase
-            var inputs = lastRow.querySelectorAll('[id*="_phase_"]');
-            inputs.forEach(function(inp) {
-              var phName = inp.getAttribute('data-phase');
-              if (phName && phName.toUpperCase() === (ph.phase || '').toUpperCase()) {
-                if (ph.pourcentage) {
-                  inp.value = ph.pourcentage + '%';
-                } else if (ph.montant) {
-                  inp.value = ph.montant;
-                }
-                inp.style.borderColor = 'var(--green)';
-                inp.style.backgroundColor = 'rgba(6,214,160,0.05)';
-              }
-            });
-          });
+        var phases = fac.phases_facturees || [];
+        if (phases.length === 0) {
+          // No phase breakdown: add a single line
+          phases = [{ phase: '', montant: fac.montant_total || 0, pourcentage: '' }];
         }
 
-        // Révision
-        if (fac.revision) {
-          var revInput = lastRow.querySelector('[id*="_revision"]');
+        phases.forEach(function(ph) {
+          // Add a new row
+          if (typeof addFactRow === 'function') addFactRow(projetCode);
+
+          var table = document.getElementById('factTable');
+          if (!table) return;
+          var rows = table.querySelectorAll('tbody tr');
+          var lastRow = rows[rows.length - 1];
+          if (!lastRow) return;
+
+          // N° facture
+          var numInput = lastRow.querySelector('[id^="fact_num_"]');
+          if (numInput && fac.numero) { numInput.value = fac.numero; numInput.style.borderColor = 'var(--green)'; }
+
+          // Date facture
+          var dateInput = lastRow.querySelector('[id^="fact_date_"]');
+          if (dateInput && fac.date) { dateInput.value = fac.date; dateInput.style.borderColor = 'var(--green)'; }
+
+          // Phase dropdown
+          var phaseSelect = lastRow.querySelector('[id^="fact_phase_"]');
+          if (phaseSelect && ph.phase) {
+            // Try to match case-insensitively
+            var opts = phaseSelect.options;
+            for (var oi = 0; oi < opts.length; oi++) {
+              if (opts[oi].value.toUpperCase() === (ph.phase || '').toUpperCase()) {
+                phaseSelect.selectedIndex = oi;
+                break;
+              }
+            }
+            phaseSelect.style.borderColor = 'var(--green)';
+          }
+
+          // Montant HT
+          var montantInput = lastRow.querySelector('[id^="fact_montant_"]');
+          if (montantInput && ph.montant) {
+            montantInput.value = ph.montant;
+            montantInput.style.borderColor = 'var(--green)';
+            montantInput.style.backgroundColor = 'rgba(6,214,160,0.05)';
+          }
+
+          // % avancement
+          var avancInput = lastRow.querySelector('[id^="fact_avanc_"]');
+          if (avancInput && ph.pourcentage) {
+            avancInput.value = ph.pourcentage + '%';
+            avancInput.style.borderColor = 'var(--green)';
+          }
+        });
+
+        // R\u00e9vision: add a separate line if present
+        if (fac.revision && fac.revision > 0) {
+          if (typeof addFactRow === 'function') addFactRow(projetCode);
+          var table2 = document.getElementById('factTable');
+          if (!table2) return;
+          var rows2 = table2.querySelectorAll('tbody tr');
+          var lastRow2 = rows2[rows2.length - 1];
+          if (!lastRow2) return;
+
+          var numInput2 = lastRow2.querySelector('[id^="fact_num_"]');
+          if (numInput2 && fac.numero) numInput2.value = fac.numero;
+          var dateInput2 = lastRow2.querySelector('[id^="fact_date_"]');
+          if (dateInput2 && fac.date) dateInput2.value = fac.date;
+          var revInput = lastRow2.querySelector('[id^="fact_rev_"]');
           if (revInput) { revInput.value = fac.revision; revInput.style.borderColor = 'var(--green)'; }
         }
       });
+
+      // Recalc total
+      if (typeof recalcFactTotal === 'function') recalcFactTotal();
 
       showToast(iaDataPending.factures.length + ' facture(s) import\u00e9e(s) dans Facturation');
       iaDataPending = null;
@@ -5685,7 +5699,7 @@
 
     // ── FACTURATION EDIT FUNCTIONS ──
 
-    // Parse a cell value: returns {montant, isPct}
+    // Parse a cell value: returns {montant, isPct} (kept for backward compatibility)
     function parseFactCell(val, phaseMontant) {
       if (!val) return { montant: 0, isPct: false };
       val = String(val).trim().replace(/\s/g, '').replace(/\u20ac/g, '').replace(',', '.');
@@ -5696,83 +5710,58 @@
       return { montant: parseFloat(val) || 0, isPct: false };
     }
 
-    // Recalculate a facturation row total and column totals
-    window.recalcFactRow = function(fIdx) {
-      var phasesStr = (document.getElementById('fact_phases') || {}).value || '';
-      var phases = phasesStr.split(',');
-      var phaseMontants = {};
-      try { phaseMontants = JSON.parse((document.getElementById('fact_phase_montants') || {}).value || '{}'); } catch(e) {}
-
-      // Recalc this row
-      var rowTotal = 0;
-      phases.forEach(function(ph, phIdx) {
-        var input = document.getElementById('fact_' + fIdx + '_ph_' + phIdx);
-        if (!input) return;
-        var parsed = parseFactCell(input.value, phaseMontants[ph] || 0);
-        rowTotal += parsed.montant;
-      });
-      var revInput = document.getElementById('fact_' + fIdx + '_rev');
-      rowTotal += parseFloat(revInput ? revInput.value : 0) || 0;
-      var totalEl = document.getElementById('fact_total_' + fIdx);
-      if (totalEl) totalEl.textContent = fmtEuro(rowTotal);
-
-      // Recalc all column totals
+    // Recalculate facturation grand total (simple table version)
+    window.recalcFactTotal = function() {
       var tbody = document.querySelector('#factTable tbody');
       if (!tbody) return;
       var allRows = tbody.querySelectorAll('tr');
       var grandTotal = 0;
-
-      phases.forEach(function(ph, phIdx) {
-        var colSum = 0;
-        allRows.forEach(function(tr) {
-          var fi = tr.getAttribute('data-fact-idx');
-          if (fi === null) return;
-          var inp = document.getElementById('fact_' + fi + '_ph_' + phIdx);
-          if (!inp) return;
-          var p = parseFactCell(inp.value, phaseMontants[ph] || 0);
-          colSum += p.montant;
-        });
-        grandTotal += colSum;
-        var colEl = document.getElementById('fact_col_total_' + phIdx);
-        if (colEl) colEl.textContent = fmtEuro(colSum);
-      });
-
-      // Revision column total
-      var revSum = 0;
       allRows.forEach(function(tr) {
-        var fi = tr.getAttribute('data-fact-idx');
-        if (fi === null) return;
-        var ri = document.getElementById('fact_' + fi + '_rev');
-        revSum += parseFloat(ri ? ri.value : 0) || 0;
+        var montantInput = tr.querySelector('[id^="fact_montant_"]');
+        var revInput = tr.querySelector('[id^="fact_rev_"]');
+        grandTotal += parseFloat(montantInput ? montantInput.value : 0) || 0;
+        grandTotal += parseFloat(revInput ? revInput.value : 0) || 0;
       });
-      grandTotal += revSum;
-      var revTotalEl = document.getElementById('fact_col_total_rev');
-      if (revTotalEl) revTotalEl.textContent = fmtEuro(revSum);
-
       var gtEl = document.getElementById('fact_grand_total');
       if (gtEl) gtEl.textContent = fmtEuro(grandTotal);
     };
 
-    // Add a new facturation row
+    // Keep old name as alias for backward compatibility
+    window.recalcFactRow = function() { recalcFactTotal(); };
+
+    // Move a facturation row up or down
+    window.moveFactRow = function(btn, direction) {
+      var row = btn.closest('tr');
+      if (!row) return;
+      var tbody = row.parentNode;
+      if (direction === -1 && row.previousElementSibling) {
+        tbody.insertBefore(row, row.previousElementSibling);
+      } else if (direction === 1 && row.nextElementSibling) {
+        tbody.insertBefore(row.nextElementSibling, row);
+      }
+    };
+
+    // Add a new facturation row (simple table version)
     window.addFactRow = function(code) {
       var tbody = document.querySelector('#factTable tbody');
       if (!tbody) return;
       var idx = tbody.rows.length;
-      var phasesStr = (document.getElementById('fact_phases') || {}).value || '';
-      var phases = phasesStr.split(',');
-      var phaseMontants = {};
-      try { phaseMontants = JSON.parse((document.getElementById('fact_phase_montants') || {}).value || '{}'); } catch(e) {}
+      var phaseOptsEncoded = (document.getElementById('fact_phase_opts') || {}).value || '';
+      var phaseOpts = phaseOptsEncoded ? decodeURIComponent(phaseOptsEncoded) : '<option value="">\u2014</option>';
 
       var tr = document.createElement('tr');
       tr.setAttribute('data-fact-idx', idx);
-      var rowHtml = '<td style="text-align:center"><input type="text" class="form-input" id="fact_num_' + idx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" placeholder="F0000"></td>';
-      rowHtml += '<td style="text-align:center"><input type="date" class="form-input" id="fact_date_' + idx + '" style="width:110px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + new Date().toISOString().substring(0,10) + '"></td>';
-      phases.forEach(function(ph, phIdx) {
-        rowHtml += '<td style="text-align:center"><input type="text" class="form-input" id="fact_' + idx + '_ph_' + phIdx + '" style="width:75px;font-size:0.82rem;padding:0.3rem;text-align:center" placeholder="\u20ac ou %" data-phase="' + ph + '" data-phase-montant="' + (phaseMontants[ph]||0) + '" onchange="recalcFactRow(' + idx + ')"></td>';
-      });
-      rowHtml += '<td style="text-align:center"><input type="number" class="form-input" id="fact_' + idx + '_rev" style="width:75px;font-size:0.82rem;padding:0.3rem;text-align:center" placeholder="0 \u20ac" onchange="recalcFactRow(' + idx + ')"></td>';
-      rowHtml += '<td style="text-align:right;font-weight:700;font-size:0.85rem" id="fact_total_' + idx + '">0 \u20ac</td>';
-      rowHtml += '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="removeFactRow(this)" title="Supprimer">\u2716</button></td>';
+      var rowHtml = '<td style="text-align:center"><input type="text" class="form-input" id="fact_num_' + idx + '" style="width:90px;font-size:0.82rem;padding:0.3rem;text-align:center" placeholder="F0000"></td>';
+      rowHtml += '<td style="text-align:center"><input type="date" class="form-input" id="fact_date_' + idx + '" style="width:115px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + new Date().toISOString().substring(0,10) + '"></td>';
+      rowHtml += '<td style="text-align:center"><select class="form-select" id="fact_phase_' + idx + '" style="font-size:0.8rem;padding:0.3rem;width:100px" onchange="recalcFactTotal()">' + phaseOpts + '</select></td>';
+      rowHtml += '<td style="text-align:right"><input type="number" class="form-input" id="fact_montant_' + idx + '" style="width:100px;font-size:0.82rem;padding:0.3rem;text-align:right" placeholder="0" onchange="recalcFactTotal()"></td>';
+      rowHtml += '<td style="text-align:center"><input type="text" class="form-input" id="fact_avanc_' + idx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" placeholder="ex: 50%"></td>';
+      rowHtml += '<td style="text-align:right"><input type="number" class="form-input" id="fact_rev_' + idx + '" style="width:90px;font-size:0.82rem;padding:0.3rem;text-align:right" placeholder="0" onchange="recalcFactTotal()"></td>';
+      rowHtml += '<td><input type="text" class="form-input" id="fact_comment_' + idx + '" style="width:100%;font-size:0.82rem;padding:0.3rem" placeholder="Commentaire\u2026"></td>';
+      rowHtml += '<td style="text-align:center;white-space:nowrap">' +
+        '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveFactRow(this,-1)" title="Monter">\u25b2</button>' +
+        '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveFactRow(this,1)" title="Descendre">\u25bc</button>' +
+        '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="removeFactRow(this)" title="Supprimer">\u2716</button></td>';
       tr.innerHTML = rowHtml;
       tbody.appendChild(tr);
     };
@@ -5780,64 +5769,55 @@
     window.removeFactRow = function(btn) {
       var tr = btn.closest('tr');
       if (tr) {
-        var fIdx = tr.getAttribute('data-fact-idx');
         tr.remove();
-        // Recalc after removal
-        if (fIdx !== null) recalcFactRow(0);
+        recalcFactTotal();
       }
     };
 
-    // Save facturation data to Sheet
+    // Save facturation data to Sheet (simple table version)
     window.saveFacturation = function(code) {
       var tbody = document.querySelector('#factTable tbody');
       if (!tbody) return;
-      var phasesStr = (document.getElementById('fact_phases') || {}).value || '';
-      var phases = phasesStr.split(',');
-      var phaseMontants = {};
-      try { phaseMontants = JSON.parse((document.getElementById('fact_phase_montants') || {}).value || '{}'); } catch(e) {}
       var rows = tbody.querySelectorAll('tr');
       var saved = 0;
+      var newEcheancier = [];
 
       rows.forEach(function(tr, i) {
-        var fIdx = tr.getAttribute('data-fact-idx');
-        if (fIdx === null) return;
-        var nFacture = (document.getElementById('fact_num_' + fIdx) || {}).value || '';
-        var dateFacture = (document.getElementById('fact_date_' + fIdx) || {}).value || '';
-        if (!nFacture && !dateFacture) return;
+        var nFacture = (tr.querySelector('[id^="fact_num_"]') || {}).value || '';
+        var dateFacture = (tr.querySelector('[id^="fact_date_"]') || {}).value || '';
+        var phaseEl = tr.querySelector('[id^="fact_phase_"]');
+        var phase = phaseEl ? phaseEl.value : '';
+        var montant = parseFloat((tr.querySelector('[id^="fact_montant_"]') || {}).value) || 0;
+        var avancement = (tr.querySelector('[id^="fact_avanc_"]') || {}).value || '';
+        var revision = parseFloat((tr.querySelector('[id^="fact_rev_"]') || {}).value) || 0;
+        var commentaire = (tr.querySelector('[id^="fact_comment_"]') || {}).value || '';
 
-        // Build phase breakdown
-        var details = [];
-        phases.forEach(function(ph, phIdx) {
-          var inp = document.getElementById('fact_' + fIdx + '_ph_' + phIdx);
-          if (!inp || !inp.value) return;
-          var parsed = parseFactCell(inp.value, phaseMontants[ph] || 0);
-          if (parsed.montant > 0) {
-            details.push({ phase: ph, montant: parsed.montant, saisie: inp.value });
-          }
-        });
-        var revision = parseFloat((document.getElementById('fact_' + fIdx + '_rev') || {}).value) || 0;
-        var totalRow = details.reduce(function(s,d){return s+d.montant;}, 0) + revision;
+        if (!nFacture && !dateFacture && !phase && !montant) return;
 
-        // Save each phase as a separate echeancier entry
-        details.forEach(function(det) {
+        // Save main montant as echeancier entry
+        if (montant > 0 && phase) {
+          var echLine = {
+            code_projet: code,
+            phase: phase,
+            montant: montant,
+            date_prev_facturation: '',
+            n_facture: nFacture,
+            date_facture: dateFacture,
+            statut: 'Factur\u00e9',
+            avancement: avancement,
+            commentaire: commentaire || ('Facture ' + nFacture),
+            ordre_affichage: i + 1
+          };
+          newEcheancier.push(echLine);
           if (dataMode === 'live' && apiUrl) {
-            postToSheet('upsert_echeancier', {
-              code_projet: code,
-              phase: det.phase,
-              montant: det.montant,
-              date_prev_facturation: '',
-              n_facture: nFacture,
-              date_facture: dateFacture,
-              statut: 'Factur\u00e9',
-              commentaire: 'Facture ' + nFacture + ' - saisie: ' + det.saisie,
-              ordre_affichage: i + 1
-            });
+            postToSheet('upsert_echeancier', echLine);
             saved++;
           }
-        });
+        }
 
-        if (revision > 0 && dataMode === 'live' && apiUrl) {
-          postToSheet('upsert_echeancier', {
+        // Save revision as separate entry if present
+        if (revision > 0) {
+          var revLine = {
             code_projet: code,
             phase: 'R\u00e9vision',
             montant: revision,
@@ -5847,10 +5827,19 @@
             statut: 'Factur\u00e9',
             commentaire: 'R\u00e9vision - Facture ' + nFacture,
             ordre_affichage: i + 1
-          });
-          saved++;
+          };
+          newEcheancier.push(revLine);
+          if (dataMode === 'live' && apiUrl) {
+            postToSheet('upsert_echeancier', revLine);
+            saved++;
+          }
         }
       });
+
+      // Update in-memory echeancierData (keep non-Factur\u00e9 entries, replace Factur\u00e9 ones)
+      var existing = echeancierData[code] || [];
+      var kept = existing.filter(function(e) { return e.statut !== 'Factur\u00e9' && e.statut !== 'Facture'; });
+      echeancierData[code] = kept.concat(newEcheancier);
 
       if (saved > 0) {
         showToast(saved + ' ligne(s) de facturation sauvegard\u00e9e(s)');
@@ -5869,31 +5858,60 @@
       var phaseOpts = '<option value="">\u2014</option>';
       ALL_PHASES.forEach(function(ph) { phaseOpts += '<option>' + ph + '</option>'; });
       tr.innerHTML =
-        '<td style="text-align:left;padding-left:0.75rem"><select class="form-select" id="orga_phase_' + idx + '" style="font-size:0.8rem;padding:0.3rem;width:90px">' + phaseOpts + '</select></td>' +
+        '<td style="text-align:left;padding-left:0.75rem"><select class="form-select" id="orga_phase_' + idx + '" style="font-size:0.8rem;padding:0.3rem;width:110px">' + phaseOpts + '</select></td>' +
         '<td style="text-align:center"><input type="date" class="form-input" id="orga_daterendu_' + idx + '" style="width:140px;font-size:0.82rem;padding:0.35rem 0.5rem;text-align:center"></td>' +
         '<td style="text-align:center"><input type="date" class="form-input" id="orga_datevalid_' + idx + '" style="width:140px;font-size:0.82rem;padding:0.35rem 0.5rem;text-align:center;opacity:0.4"></td>' +
         '<td style="text-align:center"><input type="checkbox" id="orga_validee_' + idx + '" style="width:18px;height:18px;cursor:pointer;accent-color:var(--green)"></td>' +
-        '<td><input type="text" class="form-input" id="orga_comment_' + idx + '" style="width:100%;font-size:0.82rem;padding:0.35rem 0.5rem" placeholder="Commentaire\u2026"></td>';
+        '<td><input type="text" class="form-input" id="orga_comment_' + idx + '" style="width:100%;font-size:0.82rem;padding:0.35rem 0.5rem" placeholder="Commentaire\u2026"></td>' +
+        '<td style="text-align:center;white-space:nowrap">' +
+          '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveOrgaRow(this,-1)" title="Monter">\u25b2</button>' +
+          '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveOrgaRow(this,1)" title="Descendre">\u25bc</button>' +
+          '<button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="removeOrgaRow(this)" title="Supprimer">\u2716</button>' +
+        '</td>';
       tbody.appendChild(tr);
       document.getElementById('orga_count').value = idx + 1;
     };
 
+    // Move an organisation row up or down
+    window.moveOrgaRow = function(btn, direction) {
+      var row = btn.closest('tr');
+      if (!row) return;
+      var tbody = row.parentNode;
+      if (direction === -1 && row.previousElementSibling) {
+        tbody.insertBefore(row, row.previousElementSibling);
+      } else if (direction === 1 && row.nextElementSibling) {
+        tbody.insertBefore(row.nextElementSibling, row);
+      }
+    };
+
+    // Remove an organisation row
+    window.removeOrgaRow = function(btn) {
+      var tr = btn.closest('tr');
+      if (tr) tr.remove();
+    };
+
     // B6: Save organisation to Sheet + update in-memory ORGANISATION
     window.saveOrganisation = function(code) {
-      var count = parseInt(document.getElementById('orga_count')?.value || '0');
+      var tbody = document.querySelector('#orgaTable tbody');
+      if (!tbody) return;
+      var rows = tbody.querySelectorAll('tr');
       var saved = 0;
       // Reset in-memory ORGANISATION for this project
       var newOrga = [null,null,null,null,null,null,null,null,null,null,null,null];
       var newValid = [false,false,false,false,false,false,false,false,false,false,false,false];
 
-      for (var i = 0; i < count; i++) {
-        var phaseEl = document.getElementById('orga_phase_' + i);
-        var phase = phaseEl ? (phaseEl.value || phaseEl.textContent || '') : '';
-        if (!phase || phase === '\u2014') continue;
-        var dateRendu = (document.getElementById('orga_daterendu_' + i) || {}).value || '';
-        var dateValid = (document.getElementById('orga_datevalid_' + i) || {}).value || '';
-        var validee = (document.getElementById('orga_validee_' + i) || {}).checked || false;
-        var comment = (document.getElementById('orga_comment_' + i) || {}).value || '';
+      rows.forEach(function(tr, i) {
+        var phaseEl = tr.querySelector('[id^="orga_phase_"]');
+        var phase = phaseEl ? (phaseEl.value || '') : '';
+        if (!phase || phase === '\u2014') return;
+        var dateRenduEl = tr.querySelector('[id^="orga_daterendu_"]');
+        var dateRendu = dateRenduEl ? dateRenduEl.value : '';
+        var dateValidEl = tr.querySelector('[id^="orga_datevalid_"]');
+        var dateValid = dateValidEl ? dateValidEl.value : '';
+        var valideeEl = tr.querySelector('[id^="orga_validee_"]');
+        var validee = valideeEl ? valideeEl.checked : false;
+        var commentEl = tr.querySelector('[id^="orga_comment_"]');
+        var comment = commentEl ? commentEl.value : '';
 
         // Update in-memory ORGANISATION from dateRendu
         if (dateRendu && /^\d{4}-\d{2}-\d{2}$/.test(dateRendu)) {
@@ -5918,7 +5936,7 @@
           postToSheet('upsert_organisation', orgData);
           saved++;
         }
-      }
+      });
 
       // Apply in-memory updates
       ORGANISATION[code] = newOrga;
