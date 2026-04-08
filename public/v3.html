@@ -3216,34 +3216,37 @@
         html += '</tr>';
       });
       html += '</tbody>';
-      // Summary rows — phase count by type per month
-      var countE = [0,0,0,0,0,0,0,0,0,0,0,0];
-      var countT = [0,0,0,0,0,0,0,0,0,0,0,0];
-      var countC = [0,0,0,0,0,0,0,0,0,0,0,0];
+      // Summary rows — count per MOP phase per month
+      var phaseCounts = {};
+      ALL_PHASES.forEach(function(ph) { phaseCounts[ph] = [0,0,0,0,0,0,0,0,0,0,0,0]; });
+      var totalCounts = [0,0,0,0,0,0,0,0,0,0,0,0];
+
       filtered.forEach(function(p) {
         var ph = ORGANISATION[p.code] || [];
-        for (var si=0;si<12;si++) {
+        for (var si = 0; si < 12; si++) {
           if (ph[si]) {
-            var sc = getPhaseCategory(ph[si]);
-            if (sc === 'etudes') countE[si]++;
-            else if (sc === 'travaux') countT[si]++;
-            else countC[si]++;
+            var base = ph[si].replace(/\s*\d+$/, '').toUpperCase();
+            if (phaseCounts[base]) phaseCounts[base][si]++;
+            totalCounts[si]++;
           }
         }
       });
+
       html += '<tfoot class="planning-summary">';
-      function summaryRow(label, counts, color) {
-        var r = '<tr><td class="col-projet summary-label" style="color:'+color+'">' + label + '</td>';
-        for (var sr=0;sr<12;sr++) {
-          r += '<td style="color:'+color+'">' + (counts[sr]||'\u2013') + '</td>';
+      ALL_PHASES.forEach(function(ph) {
+        var counts = phaseCounts[ph];
+        if (!counts.some(function(v) { return v > 0; })) return; // skip phases with 0
+        var cat = getPhaseCategory(ph);
+        var color = cat === 'etudes' ? '#3B82F6' : cat === 'travaux' ? '#E8601C' : '#94A3B8';
+        var r = '<tr><td class="col-projet summary-label" style="color:' + color + ';font-size:0.72rem">' + ph + '</td>';
+        for (var sr = 0; sr < 12; sr++) {
+          r += '<td style="color:' + color + ';font-size:0.75rem">' + (counts[sr] || '\u2013') + '</td>';
         }
-        return r + '</tr>';
-      }
-      html += summaryRow('\u00c9tudes', countE, '#3B82F6');
-      html += summaryRow('Travaux', countT, '#E8601C');
-      if (countC.some(function(v){return v>0;})) html += summaryRow('Conseil', countC, '#94A3B8');
-      var countTotal = countE.map(function(v,i){return v+countT[i]+countC[i];});
-      html += summaryRow('TOTAL', countTotal, 'var(--text)');
+        html += r + '</tr>';
+      });
+      var totalRow = '<tr style="font-weight:700;border-top:2px solid var(--border)"><td class="col-projet summary-label">TOTAL</td>';
+      for (var ti = 0; ti < 12; ti++) totalRow += '<td>' + (totalCounts[ti] || '\u2013') + '</td>';
+      html += totalRow + '</tr>';
       html += '</tfoot></table></div>';
 
       // Charge histogram — only count phases matching the filter
