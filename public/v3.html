@@ -1521,6 +1521,8 @@
     var lastSync = null;
     var prevParAnnee = {}; // { '2024': { 'CODE_PROJET': [m1..m12], ... }, ... }
     var projetsBase = [];  // liste projets complète (sans mois), rechargée depuis le Sheet
+    var contratsData = {}; // { 'CODE': [{ref_document, phase, montant, ...}] }
+    var echeancierData = {}; // { 'CODE': [{phase, montant, date_prev, statut, ...}] }
 
     /* ==============================================================
        GOOGLE SHEET CONNECTION
@@ -1631,7 +1633,31 @@
           // 4. Appliquer les données de l'année sélectionnée
           applyYearData(selectedYear);
 
-          // 5. Update ORGANISATION + PHASES_VALIDEES from sheet data
+          // 5a. Charger CONTRATS par projet
+          contratsData = {};
+          if (data.contrats && data.contrats.length > 0) {
+            data.contrats.forEach(function(c) {
+              var code = String(c.code_projet || '');
+              if (!code) return;
+              if (!contratsData[code]) contratsData[code] = [];
+              contratsData[code].push(c);
+            });
+            console.log('[Live] Contrats chargés:', Object.keys(contratsData).length, 'projets');
+          }
+
+          // 5b. Charger ECHEANCIER par projet
+          echeancierData = {};
+          if (data.echeancier && data.echeancier.length > 0) {
+            data.echeancier.forEach(function(e) {
+              var code = String(e.code_projet || '');
+              if (!code) return;
+              if (!echeancierData[code]) echeancierData[code] = [];
+              echeancierData[code].push(e);
+            });
+            console.log('[Live] Echeancier chargé:', Object.keys(echeancierData).length, 'projets');
+          }
+
+          // 5c. Update ORGANISATION + PHASES_VALIDEES from sheet data
           if (data.organisation && data.organisation.length > 0) {
             for (var k in ORGANISATION) delete ORGANISATION[k];
             for (var k2 in PHASES_VALIDEES) delete PHASES_VALIDEES[k2];
@@ -3839,20 +3865,38 @@
       html += '<div class="volet-header volet-header-contrat">Contrat &mdash; Engagements contractuels</div>';
 
       if (p) {
-        // Build phase list from ORGANISATION
-        var orgPhasesC = ORGANISATION[p.code] || [];
-        var usedPhases = [];
-        orgPhasesC.forEach(function(ph){ if (ph && usedPhases.indexOf(ph)<0) usedPhases.push(ph); });
-        if (usedPhases.length === 0) usedPhases = ['APS','APD','PRO','ACT','DET','AOR'];
-        var totalProjet = p.mois.reduce(function(a,b){return a+b;},0);
+        // Charger les VRAIS contrats du Sheet
+        var sheetContrats = contratsData[p.code] || [];
 
-        // Build documents: devis initial + potential avenant
-        var documents = [
-          { ref: 'DEV-' + p.code + '-001', nom: 'Devis initial', famille: 'Montant initial', type: 'Devis initial', date: '2026-01-15', montant: Math.round(totalProjet * 0.8), fige: true }
-        ];
-        if (totalProjet > 15000) {
-          documents.push({ ref: 'AV-' + p.code + '-001', nom: 'Avenant 1', famille: 'Compl\u00e9mentaire', type: 'Avenant', date: '2026-03-01', montant: totalProjet - documents[0].montant, fige: false });
+        // Grouper par ref_document
+        var docMap = {};
+        var docOrder = [];
+        sheetContrats.forEach(function(c) {
+          var ref = c.ref_document || 'DEV-' + p.code;
+          if (!docMap[ref]) {
+            docMap[ref] = { ref: ref, nom: c.nom_document || c.famille_document || 'Document', type: c.type_document || 'Devis initial', date: c.date_document || '', phases: [], montant: 0, fige: (c.famille_document === 'Montant initial') };
+            docOrder.push(ref);
+          }
+          docMap[ref].phases.push({ phase: c.phase || '', montant: parseFloat(c.montant) || 0 });
+          docMap[ref].montant += parseFloat(c.montant) || 0;
+        });
+
+        // Si aucun contrat dans le Sheet, créer un document vide
+        var documents = [];
+        if (docOrder.length > 0) {
+          docOrder.forEach(function(ref) { documents.push(docMap[ref]); });
+        } else {
+          // Fallback : créer depuis ORGANISATION
+          var orgPhasesC = ORGANISATION[p.code] || [];
+          var usedPhases = [];
+          orgPhasesC.forEach(function(ph){ if (ph && usedPhases.indexOf(ph)<0) usedPhases.push(ph); });
+          if (usedPhases.length === 0) usedPhases = ['APS','APD','PRO','ACT','DET','AOR'];
+          var totalProjet = p.budget || p.mois.reduce(function(a,b){return a+b;},0);
+          documents.push({ ref: 'DEV-' + p.code + '-001', nom: 'Devis initial', type: 'Devis initial', date: '', montant: totalProjet, fige: false, phases: usedPhases.map(function(ph) { return { phase: ph, montant: Math.round(totalProjet / usedPhases.length) }; }) });
         }
+
+        // Charger les VRAIS écheanciers du Sheet
+        var sheetEch = echeancierData[p.code] || [];
 
         // Render each document as a consolidated table
         var mi2 = getCurrentMonthIndex();
@@ -3887,22 +3931,21 @@
 
           var docPhaseTotal = 0;
           var echFact = 0;
-          var nbPhases = usedPhases.length;
-          var baseMontant = Math.round(doc.montant / nbPhases);
+          var phasesToRender = doc.phases || [];
 
-          usedPhases.forEach(function(ph, phIdx) {
+          phasesToRender.forEach(function(phData, phIdx) {
+            var ph = phData.phase || '';
+            var m = parseFloat(phData.montant) || 0;
             var cat = getPhaseCategory(ph);
             var phaseCls = 'phase-' + cat;
-            var m = phIdx === nbPhases - 1 ? doc.montant - docPhaseTotal : baseMontant;
             docPhaseTotal += m;
 
-            // Determine status based on month index
-            var monthIdx = -1;
-            for (var mi3 = 0; mi3 < 12; mi3++) { if (orgPhasesC[mi3] === ph) { monthIdx = mi3; break; } }
-            var statut = monthIdx >= 0 && monthIdx < mi2 ? 'Factur\u00e9' : (monthIdx === mi2 ? '\u00c0 facturer' : 'Pr\u00e9visionnel');
-            var nFact = statut === 'Factur\u00e9' ? 'F' + (2650 + phIdx*3 + docIdx*10 + PROJETS.indexOf(p)%15) : '';
-            var datePrev = monthIdx >= 0 ? selectedYear + '-' + String(monthIdx+1).padStart(2,'0') + '-15' : '';
-            var dateFact = statut === 'Factur\u00e9' && monthIdx >= 0 ? selectedYear + '-' + String(monthIdx+1).padStart(2,'0') + '-20' : '';
+            // Chercher les données échéancier correspondantes dans le Sheet
+            var echMatch = sheetEch.find(function(e) { return e.phase === ph && e.code_projet === p.code; });
+            var statut = echMatch ? (echMatch.statut || 'Pr\u00e9visionnel') : 'Pr\u00e9visionnel';
+            var nFact = echMatch ? (echMatch.n_facture || '') : '';
+            var datePrev = echMatch ? (echMatch.date_prev_facturation || '') : '';
+            var dateFact = echMatch ? (echMatch.date_facture || '') : '';
             if (statut === 'Factur\u00e9') echFact += m;
 
             var statutSlug = statut === 'Factur\u00e9' ? 'facture' : statut === '\u00c0 facturer' ? 'a-facturer' : statut === 'Option' ? 'option' : statut === 'Hypoth\u00e9tique' ? 'hypothetique' : 'previsionnel';
