@@ -1443,6 +1443,7 @@
     var projetsBase = [];  // liste projets complète (sans mois), rechargée depuis le Sheet
     var contratsData = {}; // { 'CODE': [{ref_document, phase, montant, ...}] }
     var echeancierData = {}; // { 'CODE': [{phase, montant, date_prev, statut, ...}] }
+    var soustraitanceData = {}; // { 'CODE': [{nom_soustraitant, montant_estime, montant_facture, ...}] }
 
     /* ==============================================================
        GOOGLE SHEET CONNECTION
@@ -1575,6 +1576,17 @@
               echeancierData[code].push(e);
             });
             console.log('[Live] Echeancier chargé:', Object.keys(echeancierData).length, 'projets');
+          }
+
+          // 5b2. Charger SOUSTRAITANCE par projet
+          soustraitanceData = {};
+          if (data.soustraitance && data.soustraitance.length > 0) {
+            data.soustraitance.forEach(function(s) {
+              var code = String(s.code_projet || '');
+              if (!code) return;
+              if (!soustraitanceData[code]) soustraitanceData[code] = [];
+              soustraitanceData[code].push(s);
+            });
           }
 
           // 5c. Update ORGANISATION + PHASES_VALIDEES from sheet data
@@ -1858,6 +1870,15 @@
       else if (selectedYear > now.getFullYear()) te = 0.0; // année future = 0%
       else te = tempsEcoulePondere();
       var effectue = caEffectue();
+
+      // Total sous-traitance facturée
+      var totalSst = 0;
+      for (var sstCode in soustraitanceData) {
+        (soustraitanceData[sstCode] || []).forEach(function(s) {
+          totalSst += parseFloat(s.montant_facture) || 0;
+        });
+      }
+      var totalSstLabel = totalSst > 0 ? ' <span style="font-size:0.75rem;color:var(--text-muted)">(dont ' + fmtEuro(totalSst) + ' sous-trait.)</span>' : '';
       var previsionnel = caPrevisionnel();
       var seuilVal = getSeuil(selectedYear);
       var objVal = getObjectif(selectedYear);
@@ -1902,7 +1923,7 @@
           '<hr class="kpi-separator">' +
           '<div class="kpi-secondary-row">' +
             '<div><div class="kpi-secondary-value font-din">' + fmtPct(pctEffSeuil) + '</div>' +
-            '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + '</div></div>' +
+            '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + totalSstLabel + '</div></div>' +
             ecartBadge(pctEffSeuil, te) +
           '</div>' +
           '<div class="kpi-footer">Seuil ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(seuilVal) + '</a></div>' +
@@ -1915,7 +1936,7 @@
           '<hr class="kpi-separator">' +
           '<div class="kpi-secondary-row">' +
             '<div><div class="kpi-secondary-value font-din">' + fmtPct(pctEffObj) + '</div>' +
-            '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + '</div></div>' +
+            '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + totalSstLabel + '</div></div>' +
             ecartBadge(pctEffObj, te) +
           '</div>' +
           '<div class="kpi-footer">Objectif ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(objVal) + '</a></div>' +
@@ -3964,7 +3985,7 @@
 
       // ── VOLET FACTURATION (simple invoice table) ──
       html += '<div class="volet-panel" id="volet-facturation">';
-      html += '<div class="volet-header volet-header-facturation">Facturation &mdash; Suivi des factures</div>';
+      html += '<div class="volet-header volet-header-facturation">Facturation client</div>';
       if (p) {
         // Build phase options : phases du contrat en priorité, puis les autres
         var contratPhasesList = [];
@@ -4059,6 +4080,54 @@
       } else {
         html += '<p style="color:var(--text-muted)">La facturation sera disponible apr\u00e8s la cr\u00e9ation du contrat.</p>';
       }
+      // ── Facturation sous-traitance ──
+      if (p) {
+        html += '<div style="margin-top:1.5rem;padding-top:1rem;border-top:2px solid var(--border)">';
+        html += '<div style="font-weight:700;font-size:0.95rem;color:var(--accent);margin-bottom:0.75rem">Facturation sous-traitance</div>';
+
+        var sstRows = soustraitanceData[p.code] || [];
+        html += '<div class="data-table-wrap"><table class="data-table" id="sstTable" style="min-width:100%"><thead><tr>' +
+          '<th style="text-align:left;padding-left:0.5rem;width:200px">Sous-traitant</th>' +
+          '<th style="text-align:right;width:120px">Montant estim\u00e9</th>' +
+          '<th style="text-align:right;width:120px">Montant factur\u00e9</th>' +
+          '<th style="text-align:left;min-width:120px">Statut</th>' +
+          '<th style="text-align:left;min-width:120px">Commentaire</th>' +
+          '<th style="width:75px"></th>' +
+        '</tr></thead><tbody>';
+
+        var sstIdx = 0;
+        var totalSstEst = 0, totalSstFact = 0;
+        sstRows.forEach(function(s) {
+          var nom = s.nom_soustraitant || '';
+          var est = parseFloat(s.montant_estime) || 0;
+          var fac = parseFloat(s.montant_facture) || 0;
+          var statut = s.statut || '';
+          var comment = s.commentaire || '';
+          totalSstEst += est;
+          totalSstFact += fac;
+          html += '<tr>' +
+            '<td style="padding-left:0.5rem"><input type="text" class="form-input" id="sst_nom_' + sstIdx + '" style="width:100%;font-size:0.82rem;padding:0.3rem" value="' + nom + '" placeholder="Nom du sous-traitant"></td>' +
+            '<td style="text-align:right"><input type="number" class="form-input" id="sst_estime_' + sstIdx + '" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem" value="' + (est || '') + '"></td>' +
+            '<td style="text-align:right"><input type="number" class="form-input" id="sst_facture_' + sstIdx + '" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem" value="' + (fac || '') + '"></td>' +
+            '<td><select class="form-select" id="sst_statut_' + sstIdx + '" style="font-size:0.78rem;padding:0.3rem"><option' + (statut==='En cours'?' selected':'') + '>En cours</option><option' + (statut==='Command\u00e9'?' selected':'') + '>Command\u00e9</option><option' + (statut==='Factur\u00e9'?' selected':'') + '>Factur\u00e9</option><option' + (statut==='R\u00e9gl\u00e9'?' selected':'') + '>R\u00e9gl\u00e9</option></select></td>' +
+            '<td><input type="text" class="form-input" id="sst_comment_' + sstIdx + '" style="width:100%;font-size:0.78rem;padding:0.3rem" value="' + comment + '" placeholder="Commentaire"></td>' +
+            '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove()">\u2716</button></td>' +
+          '</tr>';
+          sstIdx++;
+        });
+        html += '</tbody><tfoot><tr style="font-weight:700;border-top:2px solid var(--border)">' +
+          '<td style="padding-left:0.5rem">TOTAL</td>' +
+          '<td style="text-align:right">' + fmtEuro(totalSstEst) + '</td>' +
+          '<td style="text-align:right">' + fmtEuro(totalSstFact) + '</td>' +
+          '<td colspan="3"></td></tr></tfoot></table></div>';
+
+        html += '<div style="margin-top:0.5rem;display:flex;gap:0.5rem;justify-content:flex-end">' +
+          '<button class="btn" onclick="addSstRow(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">+ Sous-traitant</button>' +
+          '<button class="btn btn-primary" onclick="saveSousTraitance(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">Enregistrer</button>' +
+        '</div>';
+        html += '</div>';
+      }
+
       html += '</div>'; // end volet-facturation
 
       // ── VOLET ORGANISATION ──
@@ -5725,6 +5794,45 @@
     };
 
     // Save facturation data to Sheet (simple table version)
+    // ── SOUS-TRAITANCE ──
+    window.addSstRow = function(code) {
+      var table = document.getElementById('sstTable');
+      if (!table) return;
+      var tbody = table.querySelector('tbody');
+      var idx = tbody.rows.length;
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td style="padding-left:0.5rem"><input type="text" class="form-input" id="sst_nom_' + idx + '" style="width:100%;font-size:0.82rem;padding:0.3rem" placeholder="Nom du sous-traitant"></td>' +
+        '<td style="text-align:right"><input type="number" class="form-input" id="sst_estime_' + idx + '" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem" placeholder="0"></td>' +
+        '<td style="text-align:right"><input type="number" class="form-input" id="sst_facture_' + idx + '" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem" placeholder="0"></td>' +
+        '<td><select class="form-select" style="font-size:0.78rem;padding:0.3rem"><option selected>En cours</option><option>Command\u00e9</option><option>Factur\u00e9</option><option>R\u00e9gl\u00e9</option></select></td>' +
+        '<td><input type="text" class="form-input" style="width:100%;font-size:0.78rem;padding:0.3rem" placeholder="Commentaire"></td>' +
+        '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove()">\u2716</button></td>';
+      tbody.appendChild(tr);
+    };
+
+    window.saveSousTraitance = function(code) {
+      var table = document.getElementById('sstTable');
+      if (!table || !code) return;
+      var rows = table.querySelectorAll('tbody tr');
+      var saved = 0;
+      rows.forEach(function(tr, i) {
+        var nom = (tr.querySelector('[id^="sst_nom_"]') || tr.querySelectorAll('input')[0] || {}).value || '';
+        var estime = parseFloat((tr.querySelector('[id^="sst_estime_"]') || tr.querySelectorAll('input')[1] || {}).value) || 0;
+        var facture = parseFloat((tr.querySelector('[id^="sst_facture_"]') || tr.querySelectorAll('input')[2] || {}).value) || 0;
+        var statut = (tr.querySelector('select') || {}).value || '';
+        var comment = (tr.querySelector('[id^="sst_comment_"]') || tr.querySelectorAll('input')[3] || {}).value || '';
+        if (!nom && !estime) return;
+        postToSheet('upsert_soustraitance', {
+          code_projet: code, nom_soustraitant: nom,
+          montant_estime: estime, montant_commande: estime, montant_facture: facture,
+          statut: statut, commentaire: comment
+        });
+        saved++;
+      });
+      showToast(saved + ' sous-traitant(s) enregistr\u00e9(s)');
+    };
+
     window.saveFacturation = function(code) {
       var tbody = document.querySelector('#factTable tbody');
       if (!tbody) return;
