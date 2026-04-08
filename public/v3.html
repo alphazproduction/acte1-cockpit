@@ -4087,11 +4087,12 @@
 
         var sstRows = soustraitanceData[p.code] || [];
         html += '<div class="data-table-wrap"><table class="data-table" id="sstTable" style="min-width:100%"><thead><tr>' +
-          '<th style="text-align:left;padding-left:0.5rem;width:200px">Sous-traitant</th>' +
-          '<th style="text-align:right;width:120px">Montant estim\u00e9</th>' +
-          '<th style="text-align:right;width:120px">Montant factur\u00e9</th>' +
-          '<th style="text-align:left;min-width:120px">Statut</th>' +
-          '<th style="text-align:left;min-width:120px">Commentaire</th>' +
+          '<th style="text-align:left;padding-left:0.5rem;width:180px">Sous-traitant</th>' +
+          '<th style="text-align:right;width:110px">Montant estim\u00e9</th>' +
+          '<th style="text-align:right;width:110px">Montant factur\u00e9</th>' +
+          '<th style="text-align:center;width:100px">N\u00b0 Facture</th>' +
+          '<th style="text-align:left;width:100px">Statut</th>' +
+          '<th style="text-align:left;min-width:100px">Commentaire</th>' +
           '<th style="width:75px"></th>' +
         '</tr></thead><tbody>';
 
@@ -4109,6 +4110,7 @@
             '<td style="padding-left:0.5rem"><input type="text" class="form-input" id="sst_nom_' + sstIdx + '" style="width:100%;font-size:0.82rem;padding:0.3rem" value="' + nom + '" placeholder="Nom du sous-traitant"></td>' +
             '<td style="text-align:right"><input type="number" class="form-input" id="sst_estime_' + sstIdx + '" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem" value="' + (est || '') + '"></td>' +
             '<td style="text-align:right"><input type="number" class="form-input" id="sst_facture_' + sstIdx + '" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem" value="' + (fac || '') + '"></td>' +
+            '<td style="text-align:center"><input type="text" class="form-input" id="sst_nfact_' + sstIdx + '" style="width:90px;font-size:0.78rem;padding:0.3rem;text-align:center" value="' + (s.n_facture_sst || '') + '" placeholder="N\u00b0"></td>' +
             '<td><select class="form-select" id="sst_statut_' + sstIdx + '" style="font-size:0.78rem;padding:0.3rem"><option' + (statut==='En cours'?' selected':'') + '>En cours</option><option' + (statut==='Command\u00e9'?' selected':'') + '>Command\u00e9</option><option' + (statut==='Factur\u00e9'?' selected':'') + '>Factur\u00e9</option><option' + (statut==='R\u00e9gl\u00e9'?' selected':'') + '>R\u00e9gl\u00e9</option></select></td>' +
             '<td><input type="text" class="form-input" id="sst_comment_' + sstIdx + '" style="width:100%;font-size:0.78rem;padding:0.3rem" value="' + comment + '" placeholder="Commentaire"></td>' +
             '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove()">\u2716</button></td>' +
@@ -4119,7 +4121,7 @@
           '<td style="padding-left:0.5rem">TOTAL</td>' +
           '<td style="text-align:right">' + fmtEuro(totalSstEst) + '</td>' +
           '<td style="text-align:right">' + fmtEuro(totalSstFact) + '</td>' +
-          '<td colspan="3"></td></tr></tfoot></table></div>';
+          '<td colspan="4"></td></tr></tfoot></table></div>';
 
         html += '<div style="margin-top:0.5rem;display:flex;gap:0.5rem;justify-content:flex-end">' +
           '<button class="btn" onclick="addSstRow(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem">+ Sous-traitant</button>' +
@@ -5805,6 +5807,7 @@
         '<td style="padding-left:0.5rem"><input type="text" class="form-input" id="sst_nom_' + idx + '" style="width:100%;font-size:0.82rem;padding:0.3rem" placeholder="Nom du sous-traitant"></td>' +
         '<td style="text-align:right"><input type="number" class="form-input" id="sst_estime_' + idx + '" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem" placeholder="0"></td>' +
         '<td style="text-align:right"><input type="number" class="form-input" id="sst_facture_' + idx + '" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem" placeholder="0"></td>' +
+        '<td style="text-align:center"><input type="text" class="form-input" id="sst_nfact_' + idx + '" style="width:90px;font-size:0.78rem;padding:0.3rem;text-align:center" placeholder="N\u00b0"></td>' +
         '<td><select class="form-select" style="font-size:0.78rem;padding:0.3rem"><option selected>En cours</option><option>Command\u00e9</option><option>Factur\u00e9</option><option>R\u00e9gl\u00e9</option></select></td>' +
         '<td><input type="text" class="form-input" style="width:100%;font-size:0.78rem;padding:0.3rem" placeholder="Commentaire"></td>' +
         '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove()">\u2716</button></td>';
