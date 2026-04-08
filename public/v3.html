@@ -3577,6 +3577,18 @@
 
       // ── DROP ZONE IA ──
       var pCode = p ? p.code : '';
+      var hasDriveLink = p && (p.drive_projet || v.drive_projet);
+      var driveUrl = (p ? p.drive_projet : '') || v.drive_projet || '';
+
+      // Si dossier Drive renseigné, afficher un bouton direct en dehors du details
+      if (hasDriveLink && driveUrl) {
+        html += '<div style="margin-bottom:0.75rem;display:flex;gap:0.5rem;align-items:center">' +
+          '<button class="btn btn-primary" onclick="analyserDossierParUrl(\'' + pCode + '\')" style="font-size:0.85rem;padding:0.5rem 1.2rem;background:var(--accent)">Analyser le dossier Drive du projet (IA)</button>' +
+          '<a href="' + driveUrl + '" target="_blank" style="font-size:0.78rem;color:var(--text-muted)">Ouvrir le dossier</a>' +
+          '<input type="hidden" id="iaFolderUrl" value="' + driveUrl + '">' +
+        '</div>';
+      }
+
       html += '<details id="iaDropZone" style="margin-bottom:1rem;border:1px solid var(--border);border-radius:10px;transition:all 0.2s;background:var(--bg)">' +
         '<summary style="padding:0.75rem 1rem;cursor:pointer;font-size:0.88rem;font-weight:600;color:var(--accent);list-style:none;display:flex;align-items:center;gap:0.5rem"><span style="font-size:1.1rem">&#128196;</span> Importer / Analyser un document (IA) <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400;margin-left:auto">cliquer pour ouvrir</span></summary>' +
         '<div style="padding:0.75rem 1rem 1rem">' +
@@ -3640,26 +3652,18 @@
         if (!v.budget_total) alerts.push({ type: 'warn', msg: 'Budget total non renseign\u00e9' });
         if (!v.date_debut && !v.date_fin) alerts.push({ type: 'warn', msg: 'Dates de d\u00e9but et fin manquantes' });
 
-        // Check if total échéancier matches budget
-        if (v.budget_total && totalMois > 0) {
+        // Check total contrat vs budget
+        var contratTotal = 0;
+        (contratsData[p.code] || []).forEach(function(c) { contratTotal += parseFloat(c.montant) || 0; });
+        if (v.budget_total && contratTotal > 0) {
           var budgetNum = parseFloat(v.budget_total) || 0;
-          if (budgetNum > 0 && Math.abs(totalMois - budgetNum) > budgetNum * 0.05) {
-            var ecartPct = Math.round(((totalMois - budgetNum) / budgetNum) * 100);
-            alerts.push({ type: 'error', msg: '\u00c9cart \u00e9ch\u00e9ancier/budget : ' + fmtEuro(totalMois) + ' vs ' + fmtEuro(budgetNum) + ' (' + (ecartPct > 0 ? '+' : '') + ecartPct + '%)' });
+          if (budgetNum > 0 && Math.abs(contratTotal - budgetNum) > budgetNum * 0.05) {
+            var ecartPct = Math.round(((contratTotal - budgetNum) / budgetNum) * 100);
+            alerts.push({ type: 'error', msg: '\u00c9cart contrat/budget : ' + fmtEuro(contratTotal) + ' vs ' + fmtEuro(budgetNum) + ' (' + (ecartPct > 0 ? '+' : '') + ecartPct + '%)' });
           }
         }
-
-        // Check phases in échéancier vs ORGANISATION
-        if (ORGANISATION[p.code]) {
-          var orgPhases = ORGANISATION[p.code];
-          for (var ai = 0; ai < 12; ai++) {
-            if (p.mois[ai] > 0 && !orgPhases[ai]) {
-              alerts.push({ type: 'info', msg: 'Montant en ' + MOIS_LABELS[ai] + ' (' + fmtEuro(p.mois[ai]) + ') sans phase associ\u00e9e dans l\'organisation' });
-            }
-            if (orgPhases[ai] && p.mois[ai] === 0) {
-              alerts.push({ type: 'info', msg: 'Phase ' + orgPhases[ai] + ' en ' + MOIS_LABELS[ai] + ' sans montant dans l\'\u00e9ch\u00e9ancier' });
-            }
-          }
+        if (contratTotal === 0 && (contratsData[p.code] || []).length === 0) {
+          alerts.push({ type: 'info', msg: 'Aucun contrat renseign\u00e9 \u2014 Importez un devis via l\'IA' });
         }
 
         if (alerts.length > 0) {
@@ -4468,6 +4472,7 @@
         {id:'proj_ville', label:'Ville', val:data.ville},
         {id:'proj_client', label:'Client (MOA)', val:data.client},
         {id:'proj_architecte', label:'Architecte', val:data.architecte},
+        {id:'proj_chef', label:'Chef de projet', val:data.chef_projet, isSel:true},
         {id:'proj_contact_nom', label:'Contact nom', val:data.contact_nom},
         {id:'proj_contact_email', label:'Contact email', val:data.contact_email},
         {id:'proj_contact_tel', label:'Contact t\u00e9l', val:data.contact_tel},
