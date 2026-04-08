@@ -3967,7 +3967,7 @@
                 '<option' + (statut==='Option'?' selected':'') + '>Option</option>' +
                 '<option' + (statut==='Hypoth\u00e9tique'?' selected':'') + '>Hypoth\u00e9tique</option>' +
               '</select></td>' +
-              '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>' +
+              '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>' +
             '</tr>';
           });
 
@@ -4053,7 +4053,7 @@
             '<td style="text-align:center"><select class="form-select" id="' + rowId + '_statut" style="font-size:0.78rem;padding:0.3rem;width:120px" onchange="handleContratStatutChange(this,\'' + rowId + '\',0)">' +
               '<option selected>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Option</option><option>Hypoth\u00e9tique</option>' +
             '</select></td>' +
-            '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(0)" title="Supprimer">\u2716</button></td>' +
+            '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(0)" title="Supprimer">\u2716</button></td>' +
           '</tr>';
         });
 
@@ -5367,8 +5367,20 @@
         '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_datefact" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center;opacity:0.35" disabled></td>' +
         '<td style="text-align:center"><select class="form-select" id="' + rowId + '_statut" style="font-size:0.78rem;padding:0.3rem;width:120px" onchange="handleContratStatutChange(this,\'' + rowId + '\',' + docIdx + ')">' +
           '<option selected>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Option</option><option>Hypoth\u00e9tique</option></select></td>' +
-        '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>';
+        '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>';
       tbody.appendChild(tr);
+    };
+
+    // Monter/descendre une phase dans le tableau contrat
+    window.moveContratRow = function(btn, direction) {
+      var row = btn.closest('tr');
+      if (!row) return;
+      var tbody = row.parentNode;
+      if (direction === -1 && row.previousElementSibling) {
+        tbody.insertBefore(row, row.previousElementSibling);
+      } else if (direction === 1 && row.nextElementSibling) {
+        tbody.insertBefore(row.nextElementSibling, row);
+      }
     };
 
     // Supprimer un document contrat (devis, avenant, OS)
@@ -5445,7 +5457,7 @@
           '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_datefact" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center;opacity:0.35" disabled></td>' +
           '<td style="text-align:center"><select class="form-select" id="' + rowId + '_statut" style="font-size:0.78rem;padding:0.3rem;width:120px" onchange="handleContratStatutChange(this,\'' + rowId + '\',' + docIdx + ')">' +
             '<option selected>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Option</option><option>Hypoth\u00e9tique</option></select></td>' +
-          '<td style="text-align:center"><button class="btn" style="padding:0.2rem 0.4rem;font-size:0.7rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>' +
+          '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>' +
         '</tr>';
       });
 
