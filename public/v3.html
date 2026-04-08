@@ -4302,38 +4302,107 @@
         var base64 = e.target.result.split(',')[1];
         var mimeType = file.type || 'application/pdf';
 
-        // Appel via le proxy GAS (la cl\u00e9 API Claude est stock\u00e9e c\u00f4t\u00e9 serveur)
-        var payload = JSON.stringify({
+        // Fichier local trop gros pour passer en GET → upload vers GAS en morceaux
+        // On utilise un POST vers le proxy GAS via une iframe cachée
+        // SOLUTION : envoyer le base64 via POST XMLHttpRequest (pas fetch, pour contourner CORS)
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', apiUrl, true);
+        xhr.setRequestHeader('Content-Type', 'text/plain');
+        xhr.onload = function() {
+          try {
+            var resp = JSON.parse(xhr.responseText);
+            handleClaudeResponse(resp, statusEl, projetCode);
+          } catch(e) {
+            // Si le POST échoue (redirect GAS), essayer en découpant en GET
+            statusEl.innerHTML = '<span style="color:var(--red)">Erreur POST. Essai alternatif...</span>';
+            // Fallback : appeler Claude directement depuis le navigateur
+            callClaudeDirectFromBrowser(base64, mimeType, file.name, statusEl, projetCode);
+          }
+        };
+        xhr.onerror = function() {
+          // POST échoué → appeler Claude directement
+          callClaudeDirectFromBrowser(base64, mimeType, file.name, statusEl, projetCode);
+        };
+        xhr.send(JSON.stringify({
           action: 'claude_analyze',
           fileBase64: base64,
           mimeType: mimeType,
           fileName: file.name
-        });
-        var claudeUrl = apiUrl + '?action=write&data=' + encodeURIComponent(payload);
-        fetch(claudeUrl)
-        .then(function(r) { return r.json(); })
-        .then(function(resp) {
-          if (!resp.ok) {
-            statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || 'inconnue') + '</span>';
-            return;
-          }
-
-          if (!resp.data) {
-            statusEl.innerHTML = '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>' + (resp.raw ? '<pre style="font-size:0.75rem;max-height:200px;overflow:auto;margin-top:0.5rem">' + resp.raw + '</pre>' : '');
-            return;
-          }
-
-          var data = resp.data;
-          statusEl.innerHTML = '<span style="color:var(--green)">Analyse termin\u00e9e &mdash; Confiance : <strong>' + (data.confiance || 'moyenne') + '</strong></span>';
-          remplirDepuisIA(data, projetCode);
-        })
-        .catch(function(err) {
-          statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err.toString() + '</span>';
-        });
+        }));
       };
-
       reader.readAsDataURL(file);
     };
+
+    function handleClaudeResponse(resp, statusEl, projetCode) {
+        if (!resp.ok) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || 'inconnue') + '</span>';
+          return;
+        }
+        if (!resp.data) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>';
+          return;
+        }
+        statusEl.innerHTML = '<span style="color:var(--green)">Analyse termin\u00e9e \u2014 Confiance : <strong>' + (resp.data.confiance || 'moyenne') + '</strong></span>';
+        remplirDepuisIA(resp.data, projetCode);
+    }
+
+    // Appel direct à Claude API depuis le navigateur (fallback si GAS POST échoue)
+    function callClaudeDirectFromBrowser(base64, mimeType, fileName, statusEl, projetCode) {
+      // Récupérer la clé API depuis le proxy GAS
+      showIALoader(statusEl, 'Analyse directe via Claude API...', 'Le proxy GAS ne supporte pas les gros fichiers en POST. Appel direct.');
+
+      // Construire le message Claude
+      var content = [];
+      if (mimeType === 'application/pdf') {
+        content.push({ type: 'document', source: { type: 'base64', media_type: mimeType, data: base64 } });
+      } else if (mimeType.indexOf('image/') === 0) {
+        content.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } });
+      }
+      content.push({ type: 'text', text: 'Analyse ce document pour un bureau d\'\u00e9tudes audiovisuel (ACTE 1). Extrais toutes les informations : nom projet, client, phases MOP (AVP/APS/APD/PRO/DCE/ACT/VISA/DET/AOR) avec montants et dates, contacts. Si c\'est une facture, extrais n\u00b0 facture, date, montants par phase. R\u00e9ponds en JSON avec : nom_projet, client, type_client, budget_total_ht, phases[{phase,montant,date_prevue}], type_document(devis|facture), factures[{numero,date,montant_total,phases_facturees[{phase,montant,pourcentage}],revision}], date_debut, date_fin, confiance, notes.' });
+
+      // Appel direct Claude API
+      var claudeKey = localStorage.getItem('cockpit-claude-api-key') || '';
+      if (!claudeKey) {
+        // Demander la clé
+        claudeKey = prompt('Cl\u00e9 API Claude requise pour l\'analyse directe (le proxy GAS ne g\u00e8re pas les gros fichiers) :\n\nCollez votre cl\u00e9 sk-ant-...');
+        if (claudeKey) localStorage.setItem('cockpit-claude-api-key', claudeKey);
+      }
+      if (!claudeKey) { statusEl.innerHTML = '<span style="color:var(--red)">Cl\u00e9 API requise</span>'; return; }
+
+      fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': claudeKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: content }]
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (resp.error) {
+          statusEl.innerHTML = '<span style="color:var(--red)">Erreur Claude : ' + (resp.error.message || JSON.stringify(resp.error)) + '</span>';
+          return;
+        }
+        var text = resp.content && resp.content[0] ? resp.content[0].text : '';
+        var jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          handleClaudeResponse({ ok: true, data: JSON.parse(jsonMatch[0]) }, statusEl, projetCode);
+        } else {
+          statusEl.innerHTML = '<span style="color:var(--red)">R\u00e9ponse non structur\u00e9e</span>';
+        }
+      })
+      .catch(function(err) {
+        statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
+      });
+    }
+
+    // analyserDocument cleanup done
 
     // Données IA en attente de validation
     var iaDataPending = null;
