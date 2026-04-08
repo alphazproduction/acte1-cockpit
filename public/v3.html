@@ -3482,47 +3482,49 @@
         var clientName = p.client || p.client_code || '';
         var clientTag = clientName ? ' <span style="color:var(--text-muted);font-size:0.8rem;font-weight:400">\u2014 ' + clientName + '</span>' : '';
 
-        // B1: Phase pipeline with current phase highlighted
+        // Pipeline compact : phases du contrat > ORGANISATION > rien
         var phasePipeline = '';
-        if (ORGANISATION[p.code]) {
+        var pipePhases = [];
+        var pipeConts = contratsData[p.code] || [];
+        if (pipeConts.length > 0) {
+          var pipeSeen = {};
+          pipeConts.forEach(function(c) {
+            var ph = (c.phase || '').toUpperCase();
+            if (ph && ALL_PHASES.indexOf(ph) >= 0 && !pipeSeen[ph]) { pipePhases.push(ph); pipeSeen[ph] = true; }
+          });
+        }
+        if (pipePhases.length === 0 && ORGANISATION[p.code]) {
           var orgPh = ORGANISATION[p.code] || [];
-          var currentPhase = (p.phase_courante || '').toUpperCase();
-          var seenPh = {};
-          var orderedPh = [];
+          var pipeSeen2 = {};
           for (var opi = 0; opi < orgPh.length; opi++) {
-            if (orgPh[opi] && !seenPh[orgPh[opi]]) {
-              orderedPh.push(orgPh[opi]);
-              seenPh[orgPh[opi]] = true;
-            }
+            if (orgPh[opi]) { var phU = orgPh[opi].toUpperCase(); if (!pipeSeen2[phU]) { pipePhases.push(phU); pipeSeen2[phU] = true; } }
           }
-          if (orderedPh.length > 0) {
-            phasePipeline = '<div style="display:flex;align-items:center;gap:3px;margin-top:0.25rem">';
-            var foundCurrent = false;
-            orderedPh.forEach(function(ph) {
-              var phUp = ph.toUpperCase();
-              var isCurrent = phUp === currentPhase;
-              var phCat = getPhaseCategory(ph);
-              var phColor = phCat === 'etudes' ? '#3B82F6' : phCat === 'travaux' ? '#E8601C' : '#94A3B8';
-              if (isCurrent) foundCurrent = true;
-              var isPast = !foundCurrent && !isCurrent;
-              var isFuture = foundCurrent && !isCurrent;
-              // Past = filled dark, Current = large bright, Future = grey outline
-              if (isCurrent) {
-                phasePipeline += '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:22px;border-radius:4px;font-size:0.6rem;font-weight:800;background:' + phColor + ';color:#fff;padding:0 4px;letter-spacing:0.3px">' + ph + '</span>';
-              } else if (isPast) {
-                phasePipeline += '<span style="display:inline-flex;align-items:center;justify-content:center;width:10px;height:10px;border-radius:50%;background:' + phColor + '" title="' + ph + '"></span>';
-              } else {
-                phasePipeline += '<span style="display:inline-flex;align-items:center;justify-content:center;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--grey);background:transparent" title="' + ph + '"></span>';
-              }
-            });
-            phasePipeline += '</div>';
-          }
+        }
+        if (pipePhases.length > 0) {
+          var currentPhase = (p.phase_courante || '').toUpperCase();
+          // Vérifier les phases facturées
+          var factPhases = {};
+          (echeancierData[p.code] || []).forEach(function(e) {
+            if (e.statut === 'Factur\u00e9' || e.statut === 'Facture') factPhases[(e.phase||'').toUpperCase()] = true;
+          });
+          phasePipeline = '<div style="display:flex;align-items:center;gap:2px;margin-top:0.2rem">';
+          pipePhases.forEach(function(ph) {
+            var phCat = getPhaseCategory(ph);
+            var phColor = phCat === 'etudes' ? '#3B82F6' : phCat === 'travaux' ? '#E8601C' : '#94A3B8';
+            var isDone = factPhases[ph];
+            // Couleur pleine = à faire, grisé = terminé
+            var bg = isDone ? 'var(--grey-bg)' : phColor;
+            var txtColor = isDone ? 'var(--grey)' : '#fff';
+            var opacity = isDone ? 'opacity:0.5;' : '';
+            phasePipeline += '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:16px;border-radius:3px;font-size:0.5rem;font-weight:700;background:' + bg + ';color:' + txtColor + ';padding:0 3px;' + opacity + '" title="' + ph + '">' + ph + '</span>';
+          });
+          phasePipeline += '</div>';
         }
 
         html += '<div class="projet-card" style="grid-template-columns:auto 1fr auto;align-items:center" onclick="openProjetDetail(\'' + p.code + '\')">' +
           '<div><span class="code-badge" style="font-size:0.85rem">' + p.code + '</span></div>' +
           '<div><div class="projet-card-name">' + p.nom + clientTag + (p.ville ? ' <span style="color:var(--text-muted);font-size:0.8rem">' + p.ville + '</span>' : '') + '</div>' +
-          '<div class="projet-card-meta">' + p.chef + ' &middot; <span class="etat-badge ' + etatCls + '">' + p.etat + '</span>' + phaseTag + '</div></div>' +
+          '<div class="projet-card-meta">' + p.chef + ' &middot; <span class="etat-badge ' + etatCls + '">' + p.etat + '</span>' + phaseTag + '</div>' + phasePipeline + '</div>' +
           '<div class="projet-card-amount">' + fmtEuro(total) + '</div>' +
         '</div>';
       });
@@ -3857,7 +3859,7 @@
           html += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_' + docIdx + '" style="min-width:100%"><thead><tr>' +
             '<th style="text-align:left;padding-left:0.5rem;width:120px">Phase</th>' +
             '<th style="text-align:right;width:120px">Montant HT</th>' +
-            '<th style="text-align:center;width:130px">Date pr\u00e9vi.</th>' +
+            '<th style="text-align:center;width:130px">Date rendu</th>' +
             '<th style="text-align:left;min-width:150px">Commentaire</th>' +
             '<th style="text-align:center;width:80px"></th>' +
           '</tr></thead><tbody>';
@@ -3940,7 +3942,7 @@
         html += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_0" style="min-width:100%"><thead><tr>' +
           '<th style="text-align:left;padding-left:0.5rem;width:120px">Phase</th>' +
           '<th style="text-align:right;width:120px">Montant HT</th>' +
-          '<th style="text-align:center;width:130px">Date pr\u00e9vi.</th>' +
+          '<th style="text-align:center;width:130px">Date rendu</th>' +
           '<th style="text-align:left;min-width:150px">Commentaire</th>' +
           '<th style="text-align:center;width:80px"></th>' +
         '</tr></thead><tbody>';
@@ -5544,7 +5546,7 @@
       h += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_' + docIdx + '" style="min-width:100%"><thead><tr>' +
         '<th style="text-align:left;padding-left:0.5rem;width:120px">Phase</th>' +
         '<th style="text-align:right;width:120px">Montant HT</th>' +
-        '<th style="text-align:center;width:130px">Date pr\u00e9vi.</th>' +
+        '<th style="text-align:center;width:130px">Date rendu</th>' +
         '<th style="text-align:left;min-width:150px">Commentaire</th>' +
         '<th style="text-align:center;width:80px"></th>' +
       '</tr></thead><tbody>';
