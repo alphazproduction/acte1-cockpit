@@ -3650,10 +3650,15 @@
     };
 
     window.openProjetDetail = function(code) {
-      currentProjetCode = code;
-      var p = PROJETS.find(function(pr){return pr.code === code;});
-      renderProjetDetail(p);
-      showPage('projet-detail');
+      try {
+        currentProjetCode = code;
+        var p = PROJETS.find(function(pr){return pr.code === code;});
+        renderProjetDetail(p);
+        showPage('projet-detail');
+      } catch(err) {
+        console.error('Erreur openProjetDetail:', err);
+        showToast('Erreur ouverture projet: ' + err.message);
+      }
     };
 
     function showPage(page) {
@@ -4194,6 +4199,7 @@
       // ── VOLET ORGANISATION ──
       html += '<div class="volet-panel" id="volet-orga">';
       html += '<div class="volet-header volet-header-orga">Organisation &mdash; Dates de rendu</div>';
+      try {
       // Organisation : lire depuis CONTRATS en priorité, fallback ORGANISATION
       var orgaSourcePhases = [];
       var contratsPourOrga = contratsData[p ? p.code : ''] || [];
@@ -4288,6 +4294,7 @@
       } else {
         html += '<p style="color:var(--text-muted)">L\'organisation sera pr\u00e9-remplie depuis le contrat \u00e0 la cr\u00e9ation.</p>';
       }
+      } catch(orgaErr) { html += '<p style="color:var(--red)">Erreur rendu Organisation : ' + orgaErr.message + '</p>'; console.error('Orga render error:', orgaErr); }
       html += '</div>'; // end volet-orga
 
       // Save button
