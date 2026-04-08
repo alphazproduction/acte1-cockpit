@@ -3863,9 +3863,6 @@
               '<td style="text-align:right"><input type="number" class="form-input" id="' + rowId + '_montant" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" value="' + m + '" onchange="recalcContratTotals(' + docIdx + ')"></td>' +
               '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_dateprev" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + datePrev + '"></td>' +
               '<td><input type="text" class="form-input" id="' + rowId + '_comment" style="width:100%;font-size:0.78rem;padding:0.25rem 0.4rem" value="' + commentaire + '" placeholder="Commentaire"></td>' +
-                '<option' + (statut==='Option'?' selected':'') + '>Option</option>' +
-                '<option' + (statut==='Hypoth\u00e9tique'?' selected':'') + '>Hypoth\u00e9tique</option>' +
-              '</select></td>' +
               '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>' +
             '</tr>';
           });
