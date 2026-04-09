@@ -3183,10 +3183,11 @@
         return;
       }
 
+      // Aussi inclure les projets avec des contrats (pas seulement ORGANISATION)
       var filtered = PROJETS.filter(function(p) {
-        if (!ORGANISATION[p.code]) return false;
-        var hasPhase = ORGANISATION[p.code].some(function(ph){return ph!==null;});
-        if (!hasPhase) return false;
+        var hasOrga = ORGANISATION[p.code] && ORGANISATION[p.code].some(function(ph){return ph!==null;});
+        var hasContrat = (contratsData[p.code] || []).length > 0;
+        if (!hasOrga && !hasContrat) return false;
         if (filterChef !== 'tous' && p.chef !== filterChef) return false;
         if (filterPhase !== 'tous' && !projetHasPhaseType(p.code, filterPhase)) return false;
         return true;
@@ -3211,6 +3212,14 @@
       var prevCat = null;
       filtered.forEach(function(p) {
         var phases = ORGANISATION[p.code] || [];
+        // Fallback : construire depuis contrats si pas d'ORGANISATION
+        if (!phases.some(function(ph){return ph!==null;})) {
+          var cPh = contratsData[p.code] || [];
+          if (cPh.length > 0) {
+            phases = [null,null,null,null,null,null,null,null,null,null,null,null];
+            cPh.forEach(function(c, ci) { if (ci < 12) phases[ci] = c.phase || null; });
+          }
+        }
         var valids = PHASES_VALIDEES[p.code] || [];
         var chefCls = p.chef === 'Am\u00e9lie' ? 'chef-a' : 'chef-r';
         var domCat = projetDominantCat(p.code);
