@@ -1874,12 +1874,21 @@
 
       // Total sous-traitance facturée
       var totalSst = 0;
+      for (var sstKey in soustraitanceData) {
+        (soustraitanceData[sstKey] || []).forEach(function(s) {
+          totalSst += parseFloat(s.montant_facture) || 0;
+        });
+      }
+      var sstLabel = totalSst > 0 ? ' <span style="font-size:0.72rem;color:var(--text-muted)">(dont ' + fmtEuro(totalSst) + ' sous-trait.)</span>' : '';
+
+      // Total sous-traitance facturée
+      var totalSst = 0;
       for (var sstCode in soustraitanceData) {
         (soustraitanceData[sstCode] || []).forEach(function(s) {
           totalSst += parseFloat(s.montant_facture) || 0;
         });
       }
-      var totalSstLabel = totalSst > 0 ? ' <span style="font-size:0.75rem;color:var(--text-muted)">(dont ' + fmtEuro(totalSst) + ' sous-trait.)</span>' : '';
+      var sstLabel = totalSst > 0 ? ' <span style="font-size:0.75rem;color:var(--text-muted)">(dont ' + fmtEuro(totalSst) + ' sous-trait.)</span>' : '';
       var previsionnel = caPrevisionnel();
       var seuilVal = getSeuil(selectedYear);
       var objVal = getObjectif(selectedYear);
@@ -1924,7 +1933,7 @@
           '<hr class="kpi-separator">' +
           '<div class="kpi-secondary-row">' +
             '<div><div class="kpi-secondary-value font-din">' + fmtPct(pctEffSeuil) + '</div>' +
-            '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + totalSstLabel + '</div></div>' +
+            '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + sstLabel + '</div></div>' +
             ecartBadge(pctEffSeuil, te) +
           '</div>' +
           '<div class="kpi-footer">Seuil ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(seuilVal) + '</a></div>' +
@@ -1937,7 +1946,7 @@
           '<hr class="kpi-separator">' +
           '<div class="kpi-secondary-row">' +
             '<div><div class="kpi-secondary-value font-din">' + fmtPct(pctEffObj) + '</div>' +
-            '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + totalSstLabel + '</div></div>' +
+            '<div class="kpi-secondary-label">CA effectu\u00e9 &mdash; ' + fmtEuro(effectue) + sstLabel + '</div></div>' +
             ecartBadge(pctEffObj, te) +
           '</div>' +
           '<div class="kpi-footer">Objectif ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(objVal) + '</a></div>' +
