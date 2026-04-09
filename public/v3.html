@@ -3709,6 +3709,7 @@
             '<span style="font-size:1rem">&#9888;</span>' +
             '<strong style="font-size:0.9rem">Alertes de coh\u00e9rence</strong>' +
             '<span class="alert-badge" style="background:var(--yellow-bg);color:#92400E">' + alerts.length + '</span>' +
+            '<button class="btn" onclick="openProjetDetail(\'' + p.code + '\')" style="margin-left:auto;font-size:0.72rem;padding:0.2rem 0.5rem">Rafra\u00eechir</button>' +
           '</div>';
           alerts.forEach(function(a) {
             var icon = a.type === 'error' ? '<span style="color:var(--red)">&#9679;</span>' :
