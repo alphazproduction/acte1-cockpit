@@ -3675,9 +3675,17 @@
         if (!v.budget_total) alerts.push({ type: 'warn', msg: 'Budget total non renseign\u00e9' });
         if (!v.date_debut && !v.date_fin) alerts.push({ type: 'warn', msg: 'Dates de d\u00e9but et fin manquantes' });
 
-        // Check total contrat vs budget
+        // Check total contrat vs budget — chercher dans contratsData avec code ET code_projet
         var contratTotal = 0;
-        (contratsData[p.code] || []).forEach(function(c) { contratTotal += parseFloat(c.montant) || 0; });
+        var contratLines = contratsData[p.code] || [];
+        // Aussi chercher par code_projet si différent du quadrigramme
+        if (contratLines.length === 0) {
+          for (var ccKey in contratsData) {
+            var projMatch = projetsBase.find(function(pb) { return pb.code === p.code && (pb.code_projet === ccKey || pb.code === ccKey); });
+            if (projMatch && contratsData[ccKey].length > 0) { contratLines = contratsData[ccKey]; break; }
+          }
+        }
+        contratLines.forEach(function(c) { contratTotal += parseFloat(c.montant) || 0; });
         if (v.budget_total && contratTotal > 0) {
           var budgetNum = parseFloat(v.budget_total) || 0;
           if (budgetNum > 0 && Math.abs(contratTotal - budgetNum) > budgetNum * 0.05) {
@@ -3685,8 +3693,14 @@
             alerts.push({ type: 'error', msg: '\u00c9cart contrat/budget : ' + fmtEuro(contratTotal) + ' vs ' + fmtEuro(budgetNum) + ' (' + (ecartPct > 0 ? '+' : '') + ecartPct + '%)' });
           }
         }
-        if (contratTotal === 0 && (contratsData[p.code] || []).length === 0) {
-          alerts.push({ type: 'info', msg: 'Aucun contrat renseign\u00e9 \u2014 Importez un devis via l\'IA' });
+        // Ne pas alerter "aucun contrat" si le rendu a des phases (le contrat existe mais pas encore dans contratsData)
+        // On vérifie aussi si des documents existent déjà dans la page
+        if (contratTotal === 0 && contratLines.length === 0) {
+          // Vérifier aussi le fallback : si le projet a des phases dans ORGANISATION ou des mois > 0, il y a un contrat implicite
+          var hasImplicitContrat = (ORGANISATION[p.code] && ORGANISATION[p.code].some(function(ph) { return ph !== null; })) || totalMois > 0;
+          if (!hasImplicitContrat) {
+            alerts.push({ type: 'info', msg: 'Aucun contrat renseign\u00e9 \u2014 Importez un devis via l\'IA' });
+          }
         }
 
         if (alerts.length > 0) {
