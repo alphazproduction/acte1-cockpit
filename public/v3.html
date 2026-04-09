@@ -3721,6 +3721,19 @@
         }
       }
 
+      // Pré-calculer contratsData si fallback nécessaire (pour que le pipeline les voie)
+      if (p && (!contratsData[p.code] || contratsData[p.code].length === 0)) {
+        var orgPhasesPreCalc = ORGANISATION[p.code] || [];
+        var preCalcPhases = [];
+        var preCalcSeen = {};
+        orgPhasesPreCalc.forEach(function(ph) { if (ph && !preCalcSeen[ph]) { preCalcPhases.push(ph); preCalcSeen[ph] = true; } });
+        if (preCalcPhases.length === 0) preCalcPhases = ['APS','APD','PRO','ACT','DET','AOR'];
+        var preCalcTotal = p.budget || p.mois.reduce(function(a,b){return a+b;},0);
+        if (preCalcTotal > 0) {
+          contratsData[p.code] = preCalcPhases.map(function(ph) { return { code_projet: p.code, phase: ph, montant: Math.round(preCalcTotal / preCalcPhases.length) }; });
+        }
+      }
+
       // Pipeline
       if (p) {
         html += '<div style="margin-bottom:1.25rem">' +
@@ -3849,7 +3862,10 @@
           orgPhasesC.forEach(function(ph){ if (ph && usedPhases.indexOf(ph)<0) usedPhases.push(ph); });
           if (usedPhases.length === 0) usedPhases = ['APS','APD','PRO','ACT','DET','AOR'];
           var totalProjet = p.budget || p.mois.reduce(function(a,b){return a+b;},0);
-          documents.push({ ref: 'DEV-' + p.code + '-001', nom: 'Devis initial', type: 'Devis initial', date: '', montant: totalProjet, fige: false, phases: usedPhases.map(function(ph) { return { phase: ph, montant: Math.round(totalProjet / usedPhases.length) }; }) });
+          var fallbackPhases = usedPhases.map(function(ph) { return { phase: ph, montant: Math.round(totalProjet / usedPhases.length) }; });
+          documents.push({ ref: 'DEV-' + p.code + '-001', nom: 'Devis initial', type: 'Devis initial', date: '', montant: totalProjet, fige: false, phases: fallbackPhases });
+          // Mettre à jour contratsData en mémoire pour que le pipeline les voie
+          contratsData[p.code] = fallbackPhases.map(function(ph) { return { code_projet: p.code, phase: ph.phase, montant: ph.montant, ref_document: 'DEV-' + p.code + '-001' }; });
         }
 
         // Charger les VRAIS écheanciers du Sheet
