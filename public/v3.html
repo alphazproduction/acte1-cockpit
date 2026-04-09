@@ -1501,7 +1501,8 @@
                 date_fin: sp.date_fin || '',
                 date_travaux: sp.date_debut_travaux || '',
                 drive_projet: sp.lien_dossier_drive || '',
-                drive_commercial: sp.lien_dossier_commercial || ''
+                drive_commercial: sp.lien_dossier_commercial || '',
+                drive_devis: sp.lien_devis || ''
               });
             });
             // A1 fix: Clear mock PROJETS immediately so they never mix with live data
@@ -1803,7 +1804,7 @@
               client: pb.client || pb.client_code || '', client_code: pb.client_code || '',
               date_debut: pb.date_debut || '', date_fin: pb.date_fin || '',
               date_travaux: pb.date_travaux || '',
-              drive_projet: pb.drive_projet || '', drive_commercial: pb.drive_commercial || ''
+              drive_projet: pb.drive_projet || '', drive_commercial: pb.drive_commercial || '', drive_devis: pb.drive_devis || ''
             });
           }
         });
@@ -3583,7 +3584,7 @@
         client: p.client || p.client_code || '', architecte: '', moa_delegue: '', via: '',
         contact_nom: '', contact_prenom: '', contact_fonction: '', contact_tel: '', contact_email: '', contact_societe: '',
         budget_total: p.budget || '', budget_sceno: '', surface: '', resume: '',
-        drive_projet: p.drive_projet || '', drive_commercial: p.drive_commercial || ''
+        drive_projet: p.drive_projet || '', drive_commercial: p.drive_commercial || '', drive_devis: p.drive_devis || ''
       } : {
         code: '', nom: '', ville: '', type_client: 'Public', type_mission: 'MOE',
         type_marche: 'Neuf', type_secteur: '', etat: 'En cours', chef: 'Am\u00e9lie',
@@ -3591,7 +3592,7 @@
         client: '', architecte: '', moa_delegue: '', via: '',
         contact_nom: '', contact_prenom: '', contact_fonction: '', contact_tel: '', contact_email: '', contact_societe: '',
         budget_total: '', budget_sceno: '', surface: '', resume: '',
-        drive_projet: '', drive_commercial: ''
+        drive_projet: '', drive_commercial: '', drive_devis: ''
       };
 
       var html = '<a class="back-link" onclick="navigateTo(\'projets\')">&larr; Retour aux projets</a>';
@@ -3599,13 +3600,13 @@
 
       // ── DROP ZONE IA ──
       var pCode = p ? p.code : '';
-      var hasDriveLink = p && (p.drive_projet || v.drive_projet);
-      var driveUrl = (p ? p.drive_projet : '') || v.drive_projet || '';
+      var commercialUrl = (p ? p.drive_commercial : '') || v.drive_commercial || '';
+      var driveUrl = commercialUrl || (p ? p.drive_projet : '') || v.drive_projet || '';
 
-      // Si dossier Drive renseigné, afficher un bouton direct en dehors du details
-      if (hasDriveLink && driveUrl) {
+      // Si dossier commercial renseigné, afficher un bouton direct
+      if (driveUrl) {
         html += '<div style="margin-bottom:0.75rem;display:flex;gap:0.5rem;align-items:center">' +
-          '<button class="btn btn-primary" onclick="analyserDossierParUrl(\'' + pCode + '\')" style="font-size:0.85rem;padding:0.5rem 1.2rem;background:var(--accent)">Analyser le dossier Drive du projet (IA)</button>' +
+          '<button class="btn btn-primary" onclick="analyserLienCommercial(\'' + pCode + '\')" style="font-size:0.85rem;padding:0.5rem 1.2rem;background:var(--accent)">Analyser le dossier commercial (IA)</button>' +
           '<a href="' + driveUrl + '" target="_blank" style="font-size:0.78rem;color:var(--text-muted)">Ouvrir le dossier</a>' +
           '<input type="hidden" id="iaFolderUrl" value="' + driveUrl + '">' +
         '</div>';
@@ -3742,21 +3743,24 @@
         fg('D\u00e9but travaux', 'date', 'proj_date_travaux', v.date_travaux) +
       '</div>';
 
-      html += '<div class="form-section-title">Dossiers Drive</div>';
+      html += '<div class="form-section-title">Liens Drive</div>';
       html += '<div class="form-grid">' +
-        '<div class="form-group"><label class="form-label">Dossier projet (Drive)</label>' +
-          '<div style="display:flex;gap:0.5rem;align-items:center">' +
-            '<input type="url" class="form-input" id="proj_drive_projet" value="' + (v.drive_projet || '') + '" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">' +
-            (v.drive_projet ? '<a href="' + v.drive_projet + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
-          '</div>' +
-        '</div>' +
-        '<div class="form-group"><label class="form-label">Dossier commercial (Drive)</label>' +
+        '<div class="form-group"><label class="form-label">Dossier commercial</label>' +
           '<div style="display:flex;gap:0.5rem;align-items:center">' +
             '<input type="url" class="form-input" id="proj_drive_commercial" value="' + (v.drive_commercial || '') + '" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">' +
             (v.drive_commercial ? '<a href="' + v.drive_commercial + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
+            '<button class="btn" onclick="analyserLienCommercial(\'' + pCode + '\')" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">Analyser (IA)</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-group"><label class="form-label">Devis valid\u00e9</label>' +
+          '<div style="display:flex;gap:0.5rem;align-items:center">' +
+            '<input type="url" class="form-input" id="proj_drive_devis" value="' + (v.drive_devis || '') + '" placeholder="https://drive.google.com/file/d/... ou /folders/..." style="flex:1">' +
+            (v.drive_devis ? '<a href="' + v.drive_devis + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
           '</div>' +
         '</div>' +
       '</div>';
+      // Champ caché pour compatibilité (dossier projet = dossier commercial)
+      html += '<input type="hidden" id="proj_drive_projet" value="' + (v.drive_commercial || v.drive_projet || '') + '">';
 
       html += '<div class="form-section-title">Acteurs du projet</div>';
       html += '<div class="form-grid">' +
@@ -5266,6 +5270,20 @@
       });
     };
 
+    // Analyser le dossier commercial directement
+    window.analyserLienCommercial = function(projetCode) {
+      var urlInput = document.getElementById('proj_drive_commercial');
+      var driveUrl = urlInput ? urlInput.value.trim() : '';
+      if (!driveUrl) { showToast('Renseignez le lien du dossier commercial'); return; }
+      // Copier dans le champ d'analyse et lancer
+      var iaInput = document.getElementById('iaDriveFileUrl');
+      if (iaInput) iaInput.value = driveUrl;
+      // Ouvrir le details si fermé
+      var details = document.getElementById('iaDropZone');
+      if (details && !details.open) details.open = true;
+      analyserLienDrive(projetCode);
+    };
+
     // Analyser un lien Drive (fichier OU dossier — détection auto)
     window.analyserLienDrive = function(projetCode) {
       var urlInput = document.getElementById('iaDriveFileUrl');
@@ -6038,8 +6056,9 @@
         montant_travaux_estime: parseFloat(gv('proj_mt_estime')) || 0,
         montant_travaux_reel: parseFloat(gv('proj_mt_reel')) || 0,
         resume_reference: gv('proj_resume'),
-        lien_dossier_drive: gv('proj_drive_projet'),
+        lien_dossier_drive: gv('proj_drive_commercial'),
         lien_dossier_commercial: gv('proj_drive_commercial'),
+        lien_devis: gv('proj_drive_devis'),
         notes: ''
       };
 
