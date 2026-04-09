@@ -4078,9 +4078,41 @@
           }
         });
 
+        // Construire le mapping montant contrat par phase (pour calcul %)
+        var contratMontants = {};
+        var contratTotalHT = 0;
+        (contratsData[p.code] || []).forEach(function(c) {
+          var ph = (c.phase || '').toUpperCase();
+          var m = parseFloat(c.montant) || 0;
+          if (ph) { contratMontants[ph] = (contratMontants[ph] || 0) + m; }
+          contratTotalHT += m;
+        });
+
+        // Total déjà facturé
+        var totalDejaFacture = 0;
+        var totalRevisions = 0;
+        existingInvoices.forEach(function(inv) {
+          if (inv.phase === 'R\u00e9vision') totalRevisions += parseFloat(inv.montant) || 0;
+          else totalDejaFacture += parseFloat(inv.montant) || 0;
+        });
+        var resteAFacturer = contratTotalHT - totalDejaFacture;
+
+        // Stocker les montants contrat en data attribute pour le JS
+        html += '<input type="hidden" id="factContratMontants" value="' + encodeURIComponent(JSON.stringify(contratMontants)) + '">';
+
+        // Récap financier
+        if (contratTotalHT > 0) {
+          html += '<div style="display:flex;gap:1.5rem;margin-bottom:1rem;font-size:0.85rem;flex-wrap:wrap">' +
+            '<div><span style="color:var(--text-muted)">Total contrat :</span> <strong>' + fmtEuro(contratTotalHT) + '</strong></div>' +
+            '<div><span style="color:var(--green)">Factur\u00e9 :</span> <strong style="color:var(--green)">' + fmtEuro(totalDejaFacture) + '</strong></div>' +
+            '<div><span style="color:var(--accent)">Reste \u00e0 facturer :</span> <strong style="color:var(--accent)">' + fmtEuro(resteAFacturer) + '</strong></div>' +
+            (totalRevisions > 0 ? '<div><span style="color:var(--blue)">R\u00e9visions :</span> <strong style="color:var(--blue)">' + fmtEuro(totalRevisions) + '</strong></div>' : '') +
+          '</div>';
+        }
+
         // Info bar
-        html += '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem">' +
-          'Chaque ligne = une facture (une phase par ligne). Un m\u00eame n\u00b0 de facture peut avoir plusieurs lignes.</p>';
+        html += '<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem">' +
+          'Montant = saisissez un montant en \u20ac ou un pourcentage (ex: 50%) \u2014 le montant sera calcul\u00e9 depuis le contrat.</p>';
 
         // Build the simple facturation table
         html += '<div class="data-table-wrap" style="overflow-x:auto"><table class="data-table" id="factTable" style="min-width:100%"><thead><tr>' +
@@ -4104,8 +4136,8 @@
             html += '<tr data-fact-idx="' + fIdx + '">';
             html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_num_' + fIdx + '" style="width:90px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + (inv.n_facture || '') + '"></td>';
             html += '<td style="text-align:center"><input type="date" class="form-input" id="fact_date_' + fIdx + '" style="width:115px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + (inv.date_facture || '') + '"></td>';
-            html += '<td style="text-align:center"><select class="form-select" id="fact_phase_' + fIdx + '" style="font-size:0.8rem;padding:0.3rem;width:100px" onchange="recalcFactTotal()">' + factPhaseOpts.replace('value="' + inv.phase + '"', 'value="' + inv.phase + '" selected') + '</select></td>';
-            html += '<td style="text-align:right"><input type="number" class="form-input" id="fact_montant_' + fIdx + '" style="width:100px;font-size:0.82rem;padding:0.3rem;text-align:right" value="' + (montantVal || '') + '" placeholder="0" onchange="recalcFactTotal()"></td>';
+            html += '<td style="text-align:center"><select class="form-select" id="fact_phase_' + fIdx + '" style="font-size:0.8rem;padding:0.3rem;width:100px" onchange="onFactPhaseChange(' + fIdx + ')">' + factPhaseOpts.replace('value="' + inv.phase + '"', 'value="' + inv.phase + '" selected') + '</select></td>';
+            html += '<td style="text-align:right"><input type="text" class="form-input" id="fact_montant_' + fIdx + '" style="width:100px;font-size:0.82rem;padding:0.3rem;text-align:right" value="' + (montantVal || '') + '" placeholder="0 ou 50%" onchange="onFactMontantChange(' + fIdx + ')"></td>';
             html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_avanc_' + fIdx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + (inv.avancement || '') + '" placeholder="ex: 50%"></td>';
             html += '<td style="text-align:right"><input type="number" class="form-input" id="fact_rev_' + fIdx + '" style="width:90px;font-size:0.82rem;padding:0.3rem;text-align:right" value="' + (revVal || '') + '" placeholder="0" onchange="recalcFactTotal()"></td>';
             html += '<td><input type="text" class="form-input" id="fact_comment_' + fIdx + '" style="width:100%;font-size:0.82rem;padding:0.3rem" value="' + (inv.commentaire || '').replace(/"/g, '&quot;') + '" placeholder="Commentaire\u2026"></td>';
@@ -5814,6 +5846,48 @@
     }
 
     // Recalculate facturation grand total (simple table version)
+    // Récupérer les montants contrat par phase
+    function getContratMontants() {
+      var el = document.getElementById('factContratMontants');
+      if (!el) return {};
+      try { return JSON.parse(decodeURIComponent(el.value)); } catch(e) { return {}; }
+    }
+
+    // Quand on change la phase → afficher le montant contrat en placeholder
+    window.onFactPhaseChange = function(fIdx) {
+      var phaseEl = document.getElementById('fact_phase_' + fIdx);
+      var montantEl = document.getElementById('fact_montant_' + fIdx);
+      if (!phaseEl || !montantEl) return;
+      var phase = phaseEl.value.toUpperCase();
+      var cm = getContratMontants();
+      var phMontant = cm[phase] || 0;
+      montantEl.placeholder = phMontant > 0 ? phMontant + ' (contrat)' : '0';
+      recalcFactTotal();
+    };
+
+    // Quand on change le montant → si c'est un %, calculer le montant réel
+    window.onFactMontantChange = function(fIdx) {
+      var phaseEl = document.getElementById('fact_phase_' + fIdx);
+      var montantEl = document.getElementById('fact_montant_' + fIdx);
+      if (!montantEl) return;
+      var val = montantEl.value.trim();
+
+      // Si c'est un pourcentage
+      if (val.indexOf('%') >= 0) {
+        var pct = parseFloat(val.replace('%', '')) || 0;
+        var phase = phaseEl ? phaseEl.value.toUpperCase() : '';
+        var cm = getContratMontants();
+        var phMontant = cm[phase] || 0;
+        if (phMontant > 0 && pct > 0) {
+          var calculated = Math.round(phMontant * pct / 100);
+          montantEl.value = calculated;
+          montantEl.title = pct + '% de ' + phMontant + ' \u20ac (contrat)';
+          montantEl.style.borderColor = 'var(--green)';
+        }
+      }
+      recalcFactTotal();
+    };
+
     window.recalcFactTotal = function() {
       var tbody = document.querySelector('#factTable tbody');
       if (!tbody) return;
