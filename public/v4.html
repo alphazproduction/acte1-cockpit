@@ -1198,8 +1198,8 @@
       </div>
       <div class="header-right">
         <select class="version-select" id="versionSelect" onchange="handleVersionChange(this)">
-          <option value="v4">v4 (nouvelle)</option>
-          <option value="v3" selected>v3</option>
+          <option value="v4" selected>v4 (actuelle)</option>
+          <option value="v3">v3</option>
           <option value="v2">v2 (archive)</option>
         </select>
         <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Basculer clair/sombre">
@@ -6267,33 +6267,82 @@
       var el = document.getElementById('echeancierContent');
       var filterStatut = document.getElementById('echStatutFilter')?.value || 'tous';
       var filterChef = document.getElementById('echChefFilter')?.value || 'tous';
-      var mi = effectiveMonthIndex();
-      var year = getToday().getFullYear();
+      var year = selectedYear || getToday().getFullYear();
 
-      // Build per-project, per-phase data
+      // Normaliser le statut pour comparaison
+      function normStatut(s) {
+        if (!s) return 'previsionnel';
+        var sl = String(s).toLowerCase().replace(/[éè]/g,'e').replace(/à/g,'a');
+        if (sl.indexOf('facture') === 0 && sl.indexOf('a fac') < 0) return 'facture';
+        if (sl.indexOf('a fac') >= 0 || sl.indexOf('a_fac') >= 0) return 'a_facturer';
+        if (sl.indexOf('hypo') >= 0) return 'hypothetique';
+        return 'previsionnel';
+      }
+      function statutLabel(ns) {
+        if (ns === 'facture') return 'Factur\u00e9';
+        if (ns === 'a_facturer') return '\u00c0 facturer';
+        if (ns === 'hypothetique') return 'Hypoth\u00e9tique';
+        return 'Pr\u00e9visionnel';
+      }
+      function formatDateShort(d) {
+        if (!d) return '';
+        var s = String(d);
+        if (s.length >= 10) {
+          var m = parseInt(s.substring(5,7)) - 1;
+          var j = parseInt(s.substring(8,10));
+          return (j || '') + ' ' + (MOIS_LABELS[m] || '').toLowerCase() + '.';
+        }
+        if (s.length >= 7) {
+          var m2 = parseInt(s.substring(5,7)) - 1;
+          return (MOIS_LABELS[m2] || '') + '.';
+        }
+        return s;
+      }
+
+      // Construire les donnees par projet depuis echeancierData (VRAIES donnees Sheet)
       var projetsData = [];
       PROJETS.forEach(function(p) {
         if (filterChef !== 'tous' && p.chef !== filterChef) return;
-        var orgPhases = ORGANISATION[p.code] || [];
 
-        // Group installments by phase name
-        var phaseMap = {};  // phaseName → [{montant, mois_idx, statut, ...}]
-        var phaseOrder = []; // ordered unique phase names
-        for (var m = 0; m < 12; m++) {
-          if (p.mois[m] > 0) {
-            var statut = m < mi ? 'facture' : (m === mi ? 'a_facturer' : 'previsionnel');
-            if (filterStatut !== 'tous' && statut !== filterStatut) continue;
-            var phName = orgPhases[m] || 'Divers';
-            if (!phaseMap[phName]) { phaseMap[phName] = []; phaseOrder.push(phName); }
-            var jour = 15 + Math.floor(m * 1.2);
-            phaseMap[phName].push({
-              montant: p.mois[m], mois_idx: m, statut: statut,
-              date: jour + ' ' + MOIS_LABELS[m].toLowerCase() + '.',
-              n_facture: statut === 'facture' ? 'F' + (2650 + m*3 + PROJETS.indexOf(p)%20) : ''
-            });
-          }
+        var echs = echeancierData[p.code] || [];
+        // Filtrer par annee
+        var echsYear = echs.filter(function(e) {
+          var dp = String(e.date_prev_facturation || e.date_facture || '');
+          if (!dp || dp.length < 4) return false;
+          return parseInt(dp.substring(0,4)) === year;
+        });
+
+        // Filtrer par statut
+        if (filterStatut !== 'tous') {
+          echsYear = echsYear.filter(function(e) { return normStatut(e.statut) === filterStatut; });
         }
-        if (phaseOrder.length === 0) return;
+
+        if (echsYear.length === 0) return;
+
+        // Grouper par phase
+        var phaseMap = {};
+        var phaseOrder = [];
+        echsYear.forEach(function(e) {
+          var ph = String(e.phase || 'Divers').toUpperCase();
+          if (!phaseMap[ph]) { phaseMap[ph] = []; phaseOrder.push(ph); }
+          phaseMap[ph].push({
+            montant: parseFloat(e.montant) || 0,
+            date_prev: e.date_prev_facturation || '',
+            date_facture: e.date_facture || '',
+            statut: normStatut(e.statut),
+            n_facture: e.n_facture || '',
+            commentaire: e.commentaire || '',
+            ordre: parseInt(e.ordre_affichage) || 99
+          });
+        });
+
+        // Trier les versements par date prevue puis ordre
+        phaseOrder.forEach(function(ph) {
+          phaseMap[ph].sort(function(a,b) {
+            if (a.date_prev && b.date_prev) return a.date_prev.localeCompare(b.date_prev);
+            return a.ordre - b.ordre;
+          });
+        });
 
         var totalProjet = 0, factProjet = 0, nbEcheances = 0;
         phaseOrder.forEach(function(ph) {
@@ -6313,7 +6362,7 @@
 
       projetsData.sort(function(a,b) { return b.total - a.total; });
 
-      // Global stats
+      // Stats globales
       var totalFact = 0, totalAFact = 0, totalPrev = 0, nbEch = 0;
       projetsData.forEach(function(pd) {
         pd.phaseOrder.forEach(function(ph) {
@@ -6326,30 +6375,41 @@
         });
       });
 
-      // KPI mini cards
-      var html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.25rem">';
+      // Message si aucune donnee
+      if (projetsData.length === 0) {
+        el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--text-muted)">' +
+          '<div style="font-size:1.2rem;margin-bottom:0.5rem">Aucune \u00e9ch\u00e9ance pour ' + year + '</div>' +
+          '<div style="font-size:0.85rem">Les \u00e9ch\u00e9ances sont aliment\u00e9es depuis l\'onglet ECHEANCIER du Google Sheet.<br>' +
+          'Utilisez la fiche projet (volet Contrat) pour cr\u00e9er des \u00e9ch\u00e9ances.</div></div>';
+        return;
+      }
+
+      // KPI
+      var html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem">';
       html += '<div class="kpi-card" style="padding:1rem"><div style="font-size:0.75rem;font-weight:600;color:var(--green);text-transform:uppercase">Factur\u00e9</div>' +
         '<div class="font-din" style="font-size:1.5rem;color:var(--green)">' + fmtEuro(totalFact) + '</div></div>';
       html += '<div class="kpi-card" style="padding:1rem"><div style="font-size:0.75rem;font-weight:600;color:#C2410C;text-transform:uppercase">\u00c0 facturer</div>' +
         '<div class="font-din" style="font-size:1.5rem;color:#C2410C">' + fmtEuro(totalAFact) + '</div></div>';
       html += '<div class="kpi-card" style="padding:1rem"><div style="font-size:0.75rem;font-weight:600;color:#92400E;text-transform:uppercase">Pr\u00e9visionnel</div>' +
         '<div class="font-din" style="font-size:1.5rem;color:#92400E">' + fmtEuro(totalPrev) + '</div></div>';
+      html += '<div class="kpi-card" style="padding:1rem"><div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase">Total ' + year + '</div>' +
+        '<div class="font-din" style="font-size:1.5rem">' + fmtEuro(totalFact + totalAFact + totalPrev) + '</div></div>';
       html += '</div>';
 
-      // Per-project sections with horizontal phase cards
+      // Cartes par projet
       projetsData.forEach(function(pd) {
         var chefCls = pd.chef === 'Am\u00e9lie' ? 'chef-a' : 'chef-r';
         var pctFact = pd.total > 0 ? Math.round(pd.facture / pd.total * 100) : 0;
 
         html += '<div class="ech-project">';
 
-        // Header
+        // En-tete projet
         html += '<div class="ech-project-header">';
         html += '<div class="ech-project-header-left">' +
-          '<span class="code-badge" style="font-size:0.85rem">' + pd.code + '</span>' +
-          '<div><div style="font-weight:700;font-size:0.95rem">' + pd.nom + '</div>' +
-          '<div style="font-size:0.75rem;color:var(--text-muted)">' + pd.etat +
-          ' <span class="chef-badge ' + chefCls + '">' + pd.chef + '</span></div></div></div>';
+          '<span class="code-badge" style="font-size:0.85rem;cursor:pointer" onclick="openProjetDetail(\'' + pd.code + '\')">' + escapeHtml(pd.code) + '</span>' +
+          '<div><div style="font-weight:700;font-size:0.95rem">' + escapeHtml(pd.nom) + '</div>' +
+          '<div style="font-size:0.75rem;color:var(--text-muted)">' + escapeHtml(pd.etat || '') +
+          (pd.chef ? ' <span class="chef-badge ' + chefCls + '">' + escapeHtml(pd.chef) + '</span>' : '') + '</div></div></div>';
         html += '<div style="display:flex;align-items:center;gap:1rem">' +
           '<div class="ech-project-total">' +
             '<div class="font-din" style="font-size:1.15rem">' + fmtEuro(pd.total) + '</div>' +
@@ -6358,11 +6418,11 @@
         '</div>';
         html += '</div>';
 
-        // Progress bar
+        // Barre de progression
         html += '<div style="height:4px;background:var(--grey-bg);border-radius:2px;margin-bottom:1rem;overflow:hidden">' +
           '<div style="height:100%;width:' + pctFact + '%;background:var(--green);border-radius:2px;transition:width 0.4s"></div></div>';
 
-        // Horizontal phase cards
+        // Cartes phases horizontales
         html += '<div class="ech-phases-row">';
         pd.phaseOrder.forEach(function(phName, idx) {
           var insts = pd.phaseMap[phName];
@@ -6371,33 +6431,35 @@
           var phTotal = insts.reduce(function(s,i){return s+i.montant;},0);
           var nbInst = insts.length;
 
-          // Connector between cards
           if (idx > 0) {
             html += '<div class="ech-connector"><div class="ech-connector-line"></div></div>';
           }
 
           html += '<div class="ech-phase-card">';
 
-          // Phase header
+          // En-tete phase
           html += '<div class="ech-phase-header ' + headerCls + '">' +
-            '<span>' + phName + '</span>' +
+            '<span>' + escapeHtml(phName) + '</span>' +
             '<span class="ech-phase-total">' + fmtEuro(phTotal) + '</span>' +
           '</div>';
 
-          // Installments
+          // Versements
           insts.forEach(function(inst, iIdx) {
-            var statutIcon = inst.statut === 'facture' ? '\u2713' : inst.statut === 'a_facturer' ? '\u25CF' : '\u25CB';
-            var statutColor = inst.statut === 'facture' ? 'var(--green)' : inst.statut === 'a_facturer' ? '#E8601C' : 'var(--grey)';
-            var amountColor = inst.statut === 'facture' ? 'var(--green)' : 'var(--text)';
+            var ns = inst.statut;
+            var statutIcon = ns === 'facture' ? '\u2713' : ns === 'a_facturer' ? '\u25CF' : ns === 'hypothetique' ? '\u25CB' : '\u25CB';
+            var statutColor = ns === 'facture' ? 'var(--green)' : ns === 'a_facturer' ? '#E8601C' : ns === 'hypothetique' ? 'var(--grey)' : '#92400E';
+            var amountColor = ns === 'facture' ? 'var(--green)' : 'var(--text)';
 
             html += '<div class="ech-installment">';
             html += '<div style="display:flex;align-items:center;justify-content:space-between">';
             html += '<span class="ech-inst-amount" style="color:' + amountColor + '">' + fmtEuro(inst.montant) + '</span>';
-            html += '<span style="color:' + statutColor + ';font-size:0.85rem;font-weight:700">' + statutIcon + '</span>';
+            html += '<span title="' + statutLabel(ns) + '" style="color:' + statutColor + ';font-size:0.85rem;font-weight:700;cursor:help">' + statutIcon + '</span>';
             html += '</div>';
-            html += '<div class="ech-inst-date">' + inst.date + '</div>';
+            // Date : afficher date_facture si facture, sinon date_prev
+            var displayDate = ns === 'facture' && inst.date_facture ? inst.date_facture : inst.date_prev;
+            html += '<div class="ech-inst-date">' + formatDateShort(displayDate) + '</div>';
             if (inst.n_facture) {
-              html += '<div class="ech-inst-facture">' + inst.n_facture + '</div>';
+              html += '<div class="ech-inst-facture">' + escapeHtml(inst.n_facture) + '</div>';
             }
             if (nbInst > 1) {
               html += '<div style="font-size:0.65rem;color:var(--text-muted);margin-top:0.1rem">' + (iIdx+1) + '/' + nbInst + '</div>';
@@ -6412,7 +6474,8 @@
         html += '</div>'; // ech-project
       });
 
-      html += '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">' + projetsData.length + ' projets &mdash; ' + nbEch + ' \u00e9ch\u00e9ances</div>';
+      html += '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">' +
+        projetsData.length + ' projets &mdash; ' + nbEch + ' \u00e9ch\u00e9ances &mdash; Source : ECHEANCIER Sheet (live)</div>';
 
       el.innerHTML = html;
     };
@@ -6478,8 +6541,8 @@
        VERSION SELECTOR
        ============================================================== */
     window.handleVersionChange = function(select) {
-      if (select.value === 'v4') {
-        window.location.href = window.location.href.indexOf('vercel') >= 0 ? 'v4.html' : 'cockpit-acte1-v4.html';
+      if (select.value === 'v3') {
+        window.location.href = window.location.href.indexOf('vercel') >= 0 ? 'v3.html' : 'cockpit-acte1-v3.html';
       } else if (select.value === 'v2') {
         window.location.href = window.location.href.indexOf('vercel') >= 0 ? 'v2.html' : 'cockpit-acte1-v2.html';
       }
