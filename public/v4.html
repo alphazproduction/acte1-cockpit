@@ -2238,25 +2238,118 @@
     /* ==============================================================
        RENDER: ALERTS
        ============================================================== */
+    function computeAlertes() {
+      ALERTES.length = 0;
+      var now = getToday();
+      var year = selectedYear || now.getFullYear();
+      var mi = effectiveMonthIndex();
+
+      PROJETS.forEach(function(p) {
+        var echs = echeancierData[p.code] || [];
+        var contrats = contratsData[p.code] || [];
+
+        // Alerte 1 : echeances prevues dans le passe mais pas encore facturees
+        echs.forEach(function(e) {
+          var st = String(e.statut || '').toLowerCase();
+          if (st.indexOf('factur') === 0 || st.indexOf('hypo') >= 0) return; // deja facture ou hypothetique
+          var dp = String(e.date_prev_facturation || '');
+          if (!dp || dp.length < 7) return;
+          var eYear = parseInt(dp.substring(0,4));
+          var eMonth = parseInt(dp.substring(5,7)) - 1;
+          if (eYear !== year) return;
+          if (eMonth < mi) {
+            var retard = mi - eMonth;
+            ALERTES.push({
+              type: 'retard',
+              code: p.code,
+              nom: p.nom,
+              phase: e.phase || '',
+              montant: parseFloat(e.montant) || 0,
+              mois_prevu: MOIS_LABELS[eMonth] + ' ' + eYear,
+              retard: retard
+            });
+          }
+        });
+
+        // Alerte 2 : somme des versements echeancier != budget contrat (ecart > 5%)
+        if (contrats.length > 0 && echs.length > 0) {
+          // Calculer le total contrat
+          var totalContrat = 0;
+          contrats.forEach(function(c) { totalContrat += parseFloat(c.montant) || 0; });
+          // Calculer le total echeancier (toutes annees)
+          var totalEch = 0;
+          echs.forEach(function(e) { totalEch += parseFloat(e.montant) || 0; });
+          if (totalContrat > 0) {
+            var ecart = Math.abs(totalEch - totalContrat);
+            var pctEcart = ecart / totalContrat;
+            if (pctEcart > 0.05 && ecart > 500) { // >5% et >500 EUR
+              ALERTES.push({
+                type: 'ecart',
+                code: p.code,
+                nom: p.nom,
+                phase: 'Contrat vs Ech.',
+                montant: ecart,
+                mois_prevu: 'Contrat: ' + fmtEuro(totalContrat),
+                retard: Math.round(pctEcart * 100) + '% \u00e9cart'
+              });
+            }
+          }
+        }
+
+        // Alerte 3 : projet avec budget mais aucune echeance
+        if (p.budget > 0 && echs.length === 0) {
+          ALERTES.push({
+            type: 'vide',
+            code: p.code,
+            nom: p.nom,
+            phase: '\u2014',
+            montant: p.budget,
+            mois_prevu: 'Budget : ' + fmtEuro(p.budget),
+            retard: 'Aucune \u00e9ch.'
+          });
+        }
+      });
+
+      // Trier : retards d'abord (par montant desc), puis ecarts, puis vides
+      var ordre = { retard: 0, ecart: 1, vide: 2 };
+      ALERTES.sort(function(a,b) {
+        if (ordre[a.type] !== ordre[b.type]) return ordre[a.type] - ordre[b.type];
+        return b.montant - a.montant;
+      });
+    }
+
     function renderAlerts() {
+      computeAlertes();
       var el = document.getElementById('alertsSection');
       if (ALERTES.length === 0) { el.innerHTML = ''; return; }
+      var nbRetards = ALERTES.filter(function(a){return a.type==='retard';}).length;
+      var nbEcarts = ALERTES.filter(function(a){return a.type==='ecart';}).length;
+      var nbVides = ALERTES.filter(function(a){return a.type==='vide';}).length;
+      var badgeTxt = [];
+      if (nbRetards) badgeTxt.push(nbRetards + ' retard' + (nbRetards>1?'s':''));
+      if (nbEcarts) badgeTxt.push(nbEcarts + ' \u00e9cart' + (nbEcarts>1?'s':''));
+      if (nbVides) badgeTxt.push(nbVides + ' sans \u00e9ch.');
+
       var html = '<div class="section-card">' +
         '<div style="display:flex;align-items:center;gap:0.5rem">' +
-          '<div class="section-title">Alertes &mdash; Oublis de facturation</div>' +
-          '<span class="alert-badge">' + ALERTES.length + ' en retard</span>' +
+          '<div class="section-title">Alertes &mdash; Coh\u00e9rence \u00e9ch\u00e9ancier</div>' +
+          '<span class="alert-badge">' + badgeTxt.join(' \u00b7 ') + '</span>' +
         '</div>' +
-        '<div class="section-subtitle">Phases \u00e9chues non factur\u00e9es</div>' +
+        '<div class="section-subtitle">Retards de facturation, \u00e9carts contrat/\u00e9ch\u00e9ancier, projets sans \u00e9ch\u00e9ances</div>' +
         '<table><thead><tr>' +
-          '<th>Projet</th><th>Phase</th><th>Montant pr\u00e9vu</th><th>Mois pr\u00e9vu</th><th>Retard</th>' +
+          '<th>Projet</th><th>Phase</th><th>Montant</th><th>D\u00e9tail</th><th>Alerte</th>' +
         '</tr></thead><tbody>';
       ALERTES.forEach(function(a) {
-        html += '<tr style="cursor:pointer" onclick="openProjetDetail(\'' + a.code + '\')">' +
-          '<td><span class="code-badge">' + a.code + '</span> ' + a.nom + '</td>' +
-          '<td>' + a.phase + '</td>' +
+        var typeColor = a.type === 'retard' ? 'var(--red)' : a.type === 'ecart' ? 'var(--yellow)' : 'var(--grey)';
+        var retardHtml = a.type === 'retard'
+          ? '<span class="retard-badge">' + a.retard + ' mois</span>'
+          : '<span style="color:' + typeColor + ';font-weight:600;font-size:0.8rem">' + a.retard + '</span>';
+        html += '<tr style="cursor:pointer" onclick="openProjetDetail(\'' + a.code + '\');switchVolet(\'facturation\')">' +
+          '<td><span class="code-badge">' + escapeHtml(a.code) + '</span> ' + escapeHtml(a.nom) + '</td>' +
+          '<td>' + escapeHtml(a.phase) + '</td>' +
           '<td class="montant">' + fmtEuro(a.montant) + '</td>' +
-          '<td>' + a.mois_prevu + '</td>' +
-          '<td><span class="retard-badge">' + a.retard + ' mois</span></td>' +
+          '<td style="font-size:0.8rem;color:var(--text-muted)">' + a.mois_prevu + '</td>' +
+          '<td>' + retardHtml + '</td>' +
         '</tr>';
       });
       html += '</tbody></table></div>';
