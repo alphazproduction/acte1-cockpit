@@ -4087,7 +4087,7 @@
             var ecart = Math.abs(echTotalPhase - m);
             var coherent = ecart < 1 || m === 0;
 
-            html += '<tr class="ech-sub-row ech-doc-' + docIdx + '"><td colspan="5" style="padding:0.3rem 0.5rem 0.7rem 2rem;background:var(--bg)">';
+            html += '<tr class="ech-sub-row ech-doc-' + docIdx + '"><td colspan="5" style="padding:0.3rem 0.5rem 0.7rem 2rem;background:var(--bg)" id="echContainer_' + docIdx + '_' + phIdx + '">';
             html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">';
             html += '<span style="font-size:0.75rem;font-weight:600;color:var(--accent)">\u00c9ch\u00e9ancier ' + ph + '</span>';
             if (!coherent && phEchs.length > 0) {
@@ -5849,23 +5849,14 @@
 
     // Ajouter un versement echeancier pour une phase
     window.addEchVersement = function(docIdx, phIdx, phase, code) {
-      // Trouver la sub-row echeancier
-      var subRows = document.querySelectorAll('.ech-sub-row');
-      var targetRow = null;
-      subRows.forEach(function(sr) {
-        if (sr.querySelector('[id^="ech_' + docIdx + '_' + phIdx + '_"]') || sr.innerHTML.indexOf('ech_sum_' + docIdx + '_' + phIdx) >= 0) {
-          targetRow = sr;
-        }
-      });
+      var container = document.getElementById('echContainer_' + docIdx + '_' + phIdx);
+      if (!container) { showToast('Erreur: conteneur \u00e9ch\u00e9ancier introuvable'); return; }
 
       // Compter les versements existants
-      var existing = document.querySelectorAll('[id^="ech_' + docIdx + '_' + phIdx + '_"][id$="_mt"]');
+      var existing = container.querySelectorAll('[id$="_mt"]');
       var newIdx = existing.length;
       var eId = 'ech_' + docIdx + '_' + phIdx + '_' + newIdx;
-
-      // Trouver ou creer la table
-      var container = targetRow ? targetRow.querySelector('td') : null;
-      if (!container) { showToast('Erreur: conteneur introuvable'); return; }
+      var key = docIdx + '_' + phIdx;
 
       var table = container.querySelector('table');
       if (!table) {
@@ -5877,31 +5868,32 @@
         table.innerHTML = '<tr style="color:var(--text-muted);font-weight:600;font-size:0.7rem">' +
           '<td style="width:40px">N\u00b0</td><td style="width:110px">Montant</td><td style="width:120px">Date pr\u00e9vue</td>' +
           '<td style="width:100px">Statut</td><td style="width:110px">N\u00b0 facture</td><td style="width:120px">Date facture</td><td></td></tr>' +
-          '<tr style="font-weight:600"><td></td><td id="ech_sum_' + docIdx + '_' + phIdx + '" style="text-align:right;font-size:0.8rem">0 \u20ac</td><td colspan="5"></td></tr>';
+          '<tr style="font-weight:600"><td></td><td id="ech_sum_' + key + '" style="text-align:right;font-size:0.8rem">0 \u20ac</td><td colspan="5"></td></tr>';
         container.insertBefore(table, container.querySelector('button'));
       }
 
-      var sumRow = table.querySelector('#ech_sum_' + docIdx + '_' + phIdx);
-      var parentTr = sumRow ? sumRow.closest('tr') : null;
+      var sumEl = document.getElementById('ech_sum_' + key);
+      var sumRow = sumEl ? sumEl.closest('tr') : null;
 
       var tr = document.createElement('tr');
       tr.style.cssText = 'border-bottom:1px solid var(--border)';
       tr.innerHTML =
         '<td style="color:var(--text-muted)">' + (newIdx+1) + '</td>' +
-        '<td><input type="number" class="form-input" id="' + eId + '_mt" value="" placeholder="0" style="width:90px;text-align:right;font-size:0.78rem;padding:0.2rem 0.3rem" onchange="recalcEchPhase(\'' + docIdx + '_' + phIdx + '\')"></td>' +
+        '<td><input type="number" class="form-input" id="' + eId + '_mt" value="" placeholder="0" style="width:90px;text-align:right;font-size:0.78rem;padding:0.2rem 0.3rem" onchange="recalcEchPhase(\'' + key + '\')"></td>' +
         '<td><input type="text" class="form-input" id="' + eId + '_dp" value="" placeholder="JJ/MM/AAAA" style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"></td>' +
         '<td><select class="form-select" id="' + eId + '_st" style="font-size:0.75rem;padding:0.2rem">' +
           '<option>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Hypoth\u00e9tique</option>' +
         '</select></td>' +
         '<td><input type="text" class="form-input" id="' + eId + '_nf" value="" placeholder="F-xxxx" style="width:90px;font-size:0.78rem;padding:0.2rem 0.3rem"></td>' +
         '<td><input type="text" class="form-input" id="' + eId + '_df" value="" placeholder="JJ/MM/AAAA" style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"></td>' +
-        '<td><button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcEchPhase(\'' + docIdx + '_' + phIdx + '\')" title="Supprimer">\u2716</button></td>';
+        '<td><button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcEchPhase(\'' + key + '\')" title="Supprimer">\u2716</button></td>';
 
-      if (parentTr) {
-        table.insertBefore(tr, parentTr);
+      if (sumRow) {
+        table.insertBefore(tr, sumRow);
       } else {
         table.appendChild(tr);
       }
+      recalcEchPhase(key);
     };
 
     // Recalculer la somme des versements echeancier d'une phase
