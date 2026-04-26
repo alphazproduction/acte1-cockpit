@@ -4021,11 +4021,20 @@
           html += '<div class="section-card contrat-doc-card" data-doc-idx="' + docIdx + '" style="margin-bottom:1.25rem;border-left:4px solid ' + borderColor + ';padding:1rem 1.25rem">';
 
           // Document header row — éditable
+          var docTypes = ['Devis initial','Avenant','Ordre de service','Devis compl\u00e9mentaire','March\u00e9','Autre'];
+          var docTypeSelect = '<select class="form-select" id="contrat_type_' + docIdx + '" style="font-size:0.82rem;padding:0.3rem 0.4rem;width:160px">';
+          docTypes.forEach(function(dt) { docTypeSelect += '<option' + (dt === doc.type ? ' selected' : '') + '>' + dt + '</option>'; });
+          docTypeSelect += '</select>';
+
           html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem">';
           html += '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">';
-          html += '<input type="text" class="form-input" id="contrat_doc_nom_' + docIdx + '" value="' + doc.nom + '" style="font-weight:700;font-size:0.92rem;width:180px;padding:0.3rem 0.5rem">';
-          html += '<input type="text" class="form-input" id="contrat_doc_ref_' + docIdx + '" value="' + doc.ref + '" placeholder="R\u00e9f\u00e9rence" style="font-size:0.82rem;width:140px;padding:0.3rem 0.5rem">';
+          html += docTypeSelect;
+          html += '<input type="text" class="form-input" id="contrat_doc_nom_' + docIdx + '" value="' + escapeHtml(doc.nom) + '" placeholder="Nom du document" style="font-weight:700;font-size:0.92rem;width:280px;padding:0.3rem 0.5rem">';
+          html += '<input type="text" class="form-input" id="contrat_doc_ref_' + docIdx + '" value="' + escapeHtml(doc.ref) + '" placeholder="R\u00e9f\u00e9rence" style="font-size:0.82rem;width:140px;padding:0.3rem 0.5rem">';
           html += '<input type="date" class="form-input" id="contrat_doc_date_' + docIdx + '" value="' + (doc.date || '') + '" style="font-size:0.82rem;width:130px;padding:0.3rem 0.5rem">';
+          html += '<label style="display:flex;align-items:center;gap:0.3rem;font-size:0.78rem;color:var(--text-muted);cursor:pointer;white-space:nowrap">' +
+            '<input type="checkbox" id="echToggle_' + docIdx + '" checked onchange="toggleEchDoc(' + docIdx + ')">' +
+            '\u00c9ch\u00e9ancier</label>';
           if (doc.fige) html += '<span style="background:var(--green-bg);color:var(--green);font-size:0.72rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:999px">Fig\u00e9</span>';
           html += '</div>';
           html += '<div style="display:flex;align-items:center;gap:0.75rem">';
@@ -4078,7 +4087,7 @@
             var ecart = Math.abs(echTotalPhase - m);
             var coherent = ecart < 1 || m === 0;
 
-            html += '<tr class="ech-sub-row"><td colspan="5" style="padding:0.3rem 0.5rem 0.7rem 2rem;background:var(--bg)">';
+            html += '<tr class="ech-sub-row ech-doc-' + docIdx + '"><td colspan="5" style="padding:0.3rem 0.5rem 0.7rem 2rem;background:var(--bg)">';
             html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">';
             html += '<span style="font-size:0.75rem;font-weight:600;color:var(--accent)">\u00c9ch\u00e9ancier ' + ph + '</span>';
             if (!coherent && phEchs.length > 0) {
@@ -4102,14 +4111,6 @@
                 var eDateFact = ech.date_facture || '';
                 var eStatut = ech.statut || 'Pr\u00e9visionnel';
                 var eNFact = ech.n_facture || '';
-
-                // Formater dates en JJ/MM/AAAA pour l'affichage
-                function toFR(d) {
-                  if (!d) return '';
-                  var s = String(d);
-                  if (s.length >= 10 && s.charAt(4) === '-') return s.substring(8,10) + '/' + s.substring(5,7) + '/' + s.substring(0,4);
-                  return s;
-                }
 
                 html += '<tr style="border-bottom:1px solid var(--border)">' +
                   '<td style="color:var(--text-muted)">' + (eIdx+1) + '/' + phEchs.length + '</td>' +
@@ -5796,6 +5797,28 @@
       }
     };
 
+    // Formater date ISO → JJ/MM/AAAA
+    function toFR(d) {
+      if (!d) return '';
+      var s = String(d);
+      if (s.length >= 10 && s.charAt(4) === '-') return s.substring(8,10) + '/' + s.substring(5,7) + '/' + s.substring(0,4);
+      return s;
+    }
+    // Parser JJ/MM/AAAA → YYYY-MM-DD
+    function fromFR(d) {
+      if (!d) return '';
+      var s = String(d);
+      if (s.length >= 10 && s.charAt(2) === '/') return s.substring(6,10) + '-' + s.substring(3,5) + '-' + s.substring(0,2);
+      return s;
+    }
+
+    // Toggle affichage echeancier par document
+    window.toggleEchDoc = function(docIdx) {
+      var checked = document.getElementById('echToggle_' + docIdx).checked;
+      var rows = document.querySelectorAll('.ech-doc-' + docIdx);
+      rows.forEach(function(r) { r.style.display = checked ? '' : 'none'; });
+    };
+
     // Ajouter un versement echeancier pour une phase
     window.addEchVersement = function(docIdx, phIdx, phase, code) {
       // Trouver la sub-row echeancier
@@ -6272,6 +6295,7 @@
       var rows = tbody.querySelectorAll('tr');
       var saved = 0;
       var newEcheancier = [];
+      var soldeChecks = []; // pour popup solde restant
 
       rows.forEach(function(tr, i) {
         var nFacture = (tr.querySelector('[id^="fact_num_"]') || {}).value || '';
@@ -6285,13 +6309,12 @@
 
         if (!nFacture && !dateFacture && !phase && !montant) return;
 
-        // Save main montant as echeancier entry
         if (montant > 0 && phase) {
           var echLine = {
             code_projet: code,
             phase: phase,
             montant: montant,
-            date_prev_facturation: '',
+            date_prev_facturation: dateFacture,
             n_facture: nFacture,
             date_facture: dateFacture,
             statut: 'Factur\u00e9',
@@ -6304,15 +6327,34 @@
             postToSheet('upsert_echeancier', echLine);
             saved++;
           }
+
+          // Verifier si montant facture < montant phase contrat
+          var contrats = contratsData[code] || [];
+          var phaseContrat = contrats.find(function(c) { return (c.phase||'').toUpperCase() === phase.toUpperCase(); });
+          if (phaseContrat) {
+            var montantPhase = parseFloat(phaseContrat.montant) || 0;
+            // Calculer total deja facture pour cette phase (existant + cette facture)
+            var dejaFacture = 0;
+            (echeancierData[code] || []).forEach(function(e) {
+              if ((e.phase||'').toUpperCase() === phase.toUpperCase() &&
+                  (e.statut === 'Factur\u00e9' || e.statut === 'Facture')) {
+                dejaFacture += parseFloat(e.montant) || 0;
+              }
+            });
+            var totalFactApres = dejaFacture + montant;
+            var reste = montantPhase - totalFactApres;
+            if (reste > 1) {
+              soldeChecks.push({ phase: phase, reste: reste, dateFacture: dateFacture, montantPhase: montantPhase });
+            }
+          }
         }
 
-        // Save revision as separate entry if present
         if (revision > 0) {
           var revLine = {
             code_projet: code,
             phase: 'R\u00e9vision',
             montant: revision,
-            date_prev_facturation: '',
+            date_prev_facturation: dateFacture,
             n_facture: nFacture,
             date_facture: dateFacture,
             statut: 'Factur\u00e9',
@@ -6327,7 +6369,7 @@
         }
       });
 
-      // Update in-memory echeancierData (keep non-Factur\u00e9 entries, replace Factur\u00e9 ones)
+      // Update in-memory
       var existing = echeancierData[code] || [];
       var kept = existing.filter(function(e) { return e.statut !== 'Factur\u00e9' && e.statut !== 'Facture'; });
       echeancierData[code] = kept.concat(newEcheancier);
@@ -6337,6 +6379,42 @@
       } else if (dataMode !== 'live') {
         showToast('Facturation sauvegard\u00e9e (local)');
       }
+
+      // Popup solde restant pour chaque phase partiellement facturee
+      soldeChecks.forEach(function(sc) {
+        var dateDefaut = '';
+        if (sc.dateFacture) {
+          // +1 mois par defaut
+          var d = new Date(sc.dateFacture);
+          d.setMonth(d.getMonth() + 1);
+          dateDefaut = toFR(d.toISOString().substring(0,10));
+        }
+        var msg = 'Phase ' + sc.phase + ' : il reste ' + fmtEuro(sc.reste) + ' \u00e0 facturer' +
+          ' (contrat : ' + fmtEuro(sc.montantPhase) + ').\n\n' +
+          'Date pr\u00e9vue pour le solde restant ?\n' +
+          '(format JJ/MM/AAAA, laisser vide = ' + (dateDefaut || '+1 mois') + ')';
+        var dateSolde = prompt(msg, dateDefaut);
+        if (dateSolde === null) return; // annule
+        if (!dateSolde) dateSolde = dateDefaut;
+        var dateISO = fromFR(dateSolde) || dateSolde;
+
+        var soldeLine = {
+          code_projet: code,
+          phase: sc.phase,
+          montant: sc.reste,
+          date_prev_facturation: dateISO,
+          n_facture: '',
+          date_facture: '',
+          statut: 'Pr\u00e9visionnel',
+          commentaire: 'Solde restant (auto-g\u00e9n\u00e9r\u00e9)',
+          ordre_affichage: 99
+        };
+        echeancierData[code].push(soldeLine);
+        if (dataMode === 'live' && apiUrl) {
+          postToSheet('upsert_echeancier', soldeLine);
+          showToast('Solde ' + sc.phase + ' : ' + fmtEuro(sc.reste) + ' pr\u00e9vu le ' + dateSolde);
+        }
+      });
     };
 
     // B6: Add a new phase to the organisation table
