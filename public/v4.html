@@ -6440,8 +6440,7 @@
       if (!tbody) return;
       var rows = tbody.querySelectorAll('tr');
       var saved = 0;
-      var newEcheancier = [];
-      var soldeChecks = []; // pour popup solde restant
+      var echs = echeancierData[code] || [];
 
       rows.forEach(function(tr, i) {
         var nFacture = (tr.querySelector('[id^="fact_num_"]') || {}).value || '';
@@ -6453,61 +6452,136 @@
         var revision = parseFloat((tr.querySelector('[id^="fact_rev_"]') || {}).value) || 0;
         var commentaire = (tr.querySelector('[id^="fact_comment_"]') || {}).value || '';
 
-        if (!nFacture && !dateFacture && !phase && !montant) return;
+        if (!phase || montant <= 0) return;
 
-        if (montant > 0 && phase) {
-          var echLine = {
-            code_projet: code,
-            phase: phase,
-            montant: montant,
-            date_prev_facturation: dateFacture,
-            n_facture: nFacture,
-            date_facture: dateFacture,
-            statut: 'Factur\u00e9',
-            avancement: avancement,
-            commentaire: commentaire || ('Facture ' + nFacture),
-            ordre_affichage: i + 1
-          };
-          newEcheancier.push(echLine);
+        // 1. Chercher la premiere echeance non-facturee de cette phase
+        var echIdx = -1;
+        for (var e = 0; e < echs.length; e++) {
+          if ((echs[e].phase || '').toUpperCase() === phase.toUpperCase() &&
+              echs[e].statut !== 'Factur\u00e9' && echs[e].statut !== 'Facture') {
+            echIdx = e;
+            break;
+          }
+        }
+
+        if (echIdx >= 0) {
+          // 2. Echeance trouvee : la passer en Facture
+          var ech = echs[echIdx];
+          var echMontant = parseFloat(ech.montant) || 0;
+          var diff = echMontant - montant;
+
+          // Mettre a jour l'echeance existante avec les infos facture
+          ech.montant = montant;
+          ech.statut = 'Factur\u00e9';
+          ech.n_facture = nFacture;
+          ech.date_facture = dateFacture;
+          ech.date_prev_facturation = ech.date_prev_facturation || dateFacture;
+          ech.commentaire = commentaire || ('Facture ' + nFacture);
+
           if (dataMode === 'live' && apiUrl) {
-            postToSheet('upsert_echeancier', echLine);
+            postToSheet('upsert_echeancier', {
+              code_projet: code, phase: phase, montant: montant,
+              date_prev_facturation: ech.date_prev_facturation,
+              n_facture: nFacture, date_facture: dateFacture,
+              statut: 'Factur\u00e9', commentaire: ech.commentaire,
+              ordre_affichage: ech.ordre_affichage || (echIdx + 1)
+            });
             saved++;
           }
 
-          // Verifier si montant facture < montant phase contrat
+          // 3. Si ecart : creer une echeance pour le reste
+          if (diff > 1) {
+            var dateDefaut = '';
+            if (dateFacture) {
+              var d = new Date(dateFacture);
+              d.setMonth(d.getMonth() + 1);
+              dateDefaut = toFR(d.toISOString().substring(0, 10));
+            }
+            var msg = 'Phase ' + phase + ' : montant factur\u00e9 (' + fmtEuro(montant) + ') inf\u00e9rieur \u00e0 l\'\u00e9ch\u00e9ance pr\u00e9vue (' + fmtEuro(echMontant) + ').\n\n' +
+              'Reste : ' + fmtEuro(diff) + '\n\n' +
+              'Date pr\u00e9vue pour le solde restant ?\n(JJ/MM/AAAA, vide = ' + (dateDefaut || '+1 mois') + ')';
+            var dateSolde = prompt(msg, dateDefaut);
+            if (dateSolde === null) dateSolde = dateDefaut;
+            if (!dateSolde) dateSolde = dateDefaut;
+            var dateISO = fromFR(dateSolde) || dateSolde;
+
+            var soldeLine = {
+              code_projet: code, phase: phase, montant: diff,
+              date_prev_facturation: dateISO, n_facture: '', date_facture: '',
+              statut: 'Pr\u00e9visionnel', commentaire: 'Solde restant (auto)',
+              ordre_affichage: echs.length + 1
+            };
+            echs.push(soldeLine);
+            if (dataMode === 'live' && apiUrl) {
+              postToSheet('upsert_echeancier', soldeLine);
+              saved++;
+            }
+          }
+        } else {
+          // 4. Aucune echeance trouvee : en creer une nouvelle Facturee
+          var newEch = {
+            code_projet: code, phase: phase, montant: montant,
+            date_prev_facturation: dateFacture, n_facture: nFacture,
+            date_facture: dateFacture, statut: 'Factur\u00e9',
+            commentaire: commentaire || ('Facture ' + nFacture),
+            ordre_affichage: echs.length + 1
+          };
+          echs.push(newEch);
+          if (dataMode === 'live' && apiUrl) {
+            postToSheet('upsert_echeancier', newEch);
+            saved++;
+          }
+
+          // Verifier si le total facture depasse le contrat
           var contrats = contratsData[code] || [];
           var phaseContrat = contrats.find(function(c) { return (c.phase||'').toUpperCase() === phase.toUpperCase(); });
           if (phaseContrat) {
             var montantPhase = parseFloat(phaseContrat.montant) || 0;
-            // Calculer total deja facture pour cette phase (existant + cette facture)
-            var dejaFacture = 0;
-            (echeancierData[code] || []).forEach(function(e) {
-              if ((e.phase||'').toUpperCase() === phase.toUpperCase() &&
-                  (e.statut === 'Factur\u00e9' || e.statut === 'Facture')) {
-                dejaFacture += parseFloat(e.montant) || 0;
+            var totalFact = 0;
+            echs.forEach(function(e2) {
+              if ((e2.phase||'').toUpperCase() === phase.toUpperCase() &&
+                  (e2.statut === 'Factur\u00e9' || e2.statut === 'Facture')) {
+                totalFact += parseFloat(e2.montant) || 0;
               }
             });
-            var totalFactApres = dejaFacture + montant;
-            var reste = montantPhase - totalFactApres;
-            if (reste > 1) {
-              soldeChecks.push({ phase: phase, reste: reste, dateFacture: dateFacture, montantPhase: montantPhase });
+            var reste2 = montantPhase - totalFact;
+            if (reste2 > 1) {
+              var dateDefaut2 = '';
+              if (dateFacture) {
+                var d2 = new Date(dateFacture);
+                d2.setMonth(d2.getMonth() + 1);
+                dateDefaut2 = toFR(d2.toISOString().substring(0, 10));
+              }
+              var msg2 = 'Phase ' + phase + ' : il reste ' + fmtEuro(reste2) + ' \u00e0 facturer (contrat : ' + fmtEuro(montantPhase) + ').\n\n' +
+                'Date pr\u00e9vue pour le solde ?\n(JJ/MM/AAAA, vide = ' + (dateDefaut2 || '+1 mois') + ')';
+              var ds2 = prompt(msg2, dateDefaut2);
+              if (ds2 === null) ds2 = dateDefaut2;
+              if (!ds2) ds2 = dateDefaut2;
+              var solde2 = {
+                code_projet: code, phase: phase, montant: reste2,
+                date_prev_facturation: fromFR(ds2) || ds2, n_facture: '', date_facture: '',
+                statut: 'Pr\u00e9visionnel', commentaire: 'Solde restant (auto)',
+                ordre_affichage: echs.length + 1
+              };
+              echs.push(solde2);
+              if (dataMode === 'live' && apiUrl) {
+                postToSheet('upsert_echeancier', solde2);
+                saved++;
+              }
             }
           }
         }
 
+        // Revision
         if (revision > 0) {
           var revLine = {
-            code_projet: code,
-            phase: 'R\u00e9vision',
-            montant: revision,
-            date_prev_facturation: dateFacture,
-            n_facture: nFacture,
-            date_facture: dateFacture,
-            statut: 'Factur\u00e9',
+            code_projet: code, phase: 'R\u00e9vision', montant: revision,
+            date_prev_facturation: dateFacture, n_facture: nFacture,
+            date_facture: dateFacture, statut: 'Factur\u00e9',
             commentaire: 'R\u00e9vision - Facture ' + nFacture,
-            ordre_affichage: i + 1
+            ordre_affichage: echs.length + 1
           };
-          newEcheancier.push(revLine);
+          echs.push(revLine);
           if (dataMode === 'live' && apiUrl) {
             postToSheet('upsert_echeancier', revLine);
             saved++;
@@ -6515,52 +6589,14 @@
         }
       });
 
-      // Update in-memory
-      var existing = echeancierData[code] || [];
-      var kept = existing.filter(function(e) { return e.statut !== 'Factur\u00e9' && e.statut !== 'Facture'; });
-      echeancierData[code] = kept.concat(newEcheancier);
+      // Mettre a jour en memoire
+      echeancierData[code] = echs;
 
       if (saved > 0) {
-        showToast(saved + ' ligne(s) de facturation sauvegard\u00e9e(s)');
+        showToast(saved + ' \u00e9ch\u00e9ance(s) mise(s) \u00e0 jour');
       } else if (dataMode !== 'live') {
         showToast('Facturation sauvegard\u00e9e (local)');
       }
-
-      // Popup solde restant pour chaque phase partiellement facturee
-      soldeChecks.forEach(function(sc) {
-        var dateDefaut = '';
-        if (sc.dateFacture) {
-          // +1 mois par defaut
-          var d = new Date(sc.dateFacture);
-          d.setMonth(d.getMonth() + 1);
-          dateDefaut = toFR(d.toISOString().substring(0,10));
-        }
-        var msg = 'Phase ' + sc.phase + ' : il reste ' + fmtEuro(sc.reste) + ' \u00e0 facturer' +
-          ' (contrat : ' + fmtEuro(sc.montantPhase) + ').\n\n' +
-          'Date pr\u00e9vue pour le solde restant ?\n' +
-          '(format JJ/MM/AAAA, laisser vide = ' + (dateDefaut || '+1 mois') + ')';
-        var dateSolde = prompt(msg, dateDefaut);
-        if (dateSolde === null) return; // annule
-        if (!dateSolde) dateSolde = dateDefaut;
-        var dateISO = fromFR(dateSolde) || dateSolde;
-
-        var soldeLine = {
-          code_projet: code,
-          phase: sc.phase,
-          montant: sc.reste,
-          date_prev_facturation: dateISO,
-          n_facture: '',
-          date_facture: '',
-          statut: 'Pr\u00e9visionnel',
-          commentaire: 'Solde restant (auto-g\u00e9n\u00e9r\u00e9)',
-          ordre_affichage: 99
-        };
-        echeancierData[code].push(soldeLine);
-        if (dataMode === 'live' && apiUrl) {
-          postToSheet('upsert_echeancier', soldeLine);
-          showToast('Solde ' + sc.phase + ' : ' + fmtEuro(sc.reste) + ' pr\u00e9vu le ' + dateSolde);
-        }
-      });
     };
 
     // B6: Add a new phase to the organisation table
