@@ -4204,6 +4204,34 @@
             '<td><input type="text" class="form-input" id="' + rowId + '_comment" style="width:100%;font-size:0.78rem;padding:0.25rem 0.4rem" placeholder="Commentaire"></td>' +
             '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="removePhaseRow(this);recalcContratTotals(0)" title="Supprimer">\u2716</button></td>' +
           '</tr>';
+          // Echeancier sub-row pour le fallback aussi
+          var fallbackEchs = (echeancierData[p ? p.code : ''] || []).filter(function(e) { return (e.phase||'').toUpperCase() === ph; });
+          html += '<tr class="ech-sub-row ech-doc-0"><td colspan="5" style="padding:0.3rem 0.5rem 0.7rem 2rem;background:var(--bg)" id="echContainer_0_' + phIdx + '">';
+          html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">';
+          html += '<span style="font-size:0.75rem;font-weight:600;color:var(--accent)">\u00c9ch\u00e9ancier ' + ph + '</span>';
+          html += '</div>';
+          if (fallbackEchs.length > 0) {
+            html += '<table style="width:100%;font-size:0.78rem;border-collapse:collapse">';
+            html += '<tr style="color:var(--text-muted);font-weight:600;font-size:0.7rem"><td style="width:40px">N\u00b0</td><td style="width:110px">Montant</td><td style="width:120px">Date pr\u00e9vue</td><td style="width:100px">Statut</td><td style="width:110px">N\u00b0 facture</td><td style="width:120px">Date facture</td><td></td></tr>';
+            fallbackEchs.forEach(function(ech, eIdx) {
+              var eId2 = 'ech_0_' + phIdx + '_' + eIdx;
+              html += '<tr style="border-bottom:1px solid var(--border)">' +
+                '<td style="color:var(--text-muted)">' + (eIdx+1) + '/' + fallbackEchs.length + '</td>' +
+                '<td><input type="number" class="form-input" id="' + eId2 + '_mt" value="' + (parseFloat(ech.montant)||0) + '" style="width:90px;text-align:right;font-size:0.78rem;padding:0.2rem 0.3rem" onchange="recalcEchPhase(\'0_' + phIdx + '\')"></td>' +
+                '<td><input type="text" class="form-input" id="' + eId2 + '_dp" value="' + toFR(ech.date_prev_facturation||'') + '" placeholder="JJ/MM/AAAA" style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"></td>' +
+                '<td><select class="form-select" id="' + eId2 + '_st" style="font-size:0.75rem;padding:0.2rem"><option' + ((ech.statut||'')==='Pr\u00e9visionnel'?' selected':'') + '>Pr\u00e9visionnel</option><option' + ((ech.statut||'').indexOf('facturer')>=0?' selected':'') + '>\u00c0 facturer</option><option' + ((ech.statut||'')==='Factur\u00e9'?' selected':'') + '>Factur\u00e9</option><option' + ((ech.statut||'').indexOf('ypo')>=0?' selected':'') + '>Hypoth\u00e9tique</option></select></td>' +
+                '<td><input type="text" class="form-input" id="' + eId2 + '_nf" value="' + escapeHtml(ech.n_facture||'') + '" placeholder="F-xxxx" style="width:90px;font-size:0.78rem;padding:0.2rem 0.3rem"></td>' +
+                '<td><input type="text" class="form-input" id="' + eId2 + '_df" value="' + toFR(ech.date_facture||'') + '" placeholder="JJ/MM/AAAA" style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"></td>' +
+                '<td><button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcEchPhase(\'0_' + phIdx + '\')" title="Supprimer">\u2716</button></td></tr>';
+            });
+            var fallbackSum = fallbackEchs.reduce(function(s,e){return s+(parseFloat(e.montant)||0);},0);
+            html += '<tr style="font-weight:600"><td></td><td id="ech_sum_0_' + phIdx + '" style="text-align:right;font-size:0.8rem">' + fmtEuro(fallbackSum) + '</td><td colspan="5"></td></tr>';
+            html += '</table>';
+          } else {
+            html += '<div style="font-size:0.75rem;color:var(--text-muted);font-style:italic">Aucun versement d\u00e9fini</div>';
+          }
+          html += '<button class="btn" onclick="addEchVersement(0,' + phIdx + ',\'' + ph + '\',\'' + (p?p.code:'') + '\')" style="margin-top:0.3rem;font-size:0.72rem;padding:0.2rem 0.5rem">+ Versement</button>';
+          html += '</td></tr>';
         });
 
         html += '</tbody><tfoot>' +
