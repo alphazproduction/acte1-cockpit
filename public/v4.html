@@ -1725,6 +1725,10 @@
     function fmtPct1(n) {
       return (n * 100).toFixed(1) + '%';
     }
+    function escapeHtml(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
 
     function loadParams() {
       try {
@@ -4156,6 +4160,81 @@
           '<button class="btn btn-primary" onclick="saveContrat(\'\')">Enregistrer le contrat</button>' +
         '</div>';
         html += '<input type="hidden" id="contrat_doc_count" value="1">';
+
+        // ── ECHEANCIER PREVISIONNEL (sous le contrat) ──
+        var projetEchs = echeancierData[p ? p.code : ''] || [];
+        if (projetEchs.length > 0 || (contratsData[p ? p.code : ''] || []).length > 0) {
+          html += '<div class="section-card" style="margin-top:1.5rem">';
+          html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">';
+          html += '<div><div class="volet-header" style="margin-bottom:0.1rem;color:var(--accent)">\u00c9ch\u00e9ancier pr\u00e9visionnel</div>';
+          html += '<div style="font-size:0.78rem;color:var(--text-muted)">Ventilation des versements par phase &mdash; alimente le forecast</div></div>';
+          html += '</div>';
+
+          if (projetEchs.length > 0) {
+            // Grouper par phase
+            var echPhaseMap = {};
+            var echPhaseOrder = [];
+            projetEchs.forEach(function(e) {
+              var ph = String(e.phase || 'Divers').toUpperCase();
+              if (!echPhaseMap[ph]) { echPhaseMap[ph] = []; echPhaseOrder.push(ph); }
+              echPhaseMap[ph].push(e);
+            });
+
+            // Totaux
+            var echTotalMontant = 0, echTotalFacture = 0;
+            projetEchs.forEach(function(e) {
+              var m = parseFloat(e.montant) || 0;
+              echTotalMontant += m;
+              var st = String(e.statut || '').toLowerCase();
+              if (st.indexOf('factur') === 0 && st.indexOf('a fac') < 0) echTotalFacture += m;
+            });
+            var echPctFact = echTotalMontant > 0 ? Math.round(echTotalFacture / echTotalMontant * 100) : 0;
+
+            // Barre progression
+            html += '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">';
+            html += '<div style="flex:1;height:6px;background:var(--grey-bg);border-radius:3px;overflow:hidden">' +
+              '<div style="height:100%;width:' + echPctFact + '%;background:var(--green);border-radius:3px"></div></div>';
+            html += '<span style="font-size:0.8rem;color:var(--text-muted)">' + fmtEuro(echTotalFacture) + ' / ' + fmtEuro(echTotalMontant) + ' (' + echPctFact + '%)</span>';
+            html += '</div>';
+
+            // Tableau
+            html += '<table class="data-table" style="font-size:0.82rem"><thead><tr>' +
+              '<th>Phase</th><th>Versement</th><th class="right">Montant</th><th>Date pr\u00e9vue</th>' +
+              '<th>Statut</th><th>N\u00b0 facture</th><th>Date facture</th>' +
+              '</tr></thead><tbody>';
+
+            echPhaseOrder.forEach(function(ph) {
+              var items = echPhaseMap[ph];
+              items.sort(function(a,b) {
+                return (a.ordre_affichage||99) - (b.ordre_affichage||99);
+              });
+              items.forEach(function(e, idx) {
+                var st = String(e.statut || 'Pr\u00e9visionnel');
+                var stLow = st.toLowerCase();
+                var stCls = stLow.indexOf('factur') === 0 && stLow.indexOf('a fac') < 0 ? 'statut-facture' :
+                            stLow.indexOf('a fac') >= 0 || stLow.indexOf('a_fac') >= 0 ? 'statut-a-facturer' :
+                            stLow.indexOf('hypo') >= 0 ? 'statut-hypothetique' : 'statut-previsionnel';
+                var versLabel = items.length > 1 ? (idx+1) + '/' + items.length : '1/1';
+
+                html += '<tr>';
+                html += '<td style="font-weight:600">' + escapeHtml(ph) + '</td>';
+                html += '<td style="color:var(--text-muted)">' + versLabel + '</td>';
+                html += '<td class="right mono">' + fmtEuro(parseFloat(e.montant)||0) + '</td>';
+                html += '<td class="mono" style="color:var(--text-muted)">' + escapeHtml(e.date_prev_facturation || '') + '</td>';
+                html += '<td><span class="statut-badge ' + stCls + '">' + escapeHtml(st) + '</span></td>';
+                html += '<td class="mono">' + escapeHtml(e.n_facture || '') + '</td>';
+                html += '<td class="mono" style="color:var(--text-muted)">' + escapeHtml(e.date_facture || '') + '</td>';
+                html += '</tr>';
+              });
+            });
+
+            html += '</tbody></table>';
+          } else {
+            html += '<div style="padding:1rem;text-align:center;color:var(--text-muted);font-size:0.85rem">' +
+              'Aucune \u00e9ch\u00e9ance d\u00e9finie. Enregistrez le contrat ci-dessus pour g\u00e9n\u00e9rer l\'\u00e9ch\u00e9ancier.</div>';
+          }
+          html += '</div>'; // section-card echeancier
+        }
       }
       html += '</div>'; // end volet-contrat
 
