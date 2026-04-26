@@ -4169,6 +4169,7 @@
         html += '<div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">' +
           '<button class="btn" onclick="addContratDocument(\'' + p.code + '\')">+ Document (avenant, OS\u2026)</button>' +
           '<button class="btn btn-primary" onclick="saveContrat(\'' + p.code + '\')">Enregistrer le contrat</button>' +
+          '<button class="btn" style="background:var(--accent);color:#fff;border-color:var(--accent)" onclick="saveEcheancier(\'' + p.code + '\')">Enregistrer l\'\u00e9ch\u00e9ancier</button>' +
         '</div>';
 
         // Hidden data for JS
@@ -5814,6 +5815,76 @@
     };
 
     // Monter/descendre une phase dans le tableau contrat
+    // Sauvegarder l'echeancier complet d'un projet vers le Sheet
+    window.saveEcheancier = function(code) {
+      if (!code) { showToast('Code projet manquant'); return; }
+      var lignes = [];
+
+      // Parcourir tous les conteneurs echeancier du DOM
+      var containers = document.querySelectorAll('[id^="echContainer_"]');
+      containers.forEach(function(container) {
+        var inputs = container.querySelectorAll('[id$="_mt"]');
+        inputs.forEach(function(mtInput) {
+          // Extraire l'ID : ech_docIdx_phIdx_eIdx
+          var baseId = mtInput.id.replace('_mt', '');
+          var montant = parseFloat(mtInput.value) || 0;
+          if (montant === 0) return; // ignorer les lignes vides
+
+          var dpEl = document.getElementById(baseId + '_dp');
+          var stEl = document.getElementById(baseId + '_st');
+          var nfEl = document.getElementById(baseId + '_nf');
+          var dfEl = document.getElementById(baseId + '_df');
+
+          // Trouver la phase depuis la ligne contrat parente
+          var echRow = container.closest('tr');
+          var phaseRow = echRow ? echRow.previousElementSibling : null;
+          var phase = '';
+          if (phaseRow) {
+            var phaseSelect = phaseRow.querySelector('select[id$="_phase"]');
+            if (phaseSelect) phase = phaseSelect.value;
+          }
+          // Fallback : lire depuis le titre echeancier
+          if (!phase) {
+            var title = container.querySelector('span[style*="accent"]');
+            if (title) phase = title.textContent.replace('\u00c9ch\u00e9ancier ', '').trim();
+          }
+
+          var datePrev = dpEl ? fromFR(dpEl.value) || dpEl.value : '';
+          var dateFact = dfEl ? fromFR(dfEl.value) || dfEl.value : '';
+
+          lignes.push({
+            code_projet: code,
+            phase: phase,
+            montant: montant,
+            date_prev_facturation: datePrev,
+            statut: stEl ? stEl.value : 'Pr\u00e9visionnel',
+            n_facture: nfEl ? nfEl.value : '',
+            date_facture: dateFact,
+            commentaire: '',
+            ordre_affichage: lignes.length + 1
+          });
+        });
+      });
+
+      if (lignes.length === 0) {
+        showToast('Aucun versement \u00e0 enregistrer');
+        return;
+      }
+
+      // Mettre a jour en memoire
+      echeancierData[code] = lignes;
+
+      if (dataMode === 'live' && apiUrl) {
+        postToSheet('replace_echeancier_projet', { code_projet: code, lignes: lignes }, function(ok) {
+          if (ok) {
+            showToast(lignes.length + ' \u00e9ch\u00e9ance(s) enregistr\u00e9e(s) — pr\u00e9visionnel recalcul\u00e9');
+          }
+        });
+      } else {
+        showToast(lignes.length + ' \u00e9ch\u00e9ance(s) sauvegard\u00e9e(s) (local)');
+      }
+    };
+
     // Supprimer une phase ET sa ligne echeancier associee
     window.removePhaseRow = function(btn) {
       var row = btn.closest('tr');
