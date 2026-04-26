@@ -1790,10 +1790,35 @@
       var yr = String(annee);
       var yearData = prevParAnnee[yr] || {};
 
+      // Construire les montants mensuels depuis echeancierData (source de verite)
+      // Fallback sur prevParAnnee si echeancierData vide pour ce projet
+      function buildMoisFromEcheancier(code) {
+        var echs = echeancierData[code];
+        if (!echs || echs.length === 0) return null;
+        var mois = [0,0,0,0,0,0,0,0,0,0,0,0];
+        var found = false;
+        echs.forEach(function(e) {
+          var dp = String(e.date_prev_facturation || '');
+          if (!dp || dp.length < 7) return;
+          var eYear = parseInt(dp.substring(0,4));
+          var eMonth = parseInt(dp.substring(5,7)) - 1;
+          if (eYear !== annee || eMonth < 0 || eMonth > 11) return;
+          // Exclure les hypothetiques du forecast
+          var st = String(e.statut || '').toLowerCase();
+          if (st.indexOf('hypo') >= 0) return;
+          mois[eMonth] += parseFloat(e.montant) || 0;
+          found = true;
+        });
+        return found ? mois : null;
+      }
+
       if (projetsBase.length > 0) {
         PROJETS.length = 0;
         projetsBase.forEach(function(pb) {
-          var mois = yearData[pb.code_projet] || yearData[pb.code] || [0,0,0,0,0,0,0,0,0,0,0,0];
+          var code = pb.code_projet || pb.code;
+          // Priorite : echeancierData > prevParAnnee
+          var mois = buildMoisFromEcheancier(code)
+                  || yearData[code] || yearData[pb.code_projet] || [0,0,0,0,0,0,0,0,0,0,0,0];
           var total = mois.reduce(function(a,b) { return a+b; }, 0);
           if (total > 0 || annee === new Date().getFullYear()) {
             PROJETS.push({
@@ -1809,7 +1834,6 @@
           }
         });
       }
-      // Plus de mode mock — données uniquement depuis le Google Sheet
     }
 
     function computeMonthlyTotals() {
@@ -2887,7 +2911,7 @@
           else if (m2 === mi) cls = 'cell-current'; // mois en cours = orange
           else cls = 'cell-prev'; // futur = jaune
           var tooltip = p.nom + ' \u2014 ' + MOIS_FULL[m2] + ' : ' + fmtEuro(v);
-          var clickAttr = v > 0 ? ' style="cursor:pointer" onclick="openProjetDetail(\'' + p.code + '\')"' : '';
+          var clickAttr = v > 0 ? ' style="cursor:pointer" onclick="openProjetDetail(\'' + p.code + '\');switchVolet(\'facturation\')"' : '';
           html += '<td class="' + cls + '" title="' + tooltip + '"' + clickAttr + '>' +
                   (v === 0 ? '\u2013' : fmtEuro(v)) + '</td>';
         }
@@ -2931,11 +2955,14 @@
       html += '</tfoot></table></div>';
 
       // Summary line
+      var hasEchData = Object.keys(echeancierData).length > 0;
       html += '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">' +
         filtered.length + ' projets &mdash; ' +
         'Pr\u00e9visionnel total : <strong>' + fmtEuro(grandTotal) + '</strong> &mdash; ' +
         'Objectif : ' + fmtEuro(getObjectif(forecastYear)) + ' (' + fmtPct(grandTotal/getObjectif(forecastYear)) + ') &mdash; ' +
         'Seuil : ' + fmtEuro(getSeuil(forecastYear)) + ' (' + fmtPct(grandTotal/getSeuil(forecastYear)) + ')' +
+        ' &mdash; Source : ' + (hasEchData ? 'ECHEANCIER' : 'PREVISIONNEL') +
+        (hasEchData ? ' <span style="color:var(--green)">\u25CF</span>' : '') +
       '</div>';
 
       el.innerHTML = html;
