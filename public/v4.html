@@ -4069,6 +4069,72 @@
               '<td><input type="text" class="form-input" id="' + rowId + '_comment" style="width:100%;font-size:0.78rem;padding:0.25rem 0.4rem" value="' + commentaire + '" placeholder="Commentaire"></td>' +
               '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>' +
             '</tr>';
+
+            // ── Echeancier versements pour cette phase ──
+            var phEchs = sheetEch.filter(function(e) {
+              return (e.phase || '').toUpperCase() === ph.toUpperCase();
+            });
+            var echTotalPhase = phEchs.reduce(function(s,e) { return s + (parseFloat(e.montant)||0); }, 0);
+            var ecart = Math.abs(echTotalPhase - m);
+            var coherent = ecart < 1 || m === 0;
+
+            html += '<tr class="ech-sub-row"><td colspan="5" style="padding:0.3rem 0.5rem 0.7rem 2rem;background:var(--bg)">';
+            html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">';
+            html += '<span style="font-size:0.75rem;font-weight:600;color:var(--accent)">\u00c9ch\u00e9ancier ' + ph + '</span>';
+            if (!coherent && phEchs.length > 0) {
+              html += '<span style="font-size:0.72rem;padding:0.1rem 0.5rem;border-radius:999px;background:rgba(224,92,92,0.12);color:var(--red);font-weight:600">' +
+                '\u26a0 \u00c9cart : ' + fmtEuro(echTotalPhase) + ' vs ' + fmtEuro(m) + ' contrat</span>';
+            } else if (phEchs.length > 0 && coherent) {
+              html += '<span style="font-size:0.72rem;padding:0.1rem 0.5rem;border-radius:999px;background:var(--green-bg);color:var(--green);font-weight:600">\u2713 Coh\u00e9rent</span>';
+            }
+            html += '</div>';
+
+            if (phEchs.length > 0) {
+              html += '<table style="width:100%;font-size:0.78rem;border-collapse:collapse">';
+              html += '<tr style="color:var(--text-muted);font-weight:600;font-size:0.7rem">' +
+                '<td style="width:40px">N\u00b0</td><td style="width:110px">Montant</td><td style="width:120px">Date pr\u00e9vue</td>' +
+                '<td style="width:100px">Statut</td><td style="width:110px">N\u00b0 facture</td><td style="width:120px">Date facture</td><td></td></tr>';
+
+              phEchs.forEach(function(ech, eIdx) {
+                var eId = 'ech_' + docIdx + '_' + phIdx + '_' + eIdx;
+                var eMontant = parseFloat(ech.montant) || 0;
+                var eDatePrev = ech.date_prev_facturation || '';
+                var eDateFact = ech.date_facture || '';
+                var eStatut = ech.statut || 'Pr\u00e9visionnel';
+                var eNFact = ech.n_facture || '';
+
+                // Formater dates en JJ/MM/AAAA pour l'affichage
+                function toFR(d) {
+                  if (!d) return '';
+                  var s = String(d);
+                  if (s.length >= 10 && s.charAt(4) === '-') return s.substring(8,10) + '/' + s.substring(5,7) + '/' + s.substring(0,4);
+                  return s;
+                }
+
+                html += '<tr style="border-bottom:1px solid var(--border)">' +
+                  '<td style="color:var(--text-muted)">' + (eIdx+1) + '/' + phEchs.length + '</td>' +
+                  '<td><input type="number" class="form-input" id="' + eId + '_mt" value="' + eMontant + '" style="width:90px;text-align:right;font-size:0.78rem;padding:0.2rem 0.3rem" onchange="recalcEchPhase(\'' + docIdx + '_' + phIdx + '\')"></td>' +
+                  '<td><input type="text" class="form-input" id="' + eId + '_dp" value="' + toFR(eDatePrev) + '" placeholder="JJ/MM/AAAA" style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"></td>' +
+                  '<td><select class="form-select" id="' + eId + '_st" style="font-size:0.75rem;padding:0.2rem">' +
+                    '<option' + (eStatut==='Pr\u00e9visionnel'?' selected':'') + '>Pr\u00e9visionnel</option>' +
+                    '<option' + (eStatut==='\u00c0 facturer'||eStatut==='A facturer'?' selected':'') + '>\u00c0 facturer</option>' +
+                    '<option' + (eStatut==='Factur\u00e9'?' selected':'') + '>Factur\u00e9</option>' +
+                    '<option' + (eStatut==='Hypoth\u00e9tique'?' selected':'') + '>Hypoth\u00e9tique</option>' +
+                  '</select></td>' +
+                  '<td><input type="text" class="form-input" id="' + eId + '_nf" value="' + escapeHtml(eNFact) + '" placeholder="F-xxxx" style="width:90px;font-size:0.78rem;padding:0.2rem 0.3rem"></td>' +
+                  '<td><input type="text" class="form-input" id="' + eId + '_df" value="' + toFR(eDateFact) + '" placeholder="JJ/MM/AAAA" style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"></td>' +
+                  '<td><button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcEchPhase(\'' + docIdx + '_' + phIdx + '\')" title="Supprimer">\u2716</button></td>' +
+                '</tr>';
+              });
+
+              html += '<tr style="font-weight:600"><td></td><td id="ech_sum_' + docIdx + '_' + phIdx + '" style="text-align:right;font-size:0.8rem">' + fmtEuro(echTotalPhase) + '</td><td colspan="5"></td></tr>';
+              html += '</table>';
+            } else {
+              html += '<div style="font-size:0.75rem;color:var(--text-muted);font-style:italic">Aucun versement d\u00e9fini</div>';
+            }
+
+            html += '<button class="btn" onclick="addEchVersement(' + docIdx + ',' + phIdx + ',\'' + ph + '\',\'' + p.code + '\')" style="margin-top:0.3rem;font-size:0.72rem;padding:0.2rem 0.5rem">+ Versement</button>';
+            html += '</td></tr>';
           });
 
           // Summary rows
@@ -4162,80 +4228,6 @@
         html += '<input type="hidden" id="contrat_doc_count" value="1">';
       }
 
-      // ── ECHEANCIER PREVISIONNEL (toujours affiche sous le contrat) ──
-      if (p) {
-        var projetEchs = echeancierData[p.code] || [];
-        html += '<div class="section-card" style="margin-top:1.5rem">';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">';
-        html += '<div><div class="volet-header" style="margin-bottom:0.1rem;color:var(--accent)">\u00c9ch\u00e9ancier pr\u00e9visionnel</div>';
-        html += '<div style="font-size:0.78rem;color:var(--text-muted)">Ventilation des versements par phase &mdash; alimente le forecast</div></div>';
-        html += '</div>';
-
-        if (projetEchs.length > 0) {
-          // Grouper par phase
-          var echPhaseMap = {};
-          var echPhaseOrder = [];
-          projetEchs.forEach(function(e) {
-            var ph = String(e.phase || 'Divers').toUpperCase();
-            if (!echPhaseMap[ph]) { echPhaseMap[ph] = []; echPhaseOrder.push(ph); }
-            echPhaseMap[ph].push(e);
-          });
-
-          // Totaux
-          var echTotalMontant = 0, echTotalFacture = 0;
-          projetEchs.forEach(function(e) {
-            var m = parseFloat(e.montant) || 0;
-            echTotalMontant += m;
-            var st = String(e.statut || '').toLowerCase();
-            if (st.indexOf('factur') === 0 && st.indexOf('a fac') < 0) echTotalFacture += m;
-          });
-          var echPctFact = echTotalMontant > 0 ? Math.round(echTotalFacture / echTotalMontant * 100) : 0;
-
-          // Barre progression
-          html += '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">';
-          html += '<div style="flex:1;height:6px;background:var(--grey-bg);border-radius:3px;overflow:hidden">' +
-            '<div style="height:100%;width:' + echPctFact + '%;background:var(--green);border-radius:3px"></div></div>';
-          html += '<span style="font-size:0.8rem;color:var(--text-muted)">' + fmtEuro(echTotalFacture) + ' / ' + fmtEuro(echTotalMontant) + ' (' + echPctFact + '%)</span>';
-          html += '</div>';
-
-          // Tableau
-          html += '<table class="data-table" style="font-size:0.82rem"><thead><tr>' +
-            '<th>Phase</th><th>Versement</th><th class="right">Montant</th><th>Date pr\u00e9vue</th>' +
-            '<th>Statut</th><th>N\u00b0 facture</th><th>Date facture</th>' +
-            '</tr></thead><tbody>';
-
-          echPhaseOrder.forEach(function(ph) {
-            var items = echPhaseMap[ph];
-            items.sort(function(a,b) {
-              return (a.ordre_affichage||99) - (b.ordre_affichage||99);
-            });
-            items.forEach(function(e, idx) {
-              var st = String(e.statut || 'Pr\u00e9visionnel');
-              var stLow = st.toLowerCase();
-              var stCls = stLow.indexOf('factur') === 0 && stLow.indexOf('a fac') < 0 ? 'statut-facture' :
-                          stLow.indexOf('a fac') >= 0 || stLow.indexOf('a_fac') >= 0 ? 'statut-a-facturer' :
-                          stLow.indexOf('hypo') >= 0 ? 'statut-hypothetique' : 'statut-previsionnel';
-              var versLabel = items.length > 1 ? (idx+1) + '/' + items.length : '1/1';
-
-              html += '<tr>';
-              html += '<td style="font-weight:600">' + escapeHtml(ph) + '</td>';
-              html += '<td style="color:var(--text-muted)">' + versLabel + '</td>';
-              html += '<td class="right mono">' + fmtEuro(parseFloat(e.montant)||0) + '</td>';
-              html += '<td class="mono" style="color:var(--text-muted)">' + escapeHtml(e.date_prev_facturation || '') + '</td>';
-              html += '<td><span class="statut-badge ' + stCls + '">' + escapeHtml(st) + '</span></td>';
-              html += '<td class="mono">' + escapeHtml(e.n_facture || '') + '</td>';
-              html += '<td class="mono" style="color:var(--text-muted)">' + escapeHtml(e.date_facture || '') + '</td>';
-              html += '</tr>';
-            });
-          });
-
-          html += '</tbody></table>';
-        } else {
-          html += '<div style="padding:1rem;text-align:center;color:var(--text-muted);font-size:0.85rem">' +
-            'Aucune \u00e9ch\u00e9ance d\u00e9finie. Enregistrez le contrat ci-dessus pour g\u00e9n\u00e9rer l\'\u00e9ch\u00e9ancier.</div>';
-        }
-        html += '</div>'; // section-card echeancier
-      }
       html += '</div>'; // end volet-contrat
 
       // ── VOLET FACTURATION (simple invoice table) ──
@@ -5802,6 +5794,72 @@
       } else if (direction === 1 && row.nextElementSibling) {
         tbody.insertBefore(row.nextElementSibling, row);
       }
+    };
+
+    // Ajouter un versement echeancier pour une phase
+    window.addEchVersement = function(docIdx, phIdx, phase, code) {
+      // Trouver la sub-row echeancier
+      var subRows = document.querySelectorAll('.ech-sub-row');
+      var targetRow = null;
+      subRows.forEach(function(sr) {
+        if (sr.querySelector('[id^="ech_' + docIdx + '_' + phIdx + '_"]') || sr.innerHTML.indexOf('ech_sum_' + docIdx + '_' + phIdx) >= 0) {
+          targetRow = sr;
+        }
+      });
+
+      // Compter les versements existants
+      var existing = document.querySelectorAll('[id^="ech_' + docIdx + '_' + phIdx + '_"][id$="_mt"]');
+      var newIdx = existing.length;
+      var eId = 'ech_' + docIdx + '_' + phIdx + '_' + newIdx;
+
+      // Trouver ou creer la table
+      var container = targetRow ? targetRow.querySelector('td') : null;
+      if (!container) { showToast('Erreur: conteneur introuvable'); return; }
+
+      var table = container.querySelector('table');
+      if (!table) {
+        // Remplacer le message "Aucun versement"
+        var emptyMsg = container.querySelector('div[style*="italic"]');
+        if (emptyMsg) emptyMsg.remove();
+        table = document.createElement('table');
+        table.style.cssText = 'width:100%;font-size:0.78rem;border-collapse:collapse';
+        table.innerHTML = '<tr style="color:var(--text-muted);font-weight:600;font-size:0.7rem">' +
+          '<td style="width:40px">N\u00b0</td><td style="width:110px">Montant</td><td style="width:120px">Date pr\u00e9vue</td>' +
+          '<td style="width:100px">Statut</td><td style="width:110px">N\u00b0 facture</td><td style="width:120px">Date facture</td><td></td></tr>' +
+          '<tr style="font-weight:600"><td></td><td id="ech_sum_' + docIdx + '_' + phIdx + '" style="text-align:right;font-size:0.8rem">0 \u20ac</td><td colspan="5"></td></tr>';
+        container.insertBefore(table, container.querySelector('button'));
+      }
+
+      var sumRow = table.querySelector('#ech_sum_' + docIdx + '_' + phIdx);
+      var parentTr = sumRow ? sumRow.closest('tr') : null;
+
+      var tr = document.createElement('tr');
+      tr.style.cssText = 'border-bottom:1px solid var(--border)';
+      tr.innerHTML =
+        '<td style="color:var(--text-muted)">' + (newIdx+1) + '</td>' +
+        '<td><input type="number" class="form-input" id="' + eId + '_mt" value="" placeholder="0" style="width:90px;text-align:right;font-size:0.78rem;padding:0.2rem 0.3rem" onchange="recalcEchPhase(\'' + docIdx + '_' + phIdx + '\')"></td>' +
+        '<td><input type="text" class="form-input" id="' + eId + '_dp" value="" placeholder="JJ/MM/AAAA" style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"></td>' +
+        '<td><select class="form-select" id="' + eId + '_st" style="font-size:0.75rem;padding:0.2rem">' +
+          '<option>Pr\u00e9visionnel</option><option>\u00c0 facturer</option><option>Factur\u00e9</option><option>Hypoth\u00e9tique</option>' +
+        '</select></td>' +
+        '<td><input type="text" class="form-input" id="' + eId + '_nf" value="" placeholder="F-xxxx" style="width:90px;font-size:0.78rem;padding:0.2rem 0.3rem"></td>' +
+        '<td><input type="text" class="form-input" id="' + eId + '_df" value="" placeholder="JJ/MM/AAAA" style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"></td>' +
+        '<td><button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcEchPhase(\'' + docIdx + '_' + phIdx + '\')" title="Supprimer">\u2716</button></td>';
+
+      if (parentTr) {
+        table.insertBefore(tr, parentTr);
+      } else {
+        table.appendChild(tr);
+      }
+    };
+
+    // Recalculer la somme des versements echeancier d'une phase
+    window.recalcEchPhase = function(key) {
+      var inputs = document.querySelectorAll('[id^="ech_' + key + '_"][id$="_mt"]');
+      var total = 0;
+      inputs.forEach(function(inp) { total += parseFloat(inp.value) || 0; });
+      var sumEl = document.getElementById('ech_sum_' + key);
+      if (sumEl) sumEl.textContent = fmtEuro(total);
     };
 
     // Supprimer un document contrat (devis, avenant, OS)
