@@ -5883,7 +5883,11 @@
       if (dataMode === 'live' && apiUrl) {
         postToSheet('replace_echeancier_projet', { code_projet: code, lignes: lignes }, function(ok) {
           if (ok) {
-            showToast(lignes.length + ' \u00e9ch\u00e9ance(s) enregistr\u00e9e(s) — pr\u00e9visionnel recalcul\u00e9');
+            showToast(lignes.length + ' \u00e9ch\u00e9ance(s) enregistr\u00e9e(s) — rafra\u00eechissement...');
+            setTimeout(function() {
+              renderProjetDetail(PROJETS.find(function(p) { return p.code === code; }) || null);
+              switchVolet('contrat');
+            }, 600);
           }
         });
       } else {
@@ -6252,7 +6256,11 @@
       }
 
       if (saved > 0) {
-        showToast(saved + ' phase(s) sauvegard\u00e9e(s) (Contrat + Facturation + Organisation)');
+        showToast(saved + ' phase(s) sauvegard\u00e9e(s) — rafra\u00eechissement...');
+        setTimeout(function() {
+          renderProjetDetail(PROJETS.find(function(p) { return p.code === code; }) || null);
+          switchVolet('contrat');
+        }, 600);
       } else if (dataMode !== 'live') {
         showToast('Contrat sauvegard\u00e9 (local)');
       }
@@ -6441,6 +6449,15 @@
       var rows = tbody.querySelectorAll('tr');
       var saved = 0;
       var echs = echeancierData[code] || [];
+      if (!echeancierData[code]) echeancierData[code] = echs;
+
+      // Index des factures deja connues dans echeancierData (pour eviter doublons)
+      var knownInvoices = {};
+      echs.forEach(function(e) {
+        if (e.n_facture && (e.statut === 'Factur\u00e9' || e.statut === 'Facture')) {
+          knownInvoices[e.n_facture + '|' + (e.phase||'').toUpperCase()] = true;
+        }
+      });
 
       rows.forEach(function(tr, i) {
         var nFacture = (tr.querySelector('[id^="fact_num_"]') || {}).value || '';
@@ -6453,6 +6470,9 @@
         var commentaire = (tr.querySelector('[id^="fact_comment_"]') || {}).value || '';
 
         if (!phase || montant <= 0) return;
+
+        // Ignorer les factures deja enregistrees dans l'echeancier
+        if (nFacture && knownInvoices[nFacture + '|' + phase.toUpperCase()]) return;
 
         // 1. Chercher la premiere echeance non-facturee de cette phase
         var echIdx = -1;
@@ -6593,7 +6613,12 @@
       echeancierData[code] = echs;
 
       if (saved > 0) {
-        showToast(saved + ' \u00e9ch\u00e9ance(s) mise(s) \u00e0 jour');
+        showToast(saved + ' \u00e9ch\u00e9ance(s) mise(s) \u00e0 jour — rafra\u00eechissement...');
+        // Rafraichir la fiche projet apres un court delai (laisser les POSTs partir)
+        setTimeout(function() {
+          renderProjetDetail(PROJETS.find(function(p) { return p.code === code; }) || null);
+          switchVolet('facturation');
+        }, 600);
       } else if (dataMode !== 'live') {
         showToast('Facturation sauvegard\u00e9e (local)');
       }
