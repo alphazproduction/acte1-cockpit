@@ -7181,7 +7181,8 @@
           var pc = PRIO_COLORS[d.priorite] || { bg: '#F3F4F6', text: '#374151' };
           var catIcon = CAT_ICONS[d.categorie] || '';
 
-          html += '<div class="section-card" style="margin-bottom:0.75rem;padding:1rem 1.25rem">';
+          var dIdx = DEMANDES.indexOf(d);
+          html += '<div class="section-card" style="margin-bottom:0.75rem;padding:1rem 1.25rem;cursor:pointer;transition:box-shadow 0.15s" onclick="openDemandeDetail(' + dIdx + ')" onmouseover="this.style.boxShadow=\'0 2px 12px rgba(0,0,0,0.1)\'" onmouseout="this.style.boxShadow=\'none\'">';
 
           // Header
           html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem">';
@@ -7191,7 +7192,8 @@
           html += '<span style="font-weight:700;font-size:0.95rem">' + escapeHtml(d.titre || 'Sans titre') + '</span>';
           if (d.code_projet) html += '<span class="code-badge" style="font-size:0.72rem">' + escapeHtml(d.code_projet) + '</span>';
           html += '</div>';
-          html += '<div style="font-size:0.8rem;color:var(--text-muted)">' + escapeHtml(d.description || '') + '</div>';
+          var descTrunc = (d.description || '').length > 120 ? (d.description || '').substring(0, 120) + '\u2026' : (d.description || '');
+          html += '<div style="font-size:0.8rem;color:var(--text-muted)">' + escapeHtml(descTrunc) + '</div>';
           html += '</div>';
 
           // Meta
@@ -7199,20 +7201,13 @@
           html += '<span style="background:' + pc.bg + ';color:' + pc.text + ';font-size:0.7rem;font-weight:600;padding:0.1rem 0.45rem;border-radius:999px">' + escapeHtml(d.priorite || 'Moyenne') + '</span>';
           html += '<span style="font-size:0.72rem;color:var(--text-muted)">' + toFR(d.date_creation || '') + '</span>';
           if (d.auteur) html += '<span style="font-size:0.72rem;color:var(--text-muted)">' + escapeHtml(d.auteur) + '</span>';
+          if (d.screenshot_url) html += '<span style="font-size:0.72rem;color:var(--accent)">\uD83D\uDCF7</span>';
           html += '</div>';
           html += '</div>';
 
-          // Screenshot
-          if (d.screenshot_url) {
-            html += '<div style="margin-top:0.5rem"><a href="' + escapeHtml(d.screenshot_url) + '" target="_blank" style="font-size:0.78rem;color:var(--accent)">\uD83D\uDCF7 Voir la capture d\'\u00e9cran</a></div>';
-          }
-
-          // Reponse admin
+          // Reponse preview
           if (d.reponse) {
-            html += '<div style="margin-top:0.5rem;padding:0.5rem 0.75rem;background:var(--bg);border-radius:6px;border-left:3px solid var(--accent)">';
-            html += '<div style="font-size:0.72rem;font-weight:600;color:var(--accent);margin-bottom:0.2rem">R\u00e9ponse</div>';
-            html += '<div style="font-size:0.82rem">' + escapeHtml(d.reponse) + '</div>';
-            html += '</div>';
+            html += '<div style="margin-top:0.4rem;font-size:0.78rem;color:var(--accent);font-style:italic">\u21B3 ' + escapeHtml((d.reponse || '').substring(0, 80)) + (d.reponse.length > 80 ? '\u2026' : '') + '</div>';
           }
 
           html += '</div>'; // section-card
@@ -7222,6 +7217,153 @@
       });
 
       el.innerHTML = html;
+    };
+
+    // Detail / gestion d'une demande
+    window.openDemandeDetail = function(idx) {
+      var d = DEMANDES[idx];
+      if (!d) return;
+
+      var existing = document.getElementById('demandeDetailModal');
+      if (existing) existing.remove();
+
+      var sc = STATUT_COLORS[d.statut] || { bg: '#F3F4F6', text: '#374151' };
+      var pc = PRIO_COLORS[d.priorite] || { bg: '#F3F4F6', text: '#374151' };
+      var catIcon = CAT_ICONS[d.categorie] || '';
+
+      var statutOpts = '';
+      ['A traiter', 'En cours', 'Standby', 'Traite', 'Non retenu'].forEach(function(s) {
+        statutOpts += '<option' + (s === d.statut ? ' selected' : '') + '>' + s + '</option>';
+      });
+
+      var modal = document.createElement('div');
+      modal.id = 'demandeDetailModal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5)';
+      modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+
+      var screenshotHtml = '';
+      if (d.screenshot_url) {
+        screenshotHtml = '<div style="margin-top:0.75rem">' +
+          '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.3rem">\uD83D\uDCF7 Capture d\'\u00e9cran</label>' +
+          '<a href="' + escapeHtml(d.screenshot_url) + '" target="_blank">' +
+            '<img src="' + escapeHtml(d.screenshot_url) + '" style="max-width:100%;max-height:250px;border-radius:6px;border:1px solid var(--border);cursor:pointer" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'inline\'">' +
+            '<span style="display:none;font-size:0.8rem;color:var(--accent)">Ouvrir l\'image</span>' +
+          '</a></div>';
+      }
+
+      modal.innerHTML =
+        '<div style="background:var(--bg-card);border-radius:12px;padding:1.5rem;width:90%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">' +
+          // Header
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">' +
+            '<div style="display:flex;align-items:center;gap:0.5rem">' +
+              '<span style="font-size:1.2rem">' + catIcon + '</span>' +
+              '<h3 style="margin:0;font-size:1.1rem">' + escapeHtml(d.titre || 'Sans titre') + '</h3>' +
+            '</div>' +
+            '<button onclick="document.getElementById(\'demandeDetailModal\').remove()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)">\u2716</button>' +
+          '</div>' +
+
+          // Infos
+          '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">' +
+            '<span style="background:' + sc.bg + ';color:' + sc.text + ';font-size:0.75rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:999px">' + escapeHtml(d.statut) + '</span>' +
+            '<span style="background:' + pc.bg + ';color:' + pc.text + ';font-size:0.75rem;font-weight:600;padding:0.15rem 0.5rem;border-radius:999px">' + escapeHtml(d.priorite || 'Moyenne') + '</span>' +
+            '<span style="font-size:0.75rem;color:var(--text-muted);padding:0.15rem 0.5rem">' + escapeHtml(d.categorie || '') + '</span>' +
+            (d.code_projet ? '<span class="code-badge" style="font-size:0.72rem">' + escapeHtml(d.code_projet) + '</span>' : '') +
+            '<span style="font-size:0.75rem;color:var(--text-muted);margin-left:auto">' + toFR(d.date_creation || '') + (d.auteur ? ' \u2014 ' + escapeHtml(d.auteur) : '') + '</span>' +
+          '</div>' +
+
+          // Description
+          (d.description ? '<div style="font-size:0.88rem;margin-bottom:1rem;line-height:1.5;white-space:pre-wrap">' + escapeHtml(d.description) + '</div>' : '') +
+
+          // Screenshot
+          screenshotHtml +
+
+          // Gestion
+          '<div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem">' +
+            '<div style="font-size:0.85rem;font-weight:700;margin-bottom:0.75rem">Gestion</div>' +
+
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">' +
+              '<div>' +
+                '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Statut</label>' +
+                '<select id="ddStatut" class="form-select" style="width:100%;padding:0.4rem">' + statutOpts + '</select>' +
+              '</div>' +
+              '<div>' +
+                '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Date traitement</label>' +
+                '<input type="date" id="ddDateTrait" class="form-input" style="width:100%;padding:0.4rem" value="' + (d.date_traitement || '') + '">' +
+              '</div>' +
+            '</div>' +
+
+            '<div style="margin-bottom:0.75rem">' +
+              '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">R\u00e9ponse / commentaire</label>' +
+              '<textarea id="ddReponse" class="form-input" rows="3" style="width:100%;padding:0.4rem 0.6rem;resize:vertical">' + escapeHtml(d.reponse || '') + '</textarea>' +
+            '</div>' +
+          '</div>' +
+
+          // Actions
+          '<div style="display:flex;gap:0.5rem;justify-content:space-between;margin-top:1rem">' +
+            '<button class="btn" style="color:var(--red);border-color:var(--red);font-size:0.8rem" onclick="deleteDemande(' + idx + ')">Supprimer</button>' +
+            '<div style="display:flex;gap:0.5rem">' +
+              '<button class="btn" onclick="document.getElementById(\'demandeDetailModal\').remove()">Fermer</button>' +
+              '<button class="btn btn-primary" onclick="saveDemande(' + idx + ')">Enregistrer</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(modal);
+    };
+
+    window.saveDemande = function(idx) {
+      var d = DEMANDES[idx];
+      if (!d) return;
+
+      d.statut = document.getElementById('ddStatut').value;
+      d.reponse = document.getElementById('ddReponse').value.trim();
+      d.date_traitement = document.getElementById('ddDateTrait').value;
+
+      if (dataMode === 'live' && apiUrl) {
+        postToSheet('update_demande', {
+          id: d.id,
+          statut: d.statut,
+          reponse: d.reponse,
+          date_traitement: d.date_traitement
+        }, function(ok) {
+          if (ok) showToast('Demande mise \u00e0 jour');
+        });
+      } else {
+        showToast('Demande mise \u00e0 jour (local)');
+      }
+
+      var modal = document.getElementById('demandeDetailModal');
+      if (modal) modal.remove();
+      renderDemandes();
+
+      // MAJ badge
+      var nb = DEMANDES.filter(function(dd) { return dd.statut === 'A traiter'; }).length;
+      var badge = document.getElementById('demandesBadge');
+      if (badge) {
+        if (nb > 0) { badge.textContent = nb; badge.style.display = 'inline'; }
+        else { badge.style.display = 'none'; }
+      }
+    };
+
+    window.deleteDemande = function(idx) {
+      var d = DEMANDES[idx];
+      if (!d) return;
+      if (!confirm('Supprimer la demande "' + (d.titre || '') + '" ?\n\nCette action est irr\u00e9versible.')) return;
+
+      if (dataMode === 'live' && apiUrl) {
+        postToSheet('delete_ligne', {
+          onglet: 'DEMANDES',
+          keys: ['id'],
+          values: [d.id]
+        }, function(ok) {
+          if (ok) showToast('Demande supprim\u00e9e');
+        });
+      }
+
+      DEMANDES.splice(idx, 1);
+      var modal = document.getElementById('demandeDetailModal');
+      if (modal) modal.remove();
+      renderDemandes();
     };
 
     // Modal de creation de demande
