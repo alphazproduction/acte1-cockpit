@@ -1182,6 +1182,9 @@
       <a class="nav-item" data-page="planning" onclick="navigateTo('planning')">
         <span class="nav-icon">&#9783;</span> Planning
       </a>
+      <a class="nav-item" data-page="demandes" onclick="navigateTo('demandes')">
+        <span class="nav-icon">&#9993;</span> Demandes <span id="demandesBadge" style="background:var(--red);color:#fff;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:999px;margin-left:0.3rem;display:none"></span>
+      </a>
       <a class="nav-item" data-page="parametres" onclick="navigateTo('parametres')">
         <span class="nav-icon">&#9881;</span> Param&egrave;tres
       </a>
@@ -1340,6 +1343,28 @@
         <div id="echeancierContent"></div>
       </section>
 
+      <!-- Demandes -->
+      <section id="page-demandes" class="page">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Demandes &amp; retours</div>
+            <div class="page-subtitle">Bugs, am&eacute;liorations et questions</div>
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <select class="filter-select" id="demandesFilterStatut" onchange="renderDemandes()">
+              <option value="tous">Tous statuts</option>
+              <option value="A traiter">A traiter</option>
+              <option value="En cours">En cours</option>
+              <option value="Standby">Standby</option>
+              <option value="Traite">Trait&eacute;</option>
+              <option value="Non retenu">Non retenu</option>
+            </select>
+            <button class="btn btn-primary" onclick="openDemandeModal()" style="white-space:nowrap">+ Nouvelle demande</button>
+          </div>
+        </div>
+        <div id="demandesContent"></div>
+      </section>
+
       <!-- Parameters -->
       <section id="page-parametres" class="page">
         <div id="paramsContainer"></div>
@@ -1370,6 +1395,7 @@
     // Données chargées depuis le Google Sheet (plus de mock)
     var PROJETS = [];
     var ALERTES = [];
+    var DEMANDES = [];
     var ORGANISATION = {};
     var PHASES_VALIDEES = {};
 
@@ -1596,7 +1622,16 @@
             });
           }
 
-          // 5c. Update ORGANISATION + PHASES_VALIDEES from sheet data
+          // 5c. Load DEMANDES
+          DEMANDES = data.demandes || [];
+          var nbATraiter = DEMANDES.filter(function(d) { return d.statut === 'A traiter'; }).length;
+          var badge = document.getElementById('demandesBadge');
+          if (badge) {
+            if (nbATraiter > 0) { badge.textContent = nbATraiter; badge.style.display = 'inline'; }
+            else { badge.style.display = 'none'; }
+          }
+
+          // 5d. Update ORGANISATION + PHASES_VALIDEES from sheet data
           if (data.organisation && data.organisation.length > 0) {
             for (var k in ORGANISATION) delete ORGANISATION[k];
             for (var k2 in PHASES_VALIDEES) delete PHASES_VALIDEES[k2];
@@ -7075,8 +7110,271 @@
       if (page === 'planning') renderPlanning();
       if (page === 'parametres') renderParams();
       if (page === 'aide') renderAide();
+      if (page === 'demandes') renderDemandes();
       // Update hash
       history.replaceState(null, '', '#' + page);
+    };
+
+    /* ==============================================================
+       RENDER: DEMANDES
+       ============================================================== */
+
+    var STATUT_COLORS = {
+      'A traiter': { bg: '#FEF3C7', text: '#92400E' },
+      'En cours': { bg: '#DBEAFE', text: '#1D4ED8' },
+      'Standby': { bg: '#F3E8FF', text: '#7C3AED' },
+      'Traite': { bg: '#D1FAE5', text: '#065F46' },
+      'Non retenu': { bg: '#FEE2E2', text: '#991B1B' }
+    };
+    var PRIO_COLORS = {
+      'Haute': { bg: '#FEE2E2', text: '#991B1B' },
+      'Moyenne': { bg: '#FEF3C7', text: '#92400E' },
+      'Basse': { bg: '#D1FAE5', text: '#065F46' }
+    };
+    var CAT_ICONS = { 'Bug': '\uD83D\uDC1B', 'Amelioration': '\u2728', 'Question': '\u2753' };
+
+    window.renderDemandes = function() {
+      var el = document.getElementById('demandesContent');
+      var filterStatut = document.getElementById('demandesFilterStatut')?.value || 'tous';
+
+      var filtered = DEMANDES.filter(function(d) {
+        if (filterStatut !== 'tous' && d.statut !== filterStatut) return false;
+        return true;
+      });
+
+      // Trier par date desc
+      filtered.sort(function(a, b) {
+        return (b.date_creation || b.created_at || '').localeCompare(a.date_creation || a.created_at || '');
+      });
+
+      if (filtered.length === 0) {
+        el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--text-muted)">' +
+          '<div style="font-size:1.5rem;margin-bottom:0.5rem">\uD83D\uDCEC</div>' +
+          '<div style="font-size:1rem;margin-bottom:0.3rem">Aucune demande' + (filterStatut !== 'tous' ? ' avec ce statut' : '') + '</div>' +
+          '<div style="font-size:0.85rem">Cliquez "+ Nouvelle demande" pour signaler un bug ou proposer une am\u00e9lioration.</div></div>';
+        return;
+      }
+
+      // Grouper par statut
+      var groupOrder = ['A traiter', 'En cours', 'Standby', 'Traite', 'Non retenu'];
+      var groups = {};
+      groupOrder.forEach(function(s) { groups[s] = []; });
+      filtered.forEach(function(d) {
+        var s = d.statut || 'A traiter';
+        if (!groups[s]) groups[s] = [];
+        groups[s].push(d);
+      });
+
+      var html = '';
+      groupOrder.forEach(function(statut) {
+        var items = groups[statut];
+        if (items.length === 0) return;
+        var sc = STATUT_COLORS[statut] || { bg: '#F3F4F6', text: '#374151' };
+
+        html += '<div style="margin-bottom:1.5rem">';
+        html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">';
+        html += '<span style="background:' + sc.bg + ';color:' + sc.text + ';font-size:0.78rem;font-weight:700;padding:0.2rem 0.6rem;border-radius:999px">' + escapeHtml(statut) + '</span>';
+        html += '<span style="font-size:0.8rem;color:var(--text-muted)">' + items.length + ' demande' + (items.length > 1 ? 's' : '') + '</span>';
+        html += '</div>';
+
+        items.forEach(function(d) {
+          var pc = PRIO_COLORS[d.priorite] || { bg: '#F3F4F6', text: '#374151' };
+          var catIcon = CAT_ICONS[d.categorie] || '';
+
+          html += '<div class="section-card" style="margin-bottom:0.75rem;padding:1rem 1.25rem">';
+
+          // Header
+          html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem">';
+          html += '<div style="flex:1">';
+          html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem">';
+          html += '<span>' + catIcon + '</span>';
+          html += '<span style="font-weight:700;font-size:0.95rem">' + escapeHtml(d.titre || 'Sans titre') + '</span>';
+          if (d.code_projet) html += '<span class="code-badge" style="font-size:0.72rem">' + escapeHtml(d.code_projet) + '</span>';
+          html += '</div>';
+          html += '<div style="font-size:0.8rem;color:var(--text-muted)">' + escapeHtml(d.description || '') + '</div>';
+          html += '</div>';
+
+          // Meta
+          html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;min-width:120px">';
+          html += '<span style="background:' + pc.bg + ';color:' + pc.text + ';font-size:0.7rem;font-weight:600;padding:0.1rem 0.45rem;border-radius:999px">' + escapeHtml(d.priorite || 'Moyenne') + '</span>';
+          html += '<span style="font-size:0.72rem;color:var(--text-muted)">' + toFR(d.date_creation || '') + '</span>';
+          if (d.auteur) html += '<span style="font-size:0.72rem;color:var(--text-muted)">' + escapeHtml(d.auteur) + '</span>';
+          html += '</div>';
+          html += '</div>';
+
+          // Screenshot
+          if (d.screenshot_url) {
+            html += '<div style="margin-top:0.5rem"><a href="' + escapeHtml(d.screenshot_url) + '" target="_blank" style="font-size:0.78rem;color:var(--accent)">\uD83D\uDCF7 Voir la capture d\'\u00e9cran</a></div>';
+          }
+
+          // Reponse admin
+          if (d.reponse) {
+            html += '<div style="margin-top:0.5rem;padding:0.5rem 0.75rem;background:var(--bg);border-radius:6px;border-left:3px solid var(--accent)">';
+            html += '<div style="font-size:0.72rem;font-weight:600;color:var(--accent);margin-bottom:0.2rem">R\u00e9ponse</div>';
+            html += '<div style="font-size:0.82rem">' + escapeHtml(d.reponse) + '</div>';
+            html += '</div>';
+          }
+
+          html += '</div>'; // section-card
+        });
+
+        html += '</div>'; // group
+      });
+
+      el.innerHTML = html;
+    };
+
+    // Modal de creation de demande
+    window.openDemandeModal = function() {
+      // Fermer si deja ouverte
+      var existing = document.getElementById('demandeModal');
+      if (existing) existing.remove();
+
+      var projetOpts = '<option value="">— Aucun —</option>';
+      PROJETS.forEach(function(p) {
+        projetOpts += '<option value="' + escapeHtml(p.code) + '">' + escapeHtml(p.code) + ' — ' + escapeHtml(p.nom) + '</option>';
+      });
+
+      var modal = document.createElement('div');
+      modal.id = 'demandeModal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5)';
+      modal.innerHTML =
+        '<div style="background:var(--bg-card);border-radius:12px;padding:1.5rem;width:90%;max-width:550px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">' +
+            '<h3 style="margin:0;font-size:1.1rem">Nouvelle demande</h3>' +
+            '<button onclick="document.getElementById(\'demandeModal\').remove()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)">\u2716</button>' +
+          '</div>' +
+
+          '<div style="display:flex;flex-direction:column;gap:0.75rem">' +
+            '<div>' +
+              '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Titre *</label>' +
+              '<input type="text" id="dmTitre" class="form-input" style="width:100%;padding:0.4rem 0.6rem" placeholder="Ex: Bug affichage forecast janvier">' +
+            '</div>' +
+            '<div>' +
+              '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Description</label>' +
+              '<textarea id="dmDesc" class="form-input" rows="3" style="width:100%;padding:0.4rem 0.6rem;resize:vertical" placeholder="D\u00e9crivez le probl\u00e8me ou la demande..."></textarea>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">' +
+              '<div>' +
+                '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Cat\u00e9gorie</label>' +
+                '<select id="dmCat" class="form-select" style="width:100%;padding:0.4rem"><option>Bug</option><option selected>Amelioration</option><option>Question</option></select>' +
+              '</div>' +
+              '<div>' +
+                '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Priorit\u00e9</label>' +
+                '<select id="dmPrio" class="form-select" style="width:100%;padding:0.4rem"><option>Basse</option><option selected>Moyenne</option><option>Haute</option></select>' +
+              '</div>' +
+            '</div>' +
+            '<div>' +
+              '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Projet concern\u00e9</label>' +
+              '<select id="dmProjet" class="form-select" style="width:100%;padding:0.4rem">' + projetOpts + '</select>' +
+            '</div>' +
+            '<div>' +
+              '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Capture d\'\u00e9cran</label>' +
+              '<input type="file" id="dmImageInput" accept="image/*" onchange="handleDemandeImage(this)" style="font-size:0.8rem">' +
+              '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem">Ou collez une image (Ctrl+V / Cmd+V)</div>' +
+              '<div id="dmImagePreview" style="display:none;margin-top:0.5rem;position:relative">' +
+                '<img id="dmImageImg" style="max-width:100%;max-height:200px;border-radius:6px;border:1px solid var(--border)">' +
+                '<button onclick="clearDemandeImage()" style="position:absolute;top:4px;right:4px;background:var(--red);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.7rem">\u2716</button>' +
+              '</div>' +
+              '<input type="hidden" id="dmImageData" value="">' +
+            '</div>' +
+          '</div>' +
+
+          '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1.25rem">' +
+            '<button class="btn" onclick="document.getElementById(\'demandeModal\').remove()">Annuler</button>' +
+            '<button class="btn btn-primary" id="dmSubmitBtn" onclick="submitDemande(this)">Envoyer</button>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(modal);
+
+      // Support Ctrl+V paste
+      modal.addEventListener('paste', function(e) {
+        var items = e.clipboardData ? e.clipboardData.items : null;
+        if (!items) return;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image/') === 0) {
+            e.preventDefault();
+            processDemandeImage(items[i].getAsFile());
+            break;
+          }
+        }
+      });
+
+      document.getElementById('dmTitre').focus();
+    };
+
+    function handleDemandeImage(input) {
+      if (input.files && input.files[0]) processDemandeImage(input.files[0]);
+    }
+
+    function processDemandeImage(file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('Image trop lourde (max 5 Mo)');
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('dmImageData').value = e.target.result;
+        var img = document.getElementById('dmImageImg');
+        img.src = e.target.result;
+        document.getElementById('dmImagePreview').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    window.clearDemandeImage = function() {
+      document.getElementById('dmImageData').value = '';
+      document.getElementById('dmImagePreview').style.display = 'none';
+    };
+
+    window.submitDemande = function(btn) {
+      var titre = document.getElementById('dmTitre').value.trim();
+      if (!titre) { showToast('Le titre est obligatoire'); return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Envoi...';
+
+      var id = 'DEM-' + Date.now();
+      var data = {
+        id: id,
+        date_creation: new Date().toISOString().substring(0, 10),
+        auteur: 'Utilisateur',
+        titre: titre,
+        description: document.getElementById('dmDesc').value.trim(),
+        categorie: document.getElementById('dmCat').value,
+        priorite: document.getElementById('dmPrio').value,
+        code_projet: document.getElementById('dmProjet').value || '',
+        statut: 'A traiter',
+        reponse: '',
+        date_traitement: '',
+        screenshot_url: '',
+        screenshot_id: ''
+      };
+
+      var imageData = document.getElementById('dmImageData').value;
+      if (imageData) {
+        data.screenshot_base64 = imageData;
+      }
+
+      // Ajouter localement
+      DEMANDES.unshift(data);
+
+      postToSheet('add_demande', data, function(ok) {
+        if (ok) {
+          showToast('Demande envoy\u00e9e');
+        }
+        var modal = document.getElementById('demandeModal');
+        if (modal) modal.remove();
+        renderDemandes();
+        // MAJ badge
+        var nb = DEMANDES.filter(function(d) { return d.statut === 'A traiter'; }).length;
+        var badge = document.getElementById('demandesBadge');
+        if (badge) {
+          if (nb > 0) { badge.textContent = nb; badge.style.display = 'inline'; }
+          else { badge.style.display = 'none'; }
+        }
+      });
     };
 
     /* ==============================================================
