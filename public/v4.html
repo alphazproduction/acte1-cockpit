@@ -7470,6 +7470,22 @@
       document.getElementById('dmImagePreview').style.display = 'none';
     };
 
+    // Envoi direct en POST (necessite pour les images base64 trop grosses pour GET)
+    function postDirectToGAS(body, callback) {
+      if (!apiUrl) { showToast('URL API non configur\u00e9e'); if (callback) callback(false); return; }
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(body)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (res.ok) { if (callback) callback(true, res); }
+        else { showToast('Erreur : ' + (res.error || 'inconnue')); if (callback) callback(false); }
+      })
+      .catch(function(err) { showToast('Erreur r\u00e9seau : ' + err); if (callback) callback(false); });
+    }
+
     window.submitDemande = function(btn) {
       var titre = document.getElementById('dmTitre').value.trim();
       if (!titre) { showToast('Le titre est obligatoire'); return; }
@@ -7499,12 +7515,20 @@
         data.screenshot_base64 = imageData;
       }
 
-      // Ajouter localement
-      DEMANDES.unshift(data);
+      // Ajouter localement (sans le base64)
+      var localCopy = JSON.parse(JSON.stringify(data));
+      delete localCopy.screenshot_base64;
+      DEMANDES.unshift(localCopy);
 
-      postToSheet('add_demande', data, function(ok) {
+      // Envoyer via POST (supporte les gros payloads avec images)
+      var body = { action: 'add_demande', data: data };
+      postDirectToGAS(body, function(ok, res) {
         if (ok) {
-          showToast('Demande envoy\u00e9e');
+          showToast('Demande envoy\u00e9e' + (imageData ? ' (capture sauvegard\u00e9e dans Drive)' : ''));
+          // Si le GAS a retourne l'URL du screenshot, mettre a jour localement
+          if (res && res.screenshot_url) {
+            localCopy.screenshot_url = res.screenshot_url;
+          }
         }
         var modal = document.getElementById('demandeModal');
         if (modal) modal.remove();
