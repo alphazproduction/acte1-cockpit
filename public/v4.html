@@ -6431,10 +6431,47 @@
 
     window.removeFactRow = function(btn) {
       var tr = btn.closest('tr');
-      if (tr) {
-        tr.remove();
-        recalcFactTotal();
+      if (!tr) return;
+
+      // Recuperer les infos de la facture pour supprimer l'echeance associee
+      var nFacture = (tr.querySelector('[id^="fact_num_"]') || {}).value || '';
+      var phaseEl = tr.querySelector('[id^="fact_phase_"]');
+      var phase = phaseEl ? phaseEl.value : '';
+      var code = currentProjetCode || '';
+
+      // Supprimer l'echeance correspondante dans echeancierData
+      if (code && (nFacture || phase)) {
+        var echs = echeancierData[code] || [];
+        var idxToRemove = -1;
+        for (var ei = 0; ei < echs.length; ei++) {
+          var e = echs[ei];
+          var match = false;
+          if (nFacture && e.n_facture === nFacture && (e.phase || '').toUpperCase() === phase.toUpperCase()) {
+            match = true;
+          } else if (!nFacture && (e.phase || '').toUpperCase() === phase.toUpperCase() &&
+                     (e.statut === 'Factur\u00e9' || e.statut === 'Facture')) {
+            match = true;
+          }
+          if (match) { idxToRemove = ei; break; }
+        }
+
+        if (idxToRemove >= 0) {
+          var removed = echs.splice(idxToRemove, 1)[0];
+          // Supprimer dans le Sheet aussi
+          if (dataMode === 'live' && apiUrl) {
+            var keys = ['code_projet'];
+            var vals = [code];
+            if (removed.n_facture) { keys.push('n_facture'); vals.push(removed.n_facture); }
+            keys.push('phase'); vals.push(removed.phase || phase);
+            keys.push('statut'); vals.push('Factur\u00e9');
+            postToSheet('delete_ligne', { onglet: 'ECHEANCIER', keys: keys, values: vals });
+          }
+          showToast('\u00c9ch\u00e9ance "' + phase + '" supprim\u00e9e de l\'\u00e9ch\u00e9ancier');
+        }
       }
+
+      tr.remove();
+      recalcFactTotal();
     };
 
     // Save facturation data to Sheet (simple table version)
@@ -6797,33 +6834,54 @@
         return;
       }
 
-      // Mode Live : envoyer au Sheet
+      // Mettre a jour les donnees locales
+      function updateLocalProjet(pd) {
+        var existing = PROJETS.find(function(p) { return p.code === pd.code_projet; });
+        if (existing) {
+          existing.nom = pd.nom_affaire;
+          existing.etat = pd.etat;
+          existing.chef = pd.chef_projet;
+          existing.ville = pd.ville;
+          existing.budget = pd.budget_total_travaux;
+          existing.client = pd.client_code;
+          existing.date_debut = pd.date_debut_contrat;
+          existing.date_fin = pd.date_fin_contrat;
+          existing.date_travaux = pd.date_debut_travaux;
+          existing.type_secteur = pd.type_secteur;
+          existing.phase_courante = existing.phase_courante || '';
+          existing.lien_devis = pd.lien_devis;
+          existing.drive_commercial = pd.lien_dossier_commercial;
+        }
+        // Aussi mettre a jour projetsBase
+        var base = projetsBase.find(function(p) { return (p.code_projet || p.code) === pd.code_projet; });
+        if (base) {
+          base.nom = pd.nom_affaire;
+          base.etat = pd.etat;
+          base.chef = pd.chef_projet;
+          base.ville = pd.ville;
+          base.budget = pd.budget_total_travaux;
+          base.client = pd.client_code;
+          base.date_debut = pd.date_debut_contrat;
+          base.date_fin = pd.date_fin_contrat;
+        }
+      }
+
       if (dataMode === 'live' && apiUrl) {
         postToSheet('upsert_projet', projetData, function(ok) {
           if (ok) {
-            showToast('Projet sauvegard\u00e9 dans Google Sheet');
-            // Mettre à jour les données locales
-            var existing = PROJETS.find(function(p) { return p.code === projetData.code_projet; });
-            if (existing) {
-              existing.nom = projetData.nom_affaire;
-              existing.etat = projetData.etat;
-              existing.chef = projetData.chef_projet;
-              existing.ville = projetData.ville;
-              existing.budget = projetData.budget_total_travaux;
-              existing.client = projetData.client_code;
-            }
+            showToast('Projet sauvegard\u00e9 — rafra\u00eechissement...');
+            updateLocalProjet(projetData);
+            setTimeout(function() {
+              renderProjetDetail(PROJETS.find(function(p) { return p.code === projetData.code_projet; }) || null);
+              switchVolet('infos');
+            }, 600);
           } else {
             showToast('Erreur de sauvegarde');
           }
         });
       } else {
-        // Mode mock : sauvegarde locale
-        var existing = PROJETS.find(function(p) { return p.code === projetData.code_projet; });
-        if (existing) {
-          existing.nom = projetData.nom_affaire;
-          existing.etat = projetData.etat;
-          existing.chef = projetData.chef_projet;
-        } else {
+        updateLocalProjet(projetData);
+        if (!PROJETS.find(function(p) { return p.code === projetData.code_projet; })) {
           PROJETS.push({
             code: projetData.code_projet,
             nom: projetData.nom_affaire,
@@ -6833,7 +6891,11 @@
             mois: [0,0,0,0,0,0,0,0,0,0,0,0]
           });
         }
-        showToast('Projet sauvegard\u00e9 (local)');
+        showToast('Projet sauvegard\u00e9 — rafra\u00eechissement...');
+        setTimeout(function() {
+          renderProjetDetail(PROJETS.find(function(p) { return p.code === projetData.code_projet; }) || null);
+          switchVolet('infos');
+        }, 300);
       }
     };
 
