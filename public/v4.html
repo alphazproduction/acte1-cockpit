@@ -7243,11 +7243,19 @@
 
       var screenshotHtml = '';
       if (d.screenshot_url) {
+        // Extraire l'ID Drive depuis l'URL pour construire le lien thumbnail
+        var driveId = '';
+        var urlStr = String(d.screenshot_url);
+        var idMatch = urlStr.match(/id=([a-zA-Z0-9_-]+)/);
+        if (idMatch) driveId = idMatch[1];
+        if (!driveId) { var idMatch2 = urlStr.match(/\/d\/([a-zA-Z0-9_-]+)/); if (idMatch2) driveId = idMatch2[1]; }
+        var thumbUrl = driveId ? 'https://lh3.googleusercontent.com/d/' + driveId : urlStr;
+        var openUrl = driveId ? 'https://drive.google.com/file/d/' + driveId + '/view' : urlStr;
+
         screenshotHtml = '<div style="margin-top:0.75rem">' +
           '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.3rem">\uD83D\uDCF7 Capture d\'\u00e9cran</label>' +
-          '<a href="' + escapeHtml(d.screenshot_url) + '" target="_blank">' +
-            '<img src="' + escapeHtml(d.screenshot_url) + '" style="max-width:100%;max-height:250px;border-radius:6px;border:1px solid var(--border);cursor:pointer" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'inline\'">' +
-            '<span style="display:none;font-size:0.8rem;color:var(--accent)">Ouvrir l\'image</span>' +
+          '<a href="' + escapeHtml(openUrl) + '" target="_blank">' +
+            '<img src="' + escapeHtml(thumbUrl) + '" style="max-width:100%;max-height:250px;border-radius:6px;border:1px solid var(--border);cursor:pointer" onerror="this.parentNode.innerHTML=\'<a href=&quot;' + escapeHtml(openUrl) + '&quot; target=&quot;_blank&quot; style=&quot;color:var(--accent)&quot;>Ouvrir la capture dans Drive</a>\'">' +
           '</a></div>';
       }
 
@@ -7408,7 +7416,8 @@
             '</div>' +
             '<div>' +
               '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Projet concern\u00e9</label>' +
-              '<select id="dmProjet" class="form-select" style="width:100%;padding:0.4rem">' + projetOpts + '</select>' +
+              '<input type="text" id="dmProjet" list="dmProjetList" class="form-input" style="width:100%;padding:0.4rem" placeholder="Tapez un code ou nom de projet...">' +
+              '<datalist id="dmProjetList">' + projetOpts + '</datalist>' +
             '</div>' +
             '<div>' +
               '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:0.2rem">Capture d\'\u00e9cran</label>' +
