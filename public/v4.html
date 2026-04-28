@@ -7544,17 +7544,27 @@
     // Envoi direct en POST (necessite pour les images base64 trop grosses pour GET)
     function postDirectToGAS(body, callback) {
       if (!apiUrl) { showToast('URL API non configur\u00e9e'); if (callback) callback(false); return; }
+      console.log('[POST GAS] Envoi...', body.action, 'data keys:', Object.keys(body.data || {}));
       fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
+        redirect: 'follow',
         body: JSON.stringify(body)
       })
-      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        console.log('[POST GAS] Response status:', r.status, 'redirected:', r.redirected, 'url:', r.url);
+        return r.json();
+      })
       .then(function(res) {
+        console.log('[POST GAS] Result:', JSON.stringify(res).substring(0, 200));
         if (res.ok) { if (callback) callback(true, res); }
         else { showToast('Erreur : ' + (res.error || 'inconnue')); if (callback) callback(false); }
       })
-      .catch(function(err) { showToast('Erreur r\u00e9seau : ' + err); if (callback) callback(false); });
+      .catch(function(err) {
+        console.error('[POST GAS] Catch:', err);
+        showToast('Erreur r\u00e9seau : ' + err);
+        if (callback) callback(false);
+      });
     }
 
     window.submitDemande = function(btn) {
