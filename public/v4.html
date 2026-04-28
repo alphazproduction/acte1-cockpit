@@ -7517,11 +7517,11 @@
       document.getElementById('dmTitre').focus();
     };
 
-    function handleDemandeImage(input) {
+    window.handleDemandeImage = function(input) {
       if (input.files && input.files[0]) processDemandeImage(input.files[0]);
-    }
+    };
 
-    function processDemandeImage(file) {
+    window.processDemandeImage = function(file) {
       if (file.size > 5 * 1024 * 1024) {
         showToast('Image trop lourde (max 5 Mo)');
         return;
@@ -7592,7 +7592,8 @@
       };
 
       var imageData = document.getElementById('dmImageData').value;
-      if (imageData) {
+      console.log('[Demande] Image data length:', imageData ? imageData.length : 0);
+      if (imageData && imageData.length > 10) {
         data.screenshot_base64 = imageData;
       }
 
