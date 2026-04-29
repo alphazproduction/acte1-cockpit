@@ -3991,6 +3991,22 @@
     }
 
     window.switchVolet = function(volet) {
+      // Bloquer Contrat/Facturation/Organisation si projet pas enregistre
+      if (volet !== 'infos') {
+        var code = (document.getElementById('proj_code') || {}).value || '';
+        var nom = (document.getElementById('proj_nom') || {}).value || '';
+        if (!code || !nom) {
+          showToast('Remplissez au minimum le quadrigramme et le nom du projet, puis enregistrez.');
+          return;
+        }
+        // Verifier que le projet existe dans la base
+        var exists = PROJETS.some(function(p) { return p.code === code; }) ||
+                     projetsBase.some(function(p) { return (p.code_projet || p.code) === code; });
+        if (!exists) {
+          showToast('Ce projet n\'est pas encore enregistr\u00e9. Cliquez "Enregistrer" d\'abord.');
+          return;
+        }
+      }
       document.querySelectorAll('.volet-tab').forEach(function(t){t.classList.remove('active');});
       document.querySelectorAll('.volet-panel').forEach(function(p){p.classList.remove('active');});
       document.querySelector('[data-volet="'+volet+'"]').classList.add('active');
@@ -4171,12 +4187,14 @@
           buildPipeline(p.code, true) + '</div>';
       }
 
-      // Tabs
+      // Tabs — griser si nouveau projet non enregistre
+      var lockedStyle = isNew ? ';opacity:0.4;cursor:not-allowed' : '';
+      var lockedTitle = isNew ? ' title="Enregistrez d\'abord le projet (quadrigramme + nom)"' : '';
       html += '<div class="volet-tabs">' +
         '<button class="volet-tab volet-tab-infos active" data-volet="infos" onclick="switchVolet(\'infos\')">Infos projet</button>' +
-        '<button class="volet-tab volet-tab-contrat" data-volet="contrat" onclick="switchVolet(\'contrat\')">Contrat</button>' +
-        '<button class="volet-tab volet-tab-facturation" data-volet="facturation" onclick="switchVolet(\'facturation\')">Facturation</button>' +
-        '<button class="volet-tab volet-tab-orga" data-volet="orga" onclick="switchVolet(\'orga\')">Organisation</button>' +
+        '<button class="volet-tab volet-tab-contrat" data-volet="contrat" onclick="switchVolet(\'contrat\')" style="' + lockedStyle + '"' + lockedTitle + '>Contrat</button>' +
+        '<button class="volet-tab volet-tab-facturation" data-volet="facturation" onclick="switchVolet(\'facturation\')" style="' + lockedStyle + '"' + lockedTitle + '>Facturation</button>' +
+        '<button class="volet-tab volet-tab-orga" data-volet="orga" onclick="switchVolet(\'orga\')" style="' + lockedStyle + '"' + lockedTitle + '>Organisation</button>' +
       '</div>';
 
       // ── VOLET INFOS ──
