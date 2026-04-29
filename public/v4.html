@@ -1826,6 +1826,7 @@
         return;
       }
       Logger.debug('API', 'postToSheet: ' + action, { keys: Object.keys(data || {}) });
+      showLoadingToast('Enregistrement...');
       var t0 = performance.now();
       var payload = JSON.stringify({ action: action, data: data });
       var url = apiUrl + '?action=write&data=' + encodeURIComponent(payload);
@@ -6987,40 +6988,41 @@
       var tr = btn.closest('tr');
       if (!tr) return;
 
-      // Recuperer les infos de la facture pour supprimer l'echeance associee
       var nFacture = (tr.querySelector('[id^="fact_num_"]') || {}).value || '';
       var phaseEl = tr.querySelector('[id^="fact_phase_"]');
       var phase = phaseEl ? phaseEl.value : '';
       var code = currentProjetCode || '';
 
-      // Supprimer l'echeance correspondante dans echeancierData
+      if (!confirm('Supprimer cette facture' + (nFacture ? ' (' + nFacture + ')' : '') + ' ?\nL\'\u00e9ch\u00e9ance associ\u00e9e sera aussi supprim\u00e9e.')) return;
+
+      // Supprimer l'echeance correspondante
       if (code && (nFacture || phase)) {
         var echs = echeancierData[code] || [];
         var idxToRemove = -1;
         for (var ei = 0; ei < echs.length; ei++) {
           var e = echs[ei];
-          var match = false;
-          if (nFacture && e.n_facture === nFacture && (e.phase || '').toUpperCase() === phase.toUpperCase()) {
-            match = true;
-          } else if (!nFacture && (e.phase || '').toUpperCase() === phase.toUpperCase() &&
-                     (e.statut === 'Factur\u00e9' || e.statut === 'Facture')) {
-            match = true;
+          var stLow = (e.statut || '').toLowerCase();
+          var isFacture = stLow.indexOf('factur') === 0 && stLow.indexOf('a fac') < 0;
+          if (nFacture && String(e.n_facture) === String(nFacture) && (e.phase || '').toUpperCase() === phase.toUpperCase()) {
+            idxToRemove = ei; break;
+          } else if (!nFacture && (e.phase || '').toUpperCase() === phase.toUpperCase() && isFacture) {
+            idxToRemove = ei; break;
           }
-          if (match) { idxToRemove = ei; break; }
         }
 
         if (idxToRemove >= 0) {
           var removed = echs.splice(idxToRemove, 1)[0];
-          // Supprimer dans le Sheet aussi
           if (dataMode === 'live' && apiUrl) {
-            var keys = ['code_projet'];
-            var vals = [code];
-            if (removed.n_facture) { keys.push('n_facture'); vals.push(removed.n_facture); }
-            keys.push('phase'); vals.push(removed.phase || phase);
-            keys.push('statut'); vals.push('Factur\u00e9');
-            postToSheet('delete_ligne', { onglet: 'ECHEANCIER', keys: keys, values: vals });
+            var keys = ['code_projet', 'phase'];
+            var vals = [code, removed.phase || phase];
+            if (removed.n_facture) { keys.push('n_facture'); vals.push(String(removed.n_facture)); }
+            if (removed.ordre_affichage) { keys.push('ordre_affichage'); vals.push(String(removed.ordre_affichage)); }
+            postToSheet('delete_ligne', { onglet: 'ECHEANCIER', keys: keys, values: vals }, function(ok) {
+              if (ok) showToast('Facture + \u00e9ch\u00e9ance "' + phase + '" supprim\u00e9es');
+            });
           }
-          showToast('\u00c9ch\u00e9ance "' + phase + '" supprim\u00e9e de l\'\u00e9ch\u00e9ancier');
+        } else {
+          showToast('Facture supprim\u00e9e (pas d\'\u00e9ch\u00e9ance associ\u00e9e trouv\u00e9e)');
         }
       }
 
@@ -8150,6 +8152,7 @@
     function postDirectToGAS(body, callback) {
       if (!apiUrl) { showToast('URL API non configur\u00e9e'); if (callback) callback(false); return; }
       Logger.debug('API', 'POST ' + body.action, { keys: Object.keys(body.data || {}) });
+      showLoadingToast('Envoi en cours...');
       var t0 = performance.now();
       fetch(apiUrl, {
         method: 'POST',
@@ -8344,11 +8347,18 @@
     /* ==============================================================
        TOAST
        ============================================================== */
-    function showToast(msg) {
+    var toastTimer = null;
+    function showToast(msg, persistent) {
       var t = document.getElementById('toast');
       t.textContent = msg;
       t.classList.add('show');
-      setTimeout(function() { t.classList.remove('show'); }, 2500);
+      if (toastTimer) clearTimeout(toastTimer);
+      if (!persistent) {
+        toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2500);
+      }
+    }
+    function showLoadingToast(msg) {
+      showToast('\u23f3 ' + (msg || 'Enregistrement en cours...'), true);
     }
 
     /* ==============================================================
