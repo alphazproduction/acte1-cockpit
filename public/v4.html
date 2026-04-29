@@ -3511,20 +3511,19 @@
         if (e.validee) phaseCls += ' phase-validee';
 
         html += '<tr>';
-        html += '<td class="col-projet"><span class="code-badge">' + e.code + '</span> ' +
+        html += '<td class="col-projet" style="cursor:pointer" onclick="openProjetDetail(\'' + e.code + '\');switchVolet(\'orga\')"><span class="code-badge">' + e.code + '</span> ' +
           e.nom.substring(0,18) + (e.nom.length>18?'\u2026':'') +
           '<span class="chef-badge ' + chefCls + '">' + e.chef + '</span></td>';
 
-        // Week cells — show phase badge in weeks up to delivery, or all weeks if no delivery
+        // Week cells — show phase badge ONLY in the delivery week (or mid-month if no date)
+        var targetDay = e.deliveryDay > 0 ? e.deliveryDay : 15;
         weeks.forEach(function(w) {
-          var showPhase = true;
-          if (e.deliveryDay > 0 && w.start > e.deliveryDay) showPhase = false;
-          var isDeliveryWeek = e.deliveryDay >= w.start && e.deliveryDay <= w.end;
+          var isTargetWeek = targetDay >= w.start && targetDay <= w.end;
           var isCurrentWeek = todayDay >= w.start && todayDay <= w.end;
+          var catColor = e.cat === 'etudes' ? '#3B82F6' : e.cat === 'travaux' ? '#E8601C' : '#94A3B8';
 
-          if (showPhase) {
-            var cellStyle = '';
-            if (isDeliveryWeek) cellStyle = 'border:2px solid ' + (e.cat === 'etudes' ? '#3B82F6' : e.cat === 'travaux' ? '#E8601C' : '#94A3B8') + ';border-radius:6px;';
+          if (isTargetWeek) {
+            var cellStyle = 'border:2px solid ' + catColor + ';border-radius:6px;';
             html += '<td style="text-align:center;padding:0.3rem;' + cellStyle + '">' +
               '<div class="phase-cell ' + phaseCls + '">' + e.phase + '</div></td>';
           } else {
@@ -3679,9 +3678,19 @@
         }
 
         html += '<tr>';
-        html += '<td class="col-projet"><span class="code-badge">' + p.code + '</span> ' +
+        var totalMoisP = p.mois.reduce(function(a,b){return a+b;},0);
+        var tipHtml = '<div class="forecast-tip">' +
+          '<div class="tip-title">' + p.code + ' \u2014 ' + escapeHtml(p.nom) + '</div>' +
+          '<div class="tip-row"><span class="tip-label">\u00c9tat</span><span class="tip-value">' + escapeHtml(p.etat || '') + '</span></div>' +
+          '<div class="tip-row"><span class="tip-label">Chef</span><span class="tip-value">' + escapeHtml(p.chef || '') + '</span></div>' +
+          '<div class="tip-row"><span class="tip-label">Pr\u00e9vu ' + planningYear + '</span><span class="tip-value">' + fmtEuro(totalMoisP) + '</span></div>' +
+          (p.phase_courante ? '<div class="tip-row"><span class="tip-label">Phase courante</span><span class="tip-value" style="color:var(--blue)">' + escapeHtml(p.phase_courante) + '</span></div>' : '') +
+          (p.date_debut ? '<div class="tip-row"><span class="tip-label">D\u00e9but</span><span class="tip-value">' + toFR(p.date_debut) + '</span></div>' : '') +
+          (p.date_fin ? '<div class="tip-row"><span class="tip-label">Fin</span><span class="tip-value">' + toFR(p.date_fin) + '</span></div>' : '') +
+        '</div>';
+        html += '<td class="col-projet" style="cursor:pointer" onclick="openProjetDetail(\'' + p.code + '\');switchVolet(\'orga\')"><span class="code-badge">' + p.code + '</span> ' +
                 p.nom.substring(0,22) + (p.nom.length>22?'\u2026':'') +
-                '<span class="chef-badge ' + chefCls + '">' + p.chef + '</span></td>';
+                '<span class="chef-badge ' + chefCls + '">' + p.chef + '</span>' + tipHtml + '</td>';
         for (var m2=0;m2<12;m2++) {
           var phRaw = phases[m2];
           var ph = getOrgaPhase(phRaw);
