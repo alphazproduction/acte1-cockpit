@@ -1185,6 +1185,9 @@
       <a class="nav-item" data-page="demandes" onclick="navigateTo('demandes')">
         <span class="nav-icon">&#9993;</span> Demandes <span id="demandesBadge" style="background:var(--red);color:#fff;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:999px;margin-left:0.3rem;display:none"></span>
       </a>
+      <a class="nav-item" data-page="logs" onclick="navigateTo('logs')">
+        <span class="nav-icon">&#128270;</span> Logs
+      </a>
       <a class="nav-item" data-page="parametres" onclick="navigateTo('parametres')">
         <span class="nav-icon">&#9881;</span> Param&egrave;tres
       </a>
@@ -1343,6 +1346,30 @@
         <div id="echeancierContent"></div>
       </section>
 
+      <!-- Logs -->
+      <section id="page-logs" class="page">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Logs &amp; Diagnostic</div>
+            <div class="page-subtitle">Journaux client et serveur pour d&eacute;boguer rapidement</div>
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <select class="filter-select" id="logsLevelFilter" onchange="renderLogs()">
+              <option value="">Tous niveaux</option>
+              <option value="ERROR">ERROR</option>
+              <option value="WARN">WARN</option>
+              <option value="INFO">INFO</option>
+              <option value="DEBUG">DEBUG</option>
+            </select>
+            <input type="text" class="form-input" id="logsSearch" placeholder="Rechercher..." style="width:180px;padding:0.35rem 0.5rem;font-size:0.82rem" oninput="renderLogs()">
+            <button class="btn" onclick="renderLogs()">Rafra&icirc;chir</button>
+            <button class="btn" onclick="Logger.export()">Exporter</button>
+            <button class="btn" style="color:var(--red);border-color:var(--red)" onclick="if(confirm('Vider tous les logs ?')){Logger.clear();renderLogs();}">Vider</button>
+          </div>
+        </div>
+        <div id="logsContent"></div>
+      </section>
+
       <!-- Demandes -->
       <section id="page-demandes" class="page">
         <div class="page-header">
@@ -1385,6 +1412,77 @@
   <script>
   (function() {
     'use strict';
+
+    /* ==============================================================
+       LOGGER — Instrumentation debug
+       ============================================================== */
+    var LOG_MAX = 500;
+    var LOG_KEY = 'acte1_logs';
+    var LOG_LEVELS = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
+
+    function logPersist(entry) {
+      try {
+        var logs = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+        logs.push(entry);
+        if (logs.length > LOG_MAX) logs.splice(0, logs.length - LOG_MAX);
+        localStorage.setItem(LOG_KEY, JSON.stringify(logs));
+      } catch (e) { /* ignore */ }
+    }
+
+    function logEntry(level, scope, message, data) {
+      var entry = {
+        ts: new Date().toISOString(),
+        level: level,
+        scope: scope,
+        message: message,
+        data: data || null
+      };
+      logPersist(entry);
+      var css = level === 'ERROR' ? 'color:#DC2626;font-weight:bold' :
+                level === 'WARN' ? 'color:#F59E0B;font-weight:bold' :
+                level === 'INFO' ? 'color:#2563EB' : 'color:#888';
+      console.log('%c[' + level + '][' + scope + '] ' + message, css, data || '');
+    }
+
+    window.Logger = {
+      debug: function(s, m, d) { logEntry('DEBUG', s, m, d); },
+      info:  function(s, m, d) { logEntry('INFO', s, m, d); },
+      warn:  function(s, m, d) { logEntry('WARN', s, m, d); },
+      error: function(s, m, d) { logEntry('ERROR', s, m, d); },
+      getAll: function() { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); },
+      clear: function() { localStorage.removeItem(LOG_KEY); },
+      export: function() {
+        var blob = new Blob([JSON.stringify(window.Logger.getAll(), null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'acte1-logs-' + Date.now() + '.json'; a.click();
+      }
+    };
+
+    // Capture erreurs non gerees
+    window.addEventListener('error', function(e) {
+      Logger.error('UNCAUGHT', e.message, { file: e.filename, line: e.lineno, col: e.colno });
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      Logger.error('UNHANDLED_PROMISE', String(e.reason));
+    });
+
+    // Helper KPI defensif
+    function safeKpi(label, fn, fallback) {
+      try {
+        var v = fn();
+        if (v === null || v === undefined || (typeof v === 'number' && (isNaN(v) || !isFinite(v)))) {
+          Logger.warn('KPI', label + ' : valeur invalide', { v: v });
+          return fallback !== undefined ? fallback : '\u2014';
+        }
+        return v;
+      } catch (e) {
+        Logger.error('KPI', label + ' : exception', { error: String(e) });
+        return fallback !== undefined ? fallback : '\u2014';
+      }
+    }
+
+    Logger.info('INIT', 'Cockpit V4 logger ready');
 
     /* ==============================================================
        DATA — Projets r&eacute;els ACTE 1 (source: forecast mars 2026)
@@ -1496,14 +1594,24 @@
     };
 
     window.loadFromSheet = function() {
-      if (!apiUrl) { showToast('URL API non configur\u00e9e'); return; }
+      if (!apiUrl) { Logger.warn('API', 'URL API non configuree'); showToast('URL API non configur\u00e9e'); return; }
       isLoading = true;
       updateConnectionBadge();
+      var t0 = performance.now();
+      Logger.info('API', 'loadFromSheet start', { url: apiUrl.substring(0, 50) + '...' });
 
       fetch(apiUrl)
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!data.ok) throw data.error || 'Erreur API';
+          var dt = Math.round(performance.now() - t0);
+          if (!data.ok) { Logger.error('API', 'loadFromSheet error', { dt: dt, error: data.error }); throw data.error || 'Erreur API'; }
+          Logger.info('API', 'loadFromSheet OK', {
+            dt: dt,
+            projets: (data.projets || []).length,
+            echeancier: (data.echeancier || []).length,
+            contrats: (data.contrats || []).length,
+            demandes: (data.demandes || []).length
+          });
 
           // 1. Construire la liste de projets de base (sans mois)
           if (data.projets && data.projets.length > 0) {
@@ -1698,16 +1806,21 @@
     // \u00c9criture via GET (contourne le bug POST/redirect de GAS)
     window.postToSheet = function(action, data, callback) {
       if (dataMode !== 'live' || !apiUrl) {
+        Logger.warn('API', 'postToSheet blocked: mode=' + dataMode);
         showToast('Mode d\u00e9mo \u2014 passez en mode Live dans Param\u00e8tres');
         if (callback) callback(false);
         return;
       }
+      Logger.debug('API', 'postToSheet: ' + action, { keys: Object.keys(data || {}) });
+      var t0 = performance.now();
       var payload = JSON.stringify({ action: action, data: data });
       var url = apiUrl + '?action=write&data=' + encodeURIComponent(payload);
       fetch(url)
       .then(function(r) { return r.json(); })
       .then(function(res) {
+        var dt = Math.round(performance.now() - t0);
         if (res.ok) {
+          Logger.info('API', 'postToSheet OK: ' + action, { dt: dt });
           showToast(res.message || 'Sauvegard\u00e9');
           if (callback) callback(true);
         } else {
@@ -7156,6 +7269,7 @@
        NAVIGATION
        ============================================================== */
     window.navigateTo = function(page) {
+      Logger.info('NAV', 'navigateTo: ' + page);
       // Update nav
       document.querySelectorAll('.nav-item').forEach(function(el) {
         el.classList.toggle('active', el.getAttribute('data-page') === page);
@@ -7173,6 +7287,7 @@
       if (page === 'parametres') renderParams();
       if (page === 'aide') renderAide();
       if (page === 'demandes') renderDemandes();
+      if (page === 'logs') renderLogs();
       // Update hash
       history.replaceState(null, '', '#' + page);
     };
@@ -7544,24 +7659,23 @@
     // Envoi direct en POST (necessite pour les images base64 trop grosses pour GET)
     function postDirectToGAS(body, callback) {
       if (!apiUrl) { showToast('URL API non configur\u00e9e'); if (callback) callback(false); return; }
-      console.log('[POST GAS] Envoi...', body.action, 'data keys:', Object.keys(body.data || {}));
+      Logger.debug('API', 'POST ' + body.action, { keys: Object.keys(body.data || {}) });
+      var t0 = performance.now();
       fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         redirect: 'follow',
         body: JSON.stringify(body)
       })
-      .then(function(r) {
-        console.log('[POST GAS] Response status:', r.status, 'redirected:', r.redirected, 'url:', r.url);
-        return r.json();
-      })
+      .then(function(r) { return r.json(); })
       .then(function(res) {
-        console.log('[POST GAS] Result:', JSON.stringify(res).substring(0, 200));
+        var dt = Math.round(performance.now() - t0);
+        Logger.info('API', 'POST ' + body.action + ' result', { dt: dt, ok: res.ok, screenshot: !!res.screenshot_url });
         if (res.ok) { if (callback) callback(true, res); }
-        else { showToast('Erreur : ' + (res.error || 'inconnue')); if (callback) callback(false); }
+        else { Logger.error('API', 'POST ' + body.action + ' error', { error: res.error }); showToast('Erreur : ' + (res.error || 'inconnue')); if (callback) callback(false); }
       })
       .catch(function(err) {
-        console.error('[POST GAS] Catch:', err);
+        Logger.error('API', 'POST ' + body.action + ' catch', { error: String(err) });
         showToast('Erreur r\u00e9seau : ' + err);
         if (callback) callback(false);
       });
@@ -7592,7 +7706,7 @@
       };
 
       var imageData = document.getElementById('dmImageData').value;
-      console.log('[Demande] Image data length:', imageData ? imageData.length : 0);
+      Logger.debug('DEMANDE', 'Image data length: ' + (imageData ? imageData.length : 0));
       if (imageData && imageData.length > 10) {
         data.screenshot_base64 = imageData;
       }
@@ -7623,6 +7737,65 @@
           else { badge.style.display = 'none'; }
         }
       });
+    };
+
+    /* ==============================================================
+       RENDER: LOGS
+       ============================================================== */
+    window.renderLogs = function() {
+      var el = document.getElementById('logsContent');
+      var levelFilter = (document.getElementById('logsLevelFilter') || {}).value || '';
+      var searchFilter = (document.getElementById('logsSearch') || {}).value.toLowerCase();
+
+      var logs = Logger.getAll().reverse(); // plus recent en premier
+
+      if (levelFilter) logs = logs.filter(function(l) { return l.level === levelFilter; });
+      if (searchFilter) logs = logs.filter(function(l) {
+        return (l.message || '').toLowerCase().indexOf(searchFilter) >= 0 ||
+               (l.scope || '').toLowerCase().indexOf(searchFilter) >= 0 ||
+               JSON.stringify(l.data || '').toLowerCase().indexOf(searchFilter) >= 0;
+      });
+
+      if (logs.length === 0) {
+        el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--text-muted)">Aucun log' +
+          (levelFilter ? ' de niveau ' + levelFilter : '') + '</div>';
+        return;
+      }
+
+      var levelColors = {
+        ERROR: { bg: 'rgba(220,38,38,0.1)', text: '#DC2626' },
+        WARN:  { bg: 'rgba(245,158,11,0.1)', text: '#F59E0B' },
+        INFO:  { bg: 'rgba(37,99,235,0.1)', text: '#2563EB' },
+        DEBUG: { bg: 'rgba(156,163,175,0.1)', text: '#9CA3AF' }
+      };
+
+      var html = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">' + logs.length + ' entr\u00e9e(s)</div>';
+      html += '<div class="data-table-wrap"><table class="data-table" style="font-size:0.8rem"><thead><tr>' +
+        '<th style="width:140px;text-align:left">Heure</th>' +
+        '<th style="width:60px;text-align:center">Niv.</th>' +
+        '<th style="width:80px;text-align:left">Scope</th>' +
+        '<th style="text-align:left">Message</th>' +
+        '<th style="width:250px;text-align:left">D\u00e9tails</th>' +
+        '</tr></thead><tbody>';
+
+      logs.forEach(function(l) {
+        var lc = levelColors[l.level] || levelColors.DEBUG;
+        var ts = (l.ts || '').substring(11, 19);
+        var date = (l.ts || '').substring(0, 10);
+        var dataStr = l.data ? JSON.stringify(l.data) : '';
+        if (dataStr.length > 100) dataStr = dataStr.substring(0, 100) + '\u2026';
+
+        html += '<tr>';
+        html += '<td style="text-align:left;color:var(--text-muted);font-family:monospace">' + date + ' ' + ts + '</td>';
+        html += '<td style="text-align:center"><span style="background:' + lc.bg + ';color:' + lc.text + ';font-size:0.68rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:999px">' + l.level + '</span></td>';
+        html += '<td style="text-align:left;font-weight:600">' + escapeHtml(l.scope || '') + '</td>';
+        html += '<td style="text-align:left">' + escapeHtml(l.message || '') + '</td>';
+        html += '<td style="text-align:left;font-family:monospace;font-size:0.72rem;color:var(--text-muted);word-break:break-all">' + escapeHtml(dataStr) + '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      el.innerHTML = html;
     };
 
     /* ==============================================================
