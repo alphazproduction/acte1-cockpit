@@ -4134,9 +4134,14 @@
       // ── SUMMARY CARD for existing projects ──
       if (p) {
         var totalMois = p.mois.reduce(function(a,b){return a+b;},0);
-        var mi_det = effectiveMonthIndex();
+        // Calculer le facture reel depuis echeancierData (pas depuis p.mois)
         var facture_det = 0;
-        for (var fd = 0; fd < mi_det; fd++) facture_det += p.mois[fd];
+        (echeancierData[p.code] || []).forEach(function(e) {
+          var st = String(e.statut || '').toLowerCase();
+          if (st.indexOf('factur') === 0 && st.indexOf('a fac') < 0) {
+            facture_det += parseFloat(e.montant) || 0;
+          }
+        });
         var clientLabel = v.client || '<span style="color:var(--red);font-style:italic">Non renseign\u00e9</span>';
         var budgetLabel = v.budget_total ? fmtEuro(v.budget_total) : '<span style="color:var(--red);font-style:italic">Non renseign\u00e9</span>';
         var phaseLabel = p.phase_courante || '<span style="color:var(--text-muted);font-style:italic">N/A</span>';
