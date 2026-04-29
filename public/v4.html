@@ -3595,7 +3595,8 @@
       var filtered = PROJETS.filter(function(p) {
         var hasOrga = ORGANISATION[p.code] && ORGANISATION[p.code].some(function(ph){return ph!==null;});
         var hasContrat = (contratsData[p.code] || []).length > 0;
-        if (!hasOrga && !hasContrat) return false;
+        var hasEch = (echeancierData[p.code] || []).length > 0;
+        if (!hasOrga && !hasContrat && !hasEch) return false;
         if (filterChef !== 'tous' && p.chef !== filterChef) return false;
         if (filterPhase !== 'tous' && !projetHasPhaseType(p.code, filterPhase)) return false;
         return true;
@@ -3620,12 +3621,25 @@
       var prevCat = null;
       filtered.forEach(function(p) {
         var phases = ORGANISATION[p.code] || [];
-        // Fallback : construire depuis contrats si pas d'ORGANISATION
+        // Fallback : construire depuis contrats ou echeancier si pas d'ORGANISATION
         if (!phases.some(function(ph){return ph!==null;})) {
           var cPh = contratsData[p.code] || [];
+          var ePh = echeancierData[p.code] || [];
           if (cPh.length > 0) {
             phases = [null,null,null,null,null,null,null,null,null,null,null,null];
             cPh.forEach(function(c, ci) { if (ci < 12) phases[ci] = c.phase || null; });
+          } else if (ePh.length > 0) {
+            phases = [null,null,null,null,null,null,null,null,null,null,null,null];
+            ePh.forEach(function(e) {
+              var dp = String(e.date_prev_facturation || '');
+              if (dp.length >= 7) {
+                var eYear = parseInt(dp.substring(0,4));
+                var eMonth = parseInt(dp.substring(5,7)) - 1;
+                if (eYear === planningYear && eMonth >= 0 && eMonth < 12) {
+                  phases[eMonth] = e.phase || null;
+                }
+              }
+            });
           }
         }
         var valids = PHASES_VALIDEES[p.code] || [];
