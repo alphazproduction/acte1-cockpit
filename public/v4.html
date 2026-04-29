@@ -2962,94 +2962,93 @@
         '</div>' +
       '</div>';
 
-      // ── VUES DU COCKPIT ──
-      html += '<div class="aide-section"><h3>Les pages du cockpit</h3></div>';
+      // ── PAGES DU COCKPIT (sidebar) ──
+      html += '<div class="aide-section"><h3>Les 7 pages du cockpit</h3>' +
+        '<p style="font-size:0.85rem;color:var(--text-muted)">Accessibles depuis la barre lat\u00e9rale gauche.</p></div>';
       html += '<div class="aide-grid">';
 
       html += '<div class="aide-section">' +
         '<h3>Dashboard</h3>' +
-        '<p>Vue d\'ensemble avec indicateurs cl\u00e9s :</p>' +
+        '<p>Vue d\'ensemble financi\u00e8re :</p>' +
         '<ul>' +
-          '<li><strong>KPI Seuil / Objectif</strong> : % du CA pr\u00e9visionnel vs seuil de rentabilit\u00e9 et objectif</li>' +
-          '<li><strong>Graphiques</strong> : histogramme mensuel + courbe cumul\u00e9e vs objectif/seuil pond\u00e9r\u00e9s</li>' +
-          '<li><strong>Top 5</strong> : plus gros projets de l\'ann\u00e9e (CA pr\u00e9vu, restant, engagements)</li>' +
-          '<li><strong>Alertes</strong> : retards de facturation, \u00e9carts contrat/\u00e9ch\u00e9ancier, projets sans \u00e9ch\u00e9ances</li>' +
-          '<li>Navigation par ann\u00e9e (2015-2030)</li>' +
+          '<li><strong>KPIs</strong> : seuil de rentabilit\u00e9 et objectif CA, avec % d\'atteinte</li>' +
+          '<li><strong>Graphiques</strong> : histogramme mensuel (factur\u00e9/pr\u00e9visionnel) + courbe cumul\u00e9e</li>' +
+          '<li><strong>Top 5</strong> : plus gros projets (3 vues : CA pr\u00e9vu, restant, engagements)</li>' +
+          '<li><strong>Alertes dynamiques</strong> : retards de facturation, \u00e9carts contrat/\u00e9ch\u00e9ancier, projets sans \u00e9ch\u00e9ances</li>' +
+          '<li>Navigation par ann\u00e9e (2015-2030) avec objectifs/seuils personnalis\u00e9s</li>' +
+        '</ul>' +
+      '</div>';
+
+      html += '<div class="aide-section">' +
+        '<h3>Projets</h3>' +
+        '<p>Liste et fiches d\u00e9taill\u00e9es :</p>' +
+        '<ul>' +
+          '<li>Filtre par \u00e9tat (En cours, Termin\u00e9s, Tous) + recherche texte</li>' +
+          '<li>Clic sur un projet \u2192 <strong>fiche projet</strong> avec 4 volets :</li>' +
+          '<li style="margin-left:1rem"><strong>Infos</strong> : code, nom, client, dates, liens Drive avec <strong>s\u00e9lecteur de dossiers</strong> (dossier commercial + dossier projet)</li>' +
+          '<li style="margin-left:1rem"><strong>Contrat</strong> : documents (Devis/Avenant/OS), phases + <strong>\u00e9ch\u00e9ancier par phase</strong> (versements \u00e9ditables, badge coh\u00e9rence, bouton + Versement)</li>' +
+          '<li style="margin-left:1rem"><strong>Facturation</strong> : factures enregistr\u00e9es \u2192 mettent \u00e0 jour l\'\u00e9ch\u00e9ancier automatiquement. Si montant partiel \u2192 popup pour le solde restant</li>' +
+          '<li style="margin-left:1rem"><strong>Organisation</strong> : planning de rendu, validation des phases</li>' +
+          '<li><strong>Analyse IA</strong> : d\u00e9posez un fichier ou analysez un dossier Drive \u2192 remplissage automatique</li>' +
+          '<li><strong>Enregistrer</strong> toujours visible en haut \u00e0 droite</li>' +
         '</ul>' +
       '</div>';
 
       html += '<div class="aide-section">' +
         '<h3>Forecast</h3>' +
-        '<p>Grille projets \u00d7 12 mois — aliment\u00e9e par l\'\u00e9ch\u00e9ancier :</p>' +
+        '<p>Grille projets \u00d7 12 mois :</p>' +
         '<ul>' +
           '<li><span style="display:inline-block;width:12px;height:12px;background:var(--green-bg);border:1px solid var(--green);border-radius:2px;vertical-align:middle"></span> Factur\u00e9 &nbsp; <span style="display:inline-block;width:12px;height:12px;background:rgba(232,96,28,0.1);border:1px solid var(--accent);border-radius:2px;vertical-align:middle"></span> Mois en cours &nbsp; <span style="display:inline-block;width:12px;height:12px;background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:2px;vertical-align:middle"></span> Pr\u00e9visionnel</li>' +
           '<li><strong>Cliquer sur un montant</strong> \u2192 ouvre la fiche projet (volet facturation)</li>' +
-          '<li>Le forecast est <strong>non \u00e9ditable</strong> : pour modifier un montant, passez par l\'\u00e9ch\u00e9ancier du projet</li>' +
-          '<li>Source : ECHEANCIER du Sheet (pas PREVISIONNEL)</li>' +
+          '<li><strong>Non \u00e9ditable</strong> : pour modifier, passez par l\'\u00e9ch\u00e9ancier du projet</li>' +
+          '<li>Aliment\u00e9 automatiquement par l\'\u00e9ch\u00e9ancier (onglet ECHEANCIER du Sheet)</li>' +
         '</ul>' +
       '</div>';
 
       html += '<div class="aide-section">' +
         '<h3>Planning</h3>' +
-        '<p>Vue chronologique des phases MOP par projet :</p>' +
+        '<p>Vue chronologique des phases MOP :</p>' +
         '<ul>' +
           '<li>Phases \u00e9tudes en <span style="color:var(--blue)">bleu</span>, travaux en <span style="color:var(--accent)">orange</span></li>' +
-          '<li>Phases valid\u00e9es marqu\u00e9es d\'un \u2713</li>' +
-          '<li>Filtrer par mois, type, chef de projet</li>' +
+          '<li>Phases valid\u00e9es marqu\u00e9es \u2713</li>' +
+          '<li>Filtrer par mois, type de phase, chef de projet</li>' +
         '</ul>' +
-      '</div>';
-
-      html += '<div class="aide-section">' +
-        '<h3>\u00c9ch\u00e9ancier</h3>' +
-        '<p>Vue consolid\u00e9e des \u00e9ch\u00e9ances de facturation :</p>' +
-        '<ul>' +
-          '<li>KPIs : Factur\u00e9 / \u00c0 facturer / Pr\u00e9visionnel / Total</li>' +
-          '<li>Cartes horizontales par projet avec phases et versements</li>' +
-          '<li>Donn\u00e9es r\u00e9elles du Sheet (pas de mock)</li>' +
-          '<li>Filtre par statut et chef de projet</li>' +
-        '</ul>' +
-      '</div>';
-
-      html += '<div class="aide-section">' +
-        '<h3>Fiche projet</h3>' +
-        '<p>4 volets pour chaque projet :</p>' +
-        '<ul>' +
-          '<li><strong>Infos projet</strong> : code, nom, client, dates, liens Drive (s\u00e9lecteur de dossiers)</li>' +
-          '<li><strong>Contrat</strong> : documents (devis/avenants), phases avec montants + <strong>\u00e9ch\u00e9ancier par phase</strong> (versements \u00e9ditables)</li>' +
-          '<li><strong>Facturation</strong> : factures enregistr\u00e9es \u2192 mettent \u00e0 jour l\'\u00e9ch\u00e9ancier automatiquement. Si montant partiel \u2192 popup pour le solde restant</li>' +
-          '<li><strong>Organisation</strong> : planning de rendu des phases, validation</li>' +
-        '</ul>' +
-        '<p style="margin-top:0.5rem"><strong>Bouton Enregistrer</strong> toujours visible en haut \u00e0 droite.</p>' +
       '</div>';
 
       html += '<div class="aide-section">' +
         '<h3>Demandes</h3>' +
-        '<p>Signaler des bugs ou proposer des am\u00e9liorations :</p>' +
+        '<p>Signaler bugs et proposer des am\u00e9liorations :</p>' +
         '<ul>' +
           '<li>Cat\u00e9gories : Bug / Am\u00e9lioration / Question</li>' +
           '<li>Priorit\u00e9 : Basse / Moyenne / Haute</li>' +
-          '<li>Capture d\'\u00e9cran int\u00e9gr\u00e9e (fichier ou Ctrl+V)</li>' +
-          '<li>Gestion : statut, r\u00e9ponse, date de traitement</li>' +
+          '<li><strong>Capture d\'\u00e9cran</strong> : fichier ou Ctrl+V, stock\u00e9e dans Google Drive</li>' +
+          '<li>Clic sur une demande \u2192 modale de gestion (statut, r\u00e9ponse, suppression)</li>' +
+          '<li>Badge dans la sidebar avec le nombre de demandes \u00e0 traiter</li>' +
         '</ul>' +
       '</div>';
 
       html += '<div class="aide-section">' +
-        '<h3>Logs</h3>' +
-        '<p>Journaux de diagnostic pour d\u00e9boguer :</p>' +
+        '<h3>Logs &amp; Diagnostic</h3>' +
+        '<p>Journaux pour identifier les probl\u00e8mes :</p>' +
         '<ul>' +
-          '<li>Niveaux : ERROR / WARN / INFO / DEBUG</li>' +
-          '<li>Filtre par niveau et recherche texte</li>' +
-          '<li>Export JSON pour analyse</li>' +
+          '<li><strong>Logs client</strong> (navigateur) : chargement, navigation, erreurs JS</li>' +
+          '<li><strong>Logs serveur</strong> (GAS) : appels API, \u00e9critures Sheet \u2014 cliquer "Logs serveur" pour charger</li>' +
+          '<li>Filtre par niveau (ERROR/WARN/INFO/DEBUG) et recherche texte</li>' +
+          '<li>Export JSON + vidage</li>' +
+          '<li>Logs serveur stock\u00e9s dans l\'onglet <strong>_LOGS</strong> du Google Sheet</li>' +
         '</ul>' +
       '</div>';
 
       html += '<div class="aide-section">' +
         '<h3>Param\u00e8tres</h3>' +
-        '<p>Configuration du cockpit :</p>' +
+        '<p>Configuration :</p>' +
         '<ul>' +
-          '<li><strong>Connexion</strong> : URL API Apps Script + URL Google Sheet + mode Live/D\u00e9connect\u00e9</li>' +
+          '<li><strong>URL API</strong> : adresse du d\u00e9ploiement Apps Script</li>' +
+          '<li><strong>URL Google Sheet</strong> : lien direct vers le Sheet de production</li>' +
+          '<li><strong>Mode</strong> : Live (Google Sheet) ou D\u00e9connect\u00e9</li>' +
           '<li><strong>Objectifs</strong> : CA et seuil par d\u00e9faut + surcharges par ann\u00e9e</li>' +
           '<li><strong>Pond\u00e9ration</strong> : coefficient mensuel (0.5 = mois creux)</li>' +
+          '<li><strong>IA</strong> : cl\u00e9 Claude configur\u00e9e c\u00f4t\u00e9 serveur (non expos\u00e9e)</li>' +
         '</ul>' +
       '</div>';
 
@@ -3058,19 +3057,31 @@
       // ── FLUX DE DONNEES ──
       html += '<div class="aide-section">' +
         '<h3>Comment les donn\u00e9es circulent</h3>' +
-        '<div style="background:var(--bg);border-radius:8px;padding:1rem;font-family:monospace;font-size:0.82rem;line-height:2;text-align:center">' +
-          '<strong>Contrat</strong> (phases + montants)<br>' +
-          '\u2193<br>' +
-          '<strong>\u00c9ch\u00e9ancier</strong> (1 ligne = 1 versement avec date + statut)<br>' +
-          '\u2193 agr\u00e9g\u00e9 par mois<br>' +
-          '<strong>Forecast</strong> (lecture seule, cliquable \u2192 projet)<br>' +
-          '\u2193<br>' +
-          '<strong>Dashboard</strong> (KPIs, alertes, graphiques)' +
+        '<div style="background:var(--bg);border-radius:8px;padding:1.25rem;font-size:0.85rem;line-height:2;text-align:center">' +
+          '<div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;flex-wrap:wrap">' +
+            '<span style="background:var(--green-bg);padding:0.4rem 0.8rem;border-radius:6px;font-weight:700">Contrat</span>' +
+            '<span>\u2192</span>' +
+            '<span style="background:rgba(232,96,28,0.1);padding:0.4rem 0.8rem;border-radius:6px;font-weight:700;color:var(--accent)">\u00c9ch\u00e9ancier</span>' +
+            '<span>\u2192</span>' +
+            '<span style="background:var(--yellow-bg);padding:0.4rem 0.8rem;border-radius:6px;font-weight:700">Forecast</span>' +
+            '<span>\u2192</span>' +
+            '<span style="background:var(--blue-bg);padding:0.4rem 0.8rem;border-radius:6px;font-weight:700;color:var(--blue)">Dashboard</span>' +
+          '</div>' +
+          '<div style="margin-top:0.75rem;font-size:0.8rem;color:var(--text-muted)">' +
+            'Contrat (phases + montants) \u2192 \u00c9ch\u00e9ancier (1 versement = 1 ligne avec date + statut) \u2192 Forecast (agr\u00e9g\u00e9 par mois, lecture seule) \u2192 Dashboard (KPIs + alertes)' +
+          '</div>' +
         '</div>' +
-        '<p style="font-size:0.82rem;margin-top:0.75rem;color:var(--text-muted)">' +
-          'Le forecast est <strong>calcul\u00e9 automatiquement</strong> depuis l\'\u00e9ch\u00e9ancier. ' +
-          'Pour modifier un montant dans le forecast, modifiez l\'\u00e9ch\u00e9ancier du projet concern\u00e9 (onglet Contrat de la fiche projet).' +
-        '</p>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">' +
+          '<div style="background:var(--bg);border-radius:6px;padding:0.75rem;font-size:0.82rem">' +
+            '<strong>Facturation \u2192 \u00c9ch\u00e9ancier</strong><br>' +
+            'Quand vous enregistrez une facture, l\'\u00e9ch\u00e9ance correspondante passe en "Factur\u00e9". ' +
+            'Si le montant est partiel, une nouvelle \u00e9ch\u00e9ance "Pr\u00e9visionnel" est cr\u00e9\u00e9e pour le solde.' +
+          '</div>' +
+          '<div style="background:var(--bg);border-radius:6px;padding:0.75rem;font-size:0.82rem">' +
+            '<strong>\u00c9ch\u00e9ancier \u2192 Pr\u00e9visionnel (auto)</strong><br>' +
+            'Le PREVISIONNEL du Sheet est recalcul\u00e9 automatiquement c\u00f4t\u00e9 serveur apr\u00e8s chaque modification d\'\u00e9ch\u00e9ancier (fonction recalcPrevisionnel).' +
+          '</div>' +
+        '</div>' +
       '</div>';
 
       // ── PHASES MOP ──
