@@ -1762,9 +1762,12 @@
               if (!ORGANISATION[displayCode]) ORGANISATION[displayCode] = [null,null,null,null,null,null,null,null,null,null,null,null];
               if (!PHASES_VALIDEES[displayCode]) PHASES_VALIDEES[displayCode] = [false,false,false,false,false,false,false,false,false,false,false,false];
               if (org.date_rendu_prev) {
-                var m2 = parseInt(String(org.date_rendu_prev).substring(5,7)) - 1;
+                var orgDateStr = String(org.date_rendu_prev);
+                var orgYear = parseInt(orgDateStr.substring(0,4));
+                var m2 = parseInt(orgDateStr.substring(5,7)) - 1;
                 if (m2 >= 0 && m2 < 12) {
-                  ORGANISATION[displayCode][m2] = org.phase;
+                  // Stocker phase + annee pour filtrage dans le planning
+                  ORGANISATION[displayCode][m2] = { phase: org.phase, year: orgYear };
                   // Mark as validated if validee field is truthy
                   if (org.validee === true || org.validee === 'true' || org.validee === 'oui' || org.validee === 'Oui' || org.validee === 1) {
                     PHASES_VALIDEES[displayCode][m2] = true;
@@ -3353,6 +3356,18 @@
        RENDER: PLANNING TABLE + CHARGE
        ============================================================== */
     // Ordre de tri par catégorie de phase
+    // Helper : extraire la phase d'un slot ORGANISATION (peut etre string ou {phase,year})
+    function getOrgaPhase(slot) {
+      if (!slot) return null;
+      if (typeof slot === 'string') return slot;
+      return slot.phase || null;
+    }
+    function getOrgaYear(slot) {
+      if (!slot) return null;
+      if (typeof slot === 'object' && slot.year) return slot.year;
+      return null;
+    }
+
     var CAT_ORDER = { etudes: 0, travaux: 1, conseil: 2 };
 
     // Catégorie dominante d'un projet (la plus fréquente dans son planning)
@@ -3415,8 +3430,11 @@
       PROJETS.forEach(function(p) {
         if (!ORGANISATION[p.code]) return;
         if (filterChef !== 'tous' && p.chef !== filterChef) return;
-        var ph = ORGANISATION[p.code][monthIdx];
+        var phSlot = ORGANISATION[p.code][monthIdx];
+        var ph = getOrgaPhase(phSlot);
+        var phYear = getOrgaYear(phSlot);
         if (!ph) return;
+        if (phYear && phYear !== planningYear) return;
         var cat = getPhaseCategory(ph);
         if (filterPhase !== 'tous' && cat !== filterPhase) return;
         var valids = PHASES_VALIDEES[p.code] || [];
@@ -3593,7 +3611,11 @@
 
       // Aussi inclure les projets avec des contrats (pas seulement ORGANISATION)
       var filtered = PROJETS.filter(function(p) {
-        var hasOrga = ORGANISATION[p.code] && ORGANISATION[p.code].some(function(ph){return ph!==null;});
+        var hasOrga = ORGANISATION[p.code] && ORGANISATION[p.code].some(function(ph){
+          if (!ph) return false;
+          var yr = getOrgaYear(ph);
+          return yr ? yr === planningYear : getOrgaPhase(ph) !== null;
+        });
         var hasContrat = (contratsData[p.code] || []).length > 0;
         var hasEch = (echeancierData[p.code] || []).length > 0;
         if (!hasOrga && !hasContrat && !hasEch) return false;
@@ -3622,7 +3644,7 @@
       filtered.forEach(function(p) {
         var phases = ORGANISATION[p.code] || [];
         // Fallback : construire depuis contrats ou echeancier si pas d'ORGANISATION
-        if (!phases.some(function(ph){return ph!==null;})) {
+        if (!phases.some(function(ph){ var p2 = getOrgaPhase(ph); var y2 = getOrgaYear(ph); return p2 && (!y2 || y2 === planningYear); })) {
           var cPh = contratsData[p.code] || [];
           var ePh = echeancierData[p.code] || [];
           if (cPh.length > 0) {
@@ -3661,7 +3683,11 @@
                 p.nom.substring(0,22) + (p.nom.length>22?'\u2026':'') +
                 '<span class="chef-badge ' + chefCls + '">' + p.chef + '</span></td>';
         for (var m2=0;m2<12;m2++) {
-          var ph = phases[m2];
+          var phRaw = phases[m2];
+          var ph = getOrgaPhase(phRaw);
+          var phYear = getOrgaYear(phRaw);
+          // Filtrer par annee : ne pas afficher si la phase est d'une autre annee
+          if (ph && phYear && phYear !== planningYear) ph = null;
           if (ph) {
             var cat = getPhaseCategory(ph);
             // Si on filtre par type, griser les phases hors filtre
@@ -3812,8 +3838,9 @@
         var valids = PHASES_VALIDEES[code] || [];
         var mi = getCurrentMonthIndex();
         for (var m = 0; m < 12; m++) {
-          if (phases[m]) {
-            var base = phases[m].replace(/\s*\d+$/, '').toUpperCase();
+          var phVal = getOrgaPhase(phases[m]);
+          if (phVal) {
+            var base = phVal.replace(/\s*\d+$/, '').toUpperCase();
             if (!phaseData[base]) phaseData[base] = { totalAmount: 0, factAmount: 0, planned: true };
             var amount = proj ? proj.mois[m] : 0;
             phaseData[base].totalAmount += amount;
