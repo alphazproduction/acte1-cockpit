@@ -5944,7 +5944,8 @@
       if (folderMatch) {
         // C'est un dossier → analyse dossier complet
         var folderId = folderMatch[1];
-        document.getElementById('iaFolderUrl').value = driveUrl;
+        var folderUrlEl = document.getElementById('iaFolderUrl');
+        if (folderUrlEl) folderUrlEl.value = driveUrl;
         showIALoader(statusEl, 'Analyse du dossier Drive...', 'L\'IA explore le dossier et analyse les fichiers pertinents. 1-2 minutes.');
         var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(folderId) + '&mode=folder_direct';
         fetch(url).then(function(r) { return r.json(); }).then(function(resp) {
@@ -7268,6 +7269,7 @@
         postToSheet('upsert_projet', projetData, function(ok) {
           if (ok) {
             showToast('Projet sauvegard\u00e9 — rafra\u00eechissement...');
+            currentProjetCode = projetData.code_projet;
             updateLocalProjet(projetData);
             setTimeout(function() {
               renderProjetDetail(PROJETS.find(function(p) { return p.code === projetData.code_projet; }) || null);
@@ -7278,6 +7280,7 @@
           }
         });
       } else {
+        currentProjetCode = projetData.code_projet;
         updateLocalProjet(projetData);
         if (!PROJETS.find(function(p) { return p.code === projetData.code_projet; })) {
           PROJETS.push({
