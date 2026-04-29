@@ -4299,7 +4299,7 @@
         sheetContrats.forEach(function(c) {
           var ref = c.ref_document || 'DEV-' + p.code;
           if (!docMap[ref]) {
-            docMap[ref] = { ref: ref, nom: c.nom_document || c.famille_document || 'Document', type: c.type_document || 'Devis initial', date: c.date_document || '', phases: [], montant: 0, fige: (c.famille_document === 'Montant initial') };
+            docMap[ref] = { ref: ref, nom: c.nom_document || c.famille_document || 'Document', type: c.type_document || 'Devis initial', date: c.date_document || '', lien_devis: c.lien_devis || '', phases: [], montant: 0, fige: (c.famille_document === 'Montant initial') };
             docOrder.push(ref);
           }
           docMap[ref].phases.push({ phase: c.phase || '', montant: parseFloat(c.montant) || 0 });
@@ -4352,8 +4352,19 @@
           html += '</div>';
           html += '<div style="display:flex;align-items:center;gap:0.75rem">';
           html += '<div class="font-din" style="font-size:1.15rem" id="contrat_doc_total_' + docIdx + '">' + fmtEuro(doc.montant) + '</div>';
-          html += '<button class="btn" onclick="supprimerContratDoc(this,' + docIdx + ',\'' + p.code + '\')" style="font-size:0.7rem;padding:0.2rem 0.4rem;color:var(--red);border-color:var(--red)" title="Supprimer ce document">\u2716</button>';
+
+          // Lien devis par contrat
+          var docLienDevis = doc.lien_devis || '';
+          var isAnalyzed = docLienDevis && isFileInIaCache(docLienDevis);
           html += '</div></div>';
+          html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">';
+          html += '<input type="url" class="form-input" id="contrat_lien_devis_' + docIdx + '" value="' + escapeHtml(docLienDevis) + '" placeholder="Lien du devis (Google Drive)" style="flex:1;font-size:0.82rem;padding:0.3rem 0.5rem">';
+          if (docLienDevis) {
+            html += '<a href="' + escapeHtml(docLienDevis) + '" target="_blank" class="btn" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap">Ouvrir</a>';
+          }
+          html += '<button class="btn" onclick="analyserDevisContrat(' + docIdx + ',\'' + pCode + '\')" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">' + (isAnalyzed ? 'Re-analyser (IA)' : 'Analyser (IA)') + '</button>';
+          html += '</div>';
+          html += '<button class="btn" onclick="supprimerContratDoc(this,' + docIdx + ',\'' + p.code + '\')" style="font-size:0.7rem;padding:0.2rem 0.4rem;color:var(--red);border-color:var(--red)" title="Supprimer ce document">\u2716</button>';
 
           // Consolidated table: Phase | Montant HT | Date Prev | N Fact | Date Fact | Statut
           html += '<div class="data-table-wrap"><table class="data-table contrat-table" id="contratTable_' + docIdx + '" style="min-width:100%"><thead><tr>' +
@@ -4444,7 +4455,10 @@
               html += '<tr style="font-weight:600"><td></td><td id="ech_sum_' + docIdx + '_' + phIdx + '" style="text-align:right;font-size:0.8rem">' + fmtEuro(echTotalPhase) + '</td><td colspan="5"></td></tr>';
               html += '</table>';
             } else {
-              html += '<div style="font-size:0.75rem;color:var(--text-muted);font-style:italic">Aucun versement d\u00e9fini</div>';
+              var phaseMontant = parseFloat((document.getElementById ? '' : '') || m || 0);
+            html += '<div style="font-size:0.75rem;display:flex;align-items:center;gap:0.5rem">' +
+              '<span style="color:var(--red);font-weight:600">\u26a0 \u00c9ch\u00e9ancier manquant</span>' +
+              '<span style="color:var(--text-muted);font-style:italic">Ajoutez un versement ci-dessous</span></div>';
             }
 
             html += '<button class="btn" onclick="addEchVersement(' + docIdx + ',' + phIdx + ',\'' + ph + '\',\'' + p.code + '\')" style="margin-top:0.3rem;font-size:0.72rem;padding:0.2rem 0.5rem">+ Versement</button>';
@@ -4539,7 +4553,10 @@
             html += '<tr style="font-weight:600"><td></td><td id="ech_sum_0_' + phIdx + '" style="text-align:right;font-size:0.8rem">' + fmtEuro(fallbackSum) + '</td><td colspan="5"></td></tr>';
             html += '</table>';
           } else {
-            html += '<div style="font-size:0.75rem;color:var(--text-muted);font-style:italic">Aucun versement d\u00e9fini</div>';
+            var phaseMontant = parseFloat((document.getElementById ? '' : '') || m || 0);
+            html += '<div style="font-size:0.75rem;display:flex;align-items:center;gap:0.5rem">' +
+              '<span style="color:var(--red);font-weight:600">\u26a0 \u00c9ch\u00e9ancier manquant</span>' +
+              '<span style="color:var(--text-muted);font-style:italic">Ajoutez un versement ci-dessous</span></div>';
           }
           html += '<button class="btn" onclick="addEchVersement(0,' + phIdx + ',\'' + ph + '\',\'' + (p?p.code:'') + '\')" style="margin-top:0.3rem;font-size:0.72rem;padding:0.2rem 0.5rem">+ Versement</button>';
           html += '</td></tr>';
@@ -5901,6 +5918,26 @@
     };
 
     // Analyser le devis validé directement
+    // Verifier si un fichier a deja ete analyse (cote client — basique)
+    function isFileInIaCache(url) {
+      // Pas de cache cote client pour l'instant — toujours false
+      // Le cache reel est cote GAS (_IA_CACHE)
+      return false;
+    }
+
+    // Analyser le devis rattache a un contrat specifique
+    window.analyserDevisContrat = function(docIdx, projetCode) {
+      var urlInput = document.getElementById('contrat_lien_devis_' + docIdx);
+      var devisUrl = urlInput ? urlInput.value.trim() : '';
+      if (!devisUrl) { showToast('Collez le lien du devis dans le champ'); return; }
+      var iaInput = document.getElementById('iaDriveFileUrl');
+      if (iaInput) iaInput.value = devisUrl;
+      var details = document.getElementById('iaDropZone');
+      if (details && !details.open) details.open = true;
+      if (details) details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      analyserLienDrive(projetCode);
+    };
+
     window.analyserDevisValide = function(projetCode) {
       var urlInput = document.getElementById('proj_drive_devis');
       var devisUrl = urlInput ? urlInput.value.trim() : '';
