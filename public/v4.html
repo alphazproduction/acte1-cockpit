@@ -1636,27 +1636,29 @@
               var cat = 'etudes';
               if (['ACT','VISA','DET','AOR','GPA'].indexOf(phase) >= 0) cat = 'travaux';
               else if (phase === 'CONSEIL') cat = 'conseil';
-              projetsBase.push({
-                code_projet: sp.code_projet,
-                code: sp.quadrigramme || String(sp.code_projet),
-                nom: sp.nom_affaire || '',
-                etat: sp.etat || 'En cours',
-                cat: cat,
-                chef: sp.chef_projet || 'Am\u00e9lie',
-                phase_courante: sp.phase_courante || '',
-                lien_devis: sp.lien_devis || '',
-                ville: sp.ville || '',
-                type_secteur: sp.type_secteur || '',
-                budget: sp.budget_total_travaux || 0,
-                client: sp.client || sp.client_code || '',
-                client_code: sp.client_code || '',
-                date_debut: sp.date_debut_contrat || sp.date_debut || '',
-                date_fin: sp.date_fin_contrat || sp.date_fin || '',
-                date_travaux: sp.date_debut_travaux || '',
-                drive_projet: sp.lien_dossier_drive || '',
-                drive_commercial: sp.lien_dossier_commercial || '',
-                drive_devis: sp.lien_devis || ''
-              });
+              // Stocker toutes les donnees brutes du Sheet + champs normalises
+              var pbEntry = {};
+              for (var spk in sp) { pbEntry[spk] = sp[spk]; }
+              pbEntry.code_projet = sp.code_projet;
+              pbEntry.code = sp.quadrigramme || String(sp.code_projet);
+              pbEntry.nom = sp.nom_affaire || '';
+              pbEntry.etat = sp.etat || 'En cours';
+              pbEntry.cat = cat;
+              pbEntry.chef = sp.chef_projet || 'Am\u00e9lie';
+              pbEntry.phase_courante = sp.phase_courante || '';
+              pbEntry.lien_devis = sp.lien_devis || '';
+              pbEntry.ville = sp.ville || '';
+              pbEntry.type_secteur = sp.type_secteur || '';
+              pbEntry.budget = sp.budget_total_travaux || 0;
+              pbEntry.client = sp.client || sp.client_code || '';
+              pbEntry.client_code = sp.client_code || '';
+              pbEntry.date_debut = sp.date_debut_contrat || sp.date_debut || '';
+              pbEntry.date_fin = sp.date_fin_contrat || sp.date_fin || '';
+              pbEntry.date_travaux = sp.date_debut_travaux || '';
+              pbEntry.drive_projet = sp.lien_dossier_drive || '';
+              pbEntry.drive_commercial = sp.lien_dossier_commercial || '';
+              pbEntry.drive_devis = sp.lien_devis || '';
+              projetsBase.push(pbEntry);
             });
             // A1 fix: Clear mock PROJETS immediately so they never mix with live data
             PROJETS.length = 0;
