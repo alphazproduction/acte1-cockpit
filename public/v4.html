@@ -5449,10 +5449,15 @@
         if (proj && prevParAnnee[yr] && prevParAnnee[yr][projetCode]) {
           proj.mois = prevParAnnee[yr][projetCode].slice();
         }
-        // Also update phase_courante to the first phase
+        // Also update phase_courante and dates from IA data
         if (proj && selectedPhases.length > 0) {
           proj.phase_courante = selectedPhases[0].phase;
         }
+        if (proj && data.date_debut) proj.date_debut = data.date_debut;
+        if (proj && data.date_fin) proj.date_fin = data.date_fin;
+        if (proj && data.date_travaux) proj.date_travaux = data.date_travaux;
+        if (proj && data.ville) proj.ville = data.ville;
+        if (proj && data.budget_total_ht) proj.budget = data.budget_total_ht;
 
         // R\u00e9sum\u00e9
         var totalMontant = selectedPhases.reduce(function(s, p) { return s + (p.montant || 0); }, 0);
@@ -5471,8 +5476,14 @@
             '</div>' +
           '</div>';
 
-        // NE PAS re-render automatiquement — ça écrase les champs pré-remplis
-        // L'utilisateur doit cliquer "Enregistrer" puis recharger si besoin
+        // Re-render apres un court delai pour voir les phases dans le volet Contrat
+        setTimeout(function() {
+          var p = PROJETS.find(function(pr) { return pr.code === projetCode; });
+          if (p) {
+            renderProjetDetail(p);
+            showToast('Phases import\u00e9es — ouvrez le volet Contrat pour v\u00e9rifier');
+          }
+        }, 1500);
 
       } else if (selectedPhases.length > 0 && dataMode !== 'live') {
         document.getElementById('iaStatus').innerHTML = '<span style="color:var(--yellow)">\u26a0 Mode d\u00e9mo \u2014 ' + filled + ' champs appliqu\u00e9s localement, ' + selectedPhases.length + ' phases non sauvegard\u00e9es (passez en Live).</span>';
