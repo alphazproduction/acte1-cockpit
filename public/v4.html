@@ -5907,11 +5907,11 @@
       var urlInput = document.getElementById(inputId);
       var driveUrl = urlInput ? urlInput.value.trim() : '';
       if (!driveUrl) { showToast('Renseignez d\'abord le lien du dossier'); return; }
-      // Copier dans le champ d'analyse et lancer
       var iaInput = document.getElementById('iaDriveFileUrl');
       if (iaInput) iaInput.value = driveUrl;
       var details = document.getElementById('iaDropZone');
       if (details && !details.open) details.open = true;
+      if (details) details.scrollIntoView({ behavior: 'smooth', block: 'start' });
       analyserLienDrive(projetCode);
     };
 
