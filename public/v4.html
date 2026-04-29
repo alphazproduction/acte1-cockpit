@@ -1571,13 +1571,15 @@
     var planningYear = new Date().getFullYear();
     var chartCurves = { cumule: true, seuil: true, objectif: true };
     var forecastYear = new Date().getFullYear();
-    var dataMode = localStorage.getItem(DATA_MODE_KEY) || 'mock'; // 'mock' ou 'live'
+    var dataMode = localStorage.getItem(DATA_MODE_KEY) || 'live'; // 'live' par defaut
     // Normaliser l'URL GAS : /a/macros/domain/ → /macros/ (fix CORS Workspace)
     function normalizeGasUrl(url) {
       if (!url) return '';
       return url.replace(/\/a\/macros\/[^/]+\//, '/macros/');
     }
-    var apiUrl = normalizeGasUrl(localStorage.getItem(API_URL_KEY) || '');
+    var DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwHA6oLXvtINDqDVpazR8_VNPU6e070xRfdAY0H6nXEMZ0GyiHQXgmSd-U6wVNPqXyc/exec';
+    var DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/19Z3o39I8dNWyA6P0-8RphBsY1e5Yrf23AM9uA4FfM7I/edit';
+    var apiUrl = normalizeGasUrl(localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL);
     var isLoading = false;
     var lastSync = null;
     var prevParAnnee = {}; // { '2024': { 'CODE_PROJET': [m1..m12], ... }, ... }
@@ -8456,7 +8458,7 @@
       updateConnectionBadge();
 
       // Sheet link in sidebar
-      var sheetUrl = localStorage.getItem(SHEET_URL_KEY);
+      var sheetUrl = localStorage.getItem(SHEET_URL_KEY) || DEFAULT_SHEET_URL;
       var sheetLink = document.getElementById('sidebarSheetLink');
       if (sheetLink && sheetUrl) { sheetLink.href = sheetUrl; }
       else if (sheetLink) { sheetLink.style.display = 'none'; }
