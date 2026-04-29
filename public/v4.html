@@ -4113,15 +4113,28 @@
       var isNew = !p;
       var title = isNew ? 'Nouveau projet' : '<span class="code-badge" style="font-size:1rem">' + p.code + '</span> ' + p.nom;
 
-      // Default values
+      // Charger les donnees brutes du Sheet pour ce projet
+      var sp = p ? projetsBase.find(function(pb) { return (pb.code_projet || pb.code) === p.code; }) || {} : {};
       var v = p ? {
-        code: p.code, nom: p.nom, ville: p.ville || '', type_client: 'Public', type_mission: 'MOE',
-        type_marche: 'Neuf', type_secteur: p.type_secteur || 'Mus\u00e9ographie', etat: p.etat, chef: p.chef,
+        code: p.code, nom: p.nom, ville: p.ville || sp.ville || '',
+        type_client: sp.type_client || 'Public',
+        type_mission: sp.type_mission || 'MOE',
+        type_marche: sp.type_marche || 'Neuf',
+        type_secteur: p.type_secteur || sp.type_secteur || '',
+        etat: p.etat || sp.etat || 'En cours', chef: p.chef || sp.chef_projet || '',
         date_debut: p.date_debut || '', date_fin: p.date_fin || '', date_travaux: p.date_travaux || '',
-        client: p.client || p.client_code || '', architecte: '', moa_delegue: '', via: '',
+        client: p.client || p.client_code || sp.client_code || '',
+        architecte: sp.architecte || '',
+        moa_delegue: sp.moa_deleguee || '',
+        via: sp.via || '',
         contact_nom: '', contact_prenom: '', contact_fonction: '', contact_tel: '', contact_email: '', contact_societe: '',
-        budget_total: p.budget || '', budget_sceno: '', surface: '', resume: '',
-        drive_projet: p.drive_projet || '', drive_commercial: p.drive_commercial || '', drive_devis: p.drive_devis || ''
+        budget_total: p.budget || sp.budget_total_travaux || '',
+        budget_sceno: sp.budget_scenographie || '',
+        surface: sp.surface_m2 || '',
+        resume: sp.resume_reference || '',
+        drive_projet: p.drive_projet || sp.lien_dossier_drive || '',
+        drive_commercial: p.drive_commercial || sp.lien_dossier_commercial || '',
+        drive_devis: sp.lien_devis || ''
       } : {
         code: '', nom: '', ville: '', type_client: 'Public', type_mission: 'MOE',
         type_marche: 'Neuf', type_secteur: '', etat: 'En cours', chef: 'Am\u00e9lie',
@@ -4308,11 +4321,11 @@
         fg('Nom complet', 'text', 'proj_nom', v.nom, 'Nom de l\'affaire') +
         fg('Ville', 'text', 'proj_ville', v.ville) +
         fsel('Chef de projet', 'proj_chef', ['Am\u00e9lie','R\u00e9gis'], v.chef) +
-        fsel('Type client', 'proj_type_client', ['Public','Priv\u00e9'], v.type_client) +
-        fsel('Type mission', 'proj_type_mission', ['AMO','MOE','Autre'], v.type_mission) +
-        fsel('Type march\u00e9', 'proj_type_marche', ['Neuf','R\u00e9habilitation','R\u00e9novation'], v.type_marche) +
-        fsel('Type secteur', 'proj_type_secteur', ['\u00c9ducation','Spectacle','Mus\u00e9ographie','Sport','Urbain','Tertiaire','Autre'], v.type_secteur) +
-        fsel('\u00c9tat', 'proj_etat', ['En cours','En pause','Termin\u00e9','Annul\u00e9'], v.etat) +
+        fsel('Type client', 'proj_type_client', ['Public','Priv\u00e9','Semi-public'], v.type_client) +
+        fsel('Type mission', 'proj_type_mission', ['MOE','AMO','CONSEIL','Autre'], v.type_mission) +
+        fsel('Type march\u00e9', 'proj_type_marche', ['Neuf','R\u00e9habilitation','R\u00e9novation','Restructuration','Autre'], v.type_marche) +
+        fsel('Type secteur', 'proj_type_secteur', ['Mus\u00e9ographie','Spectacle','Bureau','Tertiaire','\u00c9ducation','Sport','Urbain','H\u00f4tellerie','Autre'], v.type_secteur) +
+        fsel('\u00c9tat', 'proj_etat', ['En cours','Attente signature','Attente contrat','Attente OS avenant','V\u00e9rification avenant','Mise \u00e0 jour','Attente fin AOR','Attente GPA','Gel\u00e9','Rest\u00e9 le DET','Valid\u00e9 par mail','En pause','Termin\u00e9','Annul\u00e9'], v.etat) +
       '</div>';
 
       html += '<div class="form-section-title">Dates</div>';
@@ -7464,9 +7477,11 @@
         montant_travaux_estime: parseFloat(gv('proj_mt_estime')) || 0,
         montant_travaux_reel: parseFloat(gv('proj_mt_reel')) || 0,
         resume_reference: gv('proj_resume'),
+        moa_deleguee: gv('proj_moa_delegue'),
+        via: gv('proj_via'),
         lien_dossier_drive: gv('proj_drive_projet_select') || gv('proj_drive_commercial'),
         lien_dossier_commercial: gv('proj_drive_commercial'),
-        lien_devis: gv('proj_drive_devis'),
+        lien_devis: '',
         notes: ''
       };
 
