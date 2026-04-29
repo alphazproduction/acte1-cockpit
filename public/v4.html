@@ -3672,10 +3672,8 @@
         if (!phases.some(function(ph){ var p2 = getOrgaPhase(ph); var y2 = getOrgaYear(ph); return p2 && (!y2 || y2 === planningYear); })) {
           var cPh = contratsData[p.code] || [];
           var ePh = echeancierData[p.code] || [];
-          if (cPh.length > 0) {
-            phases = [null,null,null,null,null,null,null,null,null,null,null,null];
-            cPh.forEach(function(c, ci) { if (ci < 12) phases[ci] = c.phase || null; });
-          } else if (ePh.length > 0) {
+          if (ePh.length > 0) {
+            // Priorite echeancier : placer les phases au bon mois selon la date
             phases = [null,null,null,null,null,null,null,null,null,null,null,null];
             ePh.forEach(function(e) {
               var dp = String(e.date_prev_facturation || '');
@@ -3684,6 +3682,23 @@
                 var eMonth = parseInt(dp.substring(5,7)) - 1;
                 if (eYear === planningYear && eMonth >= 0 && eMonth < 12) {
                   phases[eMonth] = e.phase || null;
+                }
+              }
+            });
+          } else if (cPh.length > 0) {
+            // Fallback contrats : utiliser les dates de l'echeancier associe
+            phases = [null,null,null,null,null,null,null,null,null,null,null,null];
+            var echsForProject = echeancierData[p.code] || [];
+            cPh.forEach(function(c) {
+              var ph = c.phase || '';
+              // Chercher la date dans l'echeancier
+              var echMatch = echsForProject.find(function(e) { return (e.phase||'').toUpperCase() === ph.toUpperCase(); });
+              if (echMatch && echMatch.date_prev_facturation) {
+                var dp = String(echMatch.date_prev_facturation);
+                var eYear = parseInt(dp.substring(0,4));
+                var eMonth = parseInt(dp.substring(5,7)) - 1;
+                if (eYear === planningYear && eMonth >= 0 && eMonth < 12) {
+                  phases[eMonth] = ph;
                 }
               }
             });
