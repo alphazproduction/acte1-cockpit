@@ -4084,21 +4084,28 @@
       html += '<div class="form-grid">' +
         '<div class="form-group"><label class="form-label">Dossier commercial</label>' +
           '<div style="display:flex;gap:0.5rem;align-items:center">' +
-            '<input type="url" class="form-input" id="proj_drive_commercial" value="' + (v.drive_commercial || '') + '" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">' +
-            (v.drive_commercial ? '<a href="' + v.drive_commercial + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
+            '<input type="text" class="form-input" id="proj_drive_commercial" list="driveCommercialList" value="' + escapeHtml(v.drive_commercial || '') + '" placeholder="Tapez pour chercher ou collez une URL..." style="flex:1" onfocus="loadDriveFoldersList(\'commercial\')">' +
+            '<datalist id="driveCommercialList"></datalist>' +
+            (v.drive_commercial ? '<a href="' + escapeHtml(v.drive_commercial) + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
             '<button class="btn" onclick="analyserLienCommercial(\'' + pCode + '\')" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">Analyser (IA)</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-group"><label class="form-label">Dossier projet</label>' +
+          '<div style="display:flex;gap:0.5rem;align-items:center">' +
+            '<input type="text" class="form-input" id="proj_drive_projet_select" list="driveProjetList" value="' + escapeHtml(v.drive_projet || '') + '" placeholder="Tapez un code projet (QQQQ) pour chercher..." style="flex:1" onfocus="loadDriveFoldersList(\'projet\')">' +
+            '<datalist id="driveProjetList"></datalist>' +
+            (v.drive_projet ? '<a href="' + escapeHtml(v.drive_projet) + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
           '</div>' +
         '</div>' +
         '<div class="form-group"><label class="form-label">Devis valid\u00e9</label>' +
           '<div style="display:flex;gap:0.5rem;align-items:center">' +
-            '<input type="url" class="form-input" id="proj_drive_devis" value="' + (v.drive_devis || '') + '" placeholder="https://drive.google.com/file/d/... ou /folders/..." style="flex:1">' +
-            (v.drive_devis ? '<a href="' + v.drive_devis + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
+            '<input type="url" class="form-input" id="proj_drive_devis" value="' + escapeHtml(v.drive_devis || '') + '" placeholder="https://drive.google.com/file/d/... ou /folders/..." style="flex:1">' +
+            (v.drive_devis ? '<a href="' + escapeHtml(v.drive_devis) + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
             '<button class="btn" onclick="analyserDevisValide(\'' + pCode + '\')" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap;border-color:var(--green);color:var(--green)">Analyser devis (IA)</button>' +
           '</div>' +
         '</div>' +
       '</div>';
-      // Champ caché pour compatibilité (dossier projet = dossier commercial)
-      html += '<input type="hidden" id="proj_drive_projet" value="' + (v.drive_commercial || v.drive_projet || '') + '">';
+      html += '<input type="hidden" id="proj_drive_projet" value="' + escapeHtml(v.drive_commercial || v.drive_projet || '') + '">';
 
       html += '<div class="form-section-title">Acteurs du projet</div>';
       html += '<div class="form-grid">' +
@@ -6095,6 +6102,51 @@
       }
     };
 
+    // Cache des dossiers Drive (charge une seule fois)
+    var driveFoldersCache = { projet: null, commercial: null };
+
+    window.loadDriveFoldersList = function(type) {
+      var listId = type === 'commercial' ? 'driveCommercialList' : 'driveProjetList';
+      var datalist = document.getElementById(listId);
+      if (!datalist) return;
+
+      // Ne charger qu'une fois
+      if (driveFoldersCache[type]) {
+        if (datalist.children.length === 0) populateDriveDatalist(datalist, driveFoldersCache[type]);
+        return;
+      }
+
+      if (!apiUrl) return;
+      Logger.debug('DRIVE', 'Loading ' + type + ' folders...');
+      datalist.innerHTML = '<option value="Chargement en cours...">';
+
+      fetch(apiUrl + '?action=list_drive_folders&type=' + type)
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.ok && res.data) {
+            driveFoldersCache[type] = res.data;
+            Logger.info('DRIVE', type + ' folders loaded: ' + res.data.length);
+            populateDriveDatalist(datalist, res.data);
+          } else {
+            Logger.error('DRIVE', 'Failed to load ' + type, res.error);
+            datalist.innerHTML = '';
+          }
+        })
+        .catch(function(err) {
+          Logger.error('DRIVE', 'Fetch error ' + type, { error: String(err) });
+          datalist.innerHTML = '';
+        });
+    };
+
+    function populateDriveDatalist(datalist, folders) {
+      var html = '';
+      folders.forEach(function(f) {
+        var label = f.code ? f.code + ' \u2014 ' + f.name : f.name;
+        html += '<option value="' + escapeHtml(f.url) + '">' + escapeHtml(label) + '</option>';
+      });
+      datalist.innerHTML = html;
+    }
+
     // Formater date ISO → JJ/MM/AAAA
     function toFR(d) {
       if (!d) return '';
@@ -6949,7 +7001,7 @@
         montant_travaux_estime: parseFloat(gv('proj_mt_estime')) || 0,
         montant_travaux_reel: parseFloat(gv('proj_mt_reel')) || 0,
         resume_reference: gv('proj_resume'),
-        lien_dossier_drive: gv('proj_drive_commercial'),
+        lien_dossier_drive: gv('proj_drive_projet_select') || gv('proj_drive_commercial'),
         lien_dossier_commercial: gv('proj_drive_commercial'),
         lien_devis: gv('proj_drive_devis'),
         notes: ''
