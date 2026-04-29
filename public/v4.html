@@ -1195,7 +1195,10 @@
         <span class="nav-icon">&#10067;</span> Aide
       </a>
     </nav>
-    <div class="sidebar-footer" id="sidebarFooter" style="cursor:pointer" onclick="navigateTo('parametres')">Cockpit V3</div>
+    <a id="sidebarSheetLink" href="#" target="_blank" class="nav-item" style="font-size:0.78rem;color:var(--text-muted);margin-top:auto;padding:0.5rem 1rem;border-top:1px solid var(--border)">
+      <span class="nav-icon">&#128196;</span> Google Sheet
+    </a>
+    <div class="sidebar-footer" id="sidebarFooter" style="cursor:pointer" onclick="navigateTo('parametres')">Cockpit V4</div>
   </aside>
 
   <!-- ============================================================
@@ -1554,6 +1557,7 @@
     var STORAGE_KEY = 'cockpit-acte1-v2-params';
     var THEME_KEY = 'cockpit-acte1-v2-theme';
     var API_URL_KEY = 'cockpit-acte1-v2-api-url';
+    var SHEET_URL_KEY = 'cockpit-acte1-v2-sheet-url';
     var CACHE_KEY = 'cockpit-acte1-v2-cache';
     var DATA_MODE_KEY = 'cockpit-acte1-v2-mode';
 
@@ -2674,6 +2678,10 @@
           '<div class="form-group full-width">' +
             '<label class="form-label">URL de l\'API Apps Script (Web App)</label>' +
             '<input type="url" class="form-input" id="paramApiUrl" value="' + (apiUrl || '') + '" placeholder="https://script.google.com/macros/s/XXXXXX/exec" onchange="setApiUrl(this.value)">' +
+          '</div>' +
+          '<div class="form-group full-width">' +
+            '<label class="form-label">URL du Google Sheet de production</label>' +
+            '<input type="url" class="form-input" id="paramSheetUrl" value="' + (localStorage.getItem(SHEET_URL_KEY) || '') + '" placeholder="https://docs.google.com/spreadsheets/d/XXXXXX/edit" onchange="localStorage.setItem(\'' + SHEET_URL_KEY + '\', this.value)">' +
           '</div>' +
         '</div>' +
         '<div style="display:flex;gap:1.5rem;align-items:center">' +
@@ -7273,7 +7281,7 @@
           'Commencez par ajouter vos projets dans l\'onglet <strong>PROJETS</strong> du Sheet.' +
         '</p>' +
         '<div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">' +
-          '<a href="' + (apiUrl ? apiUrl.replace('/exec', '').replace('macros/s/', 'spreadsheets/d/').split('/exec')[0] : '#') + '" target="_blank" class="btn btn-primary" style="padding:0.6rem 1.5rem;font-size:0.95rem">' +
+          '<a href="' + (localStorage.getItem(SHEET_URL_KEY) || 'https://docs.google.com/spreadsheets/') + '" target="_blank" class="btn btn-primary" style="padding:0.6rem 1.5rem;font-size:0.95rem">' +
             'Ouvrir le Google Sheet' +
           '</a>' +
           '<button class="btn" onclick="loadFromSheet()" style="padding:0.6rem 1.5rem;font-size:0.95rem">' +
@@ -7895,6 +7903,12 @@
 
       // Connection badge
       updateConnectionBadge();
+
+      // Sheet link in sidebar
+      var sheetUrl = localStorage.getItem(SHEET_URL_KEY);
+      var sheetLink = document.getElementById('sidebarSheetLink');
+      if (sheetLink && sheetUrl) { sheetLink.href = sheetUrl; }
+      else if (sheetLink) { sheetLink.style.display = 'none'; }
 
       // Plus de données mock — tout vient du Google Sheet
 
