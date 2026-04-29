@@ -1367,6 +1367,7 @@
             </select>
             <input type="text" class="form-input" id="logsSearch" placeholder="Rechercher..." style="width:180px;padding:0.35rem 0.5rem;font-size:0.82rem" oninput="renderLogs()">
             <button class="btn" onclick="renderLogs()">Rafra&icirc;chir</button>
+            <button class="btn" onclick="loadGasLogs()">Logs serveur</button>
             <button class="btn" onclick="Logger.export()">Exporter</button>
             <button class="btn" style="color:var(--red);border-color:var(--red)" onclick="if(confirm('Vider tous les logs ?')){Logger.clear();renderLogs();}">Vider</button>
           </div>
@@ -8025,6 +8026,23 @@
       });
     };
 
+    // Charger les logs serveur GAS depuis le Sheet
+    var gasLogsData = null;
+    window.loadGasLogs = function() {
+      if (!apiUrl) { showToast('URL API non configur\u00e9e'); return; }
+      showToast('Chargement logs serveur...');
+      fetch(apiUrl + '?action=get_logs')
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.ok && res.data) {
+            gasLogsData = res.data;
+            showToast(res.data.length + ' logs serveur charg\u00e9s');
+            renderLogs();
+          }
+        })
+        .catch(function(err) { showToast('Erreur : ' + err); });
+    };
+
     /* ==============================================================
        RENDER: LOGS
        ============================================================== */
@@ -8033,7 +8051,12 @@
       var levelFilter = (document.getElementById('logsLevelFilter') || {}).value || '';
       var searchFilter = (document.getElementById('logsSearch') || {}).value.toLowerCase();
 
-      var logs = Logger.getAll().reverse(); // plus recent en premier
+      // Combiner logs client + serveur
+      var clientLogs = Logger.getAll().reverse().map(function(l) { l._source = 'client'; return l; });
+      var serverLogs = (gasLogsData || []).map(function(l) { l._source = 'serveur'; return l; });
+      var logs = clientLogs.concat(serverLogs);
+      // Trier par date desc
+      logs.sort(function(a, b) { return (b.ts || '').localeCompare(a.ts || ''); });
 
       if (levelFilter) logs = logs.filter(function(l) { return l.level === levelFilter; });
       if (searchFilter) logs = logs.filter(function(l) {
@@ -8074,7 +8097,8 @@
         html += '<tr>';
         html += '<td style="text-align:left;color:var(--text-muted);font-family:monospace">' + date + ' ' + ts + '</td>';
         html += '<td style="text-align:center"><span style="background:' + lc.bg + ';color:' + lc.text + ';font-size:0.68rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:999px">' + l.level + '</span></td>';
-        html += '<td style="text-align:left;font-weight:600">' + escapeHtml(l.scope || '') + '</td>';
+        var srcBadge = l._source === 'serveur' ? '<span style="background:var(--blue-bg);color:var(--blue);font-size:0.6rem;padding:0.1rem 0.3rem;border-radius:3px;margin-right:0.3rem">GAS</span>' : '';
+        html += '<td style="text-align:left;font-weight:600">' + srcBadge + escapeHtml(l.scope || '') + '</td>';
         html += '<td style="text-align:left">' + escapeHtml(l.message || '') + '</td>';
         html += '<td style="text-align:left;font-family:monospace;font-size:0.72rem;color:var(--text-muted);word-break:break-all">' + escapeHtml(dataStr) + '</td>';
         html += '</tr>';
