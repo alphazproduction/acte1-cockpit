@@ -4109,9 +4109,9 @@
         // Col 3: dates
         html += '<div class="section-card" style="margin-bottom:0;padding:1rem">' +
           '<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.5rem">Dates</div>' +
-          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>D\u00e9but :</strong> ' + (v.date_debut || '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
-          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Fin :</strong> ' + (v.date_fin || '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
-          '<div style="font-size:0.85rem"><strong>D\u00e9b. travaux :</strong> ' + (v.date_travaux || '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>D\u00e9but :</strong> ' + (v.date_debut ? toFR(v.date_debut) : '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Fin :</strong> ' + (v.date_fin ? toFR(v.date_fin) : '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
+          '<div style="font-size:0.85rem"><strong>D\u00e9b. travaux :</strong> ' + (v.date_travaux ? toFR(v.date_travaux) : '<span style="color:var(--text-muted)">N/A</span>') + '</div>' +
         '</div>';
         html += '</div>';
 
@@ -4798,7 +4798,7 @@
         if (v.date_debut || v.date_fin) {
           html += '<div style="display:flex;gap:2rem;margin-bottom:1rem;font-size:0.82rem;color:var(--text-muted)">';
           if (v.date_debut) html += '<span><strong>D\u00e9but contrat :</strong> ' + v.date_debut + '</span>';
-          if (v.date_fin) html += '<span><strong>Fin contrat :</strong> ' + v.date_fin + '</span>';
+          if (v.date_fin) html += '<span><strong>Fin contrat :</strong> ' + toFR(v.date_fin) + '</span>';
           html += '</div>';
         }
 
