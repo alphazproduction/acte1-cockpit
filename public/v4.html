@@ -3999,10 +3999,11 @@
           showToast('Remplissez au minimum le quadrigramme et le nom du projet, puis enregistrez.');
           return;
         }
-        // Verifier que le projet existe dans la base
-        var exists = PROJETS.some(function(p) { return p.code === code; }) ||
+        // Verifier que le projet existe : dans PROJETS, projetsBase, ou projet actuellement ouvert
+        var exists = (currentProjetCode && currentProjetCode === code) ||
+                     PROJETS.some(function(p) { return p.code === code; }) ||
                      projetsBase.some(function(p) { return (p.code_projet || p.code) === code; });
-        if (!exists) {
+        if (!exists && dataMode === 'live') {
           showToast('Ce projet n\'est pas encore enregistr\u00e9. Cliquez "Enregistrer" d\'abord.');
           return;
         }
