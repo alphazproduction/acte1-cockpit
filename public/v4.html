@@ -5894,10 +5894,18 @@
       var urlInput = document.getElementById('proj_drive_devis');
       var devisUrl = urlInput ? urlInput.value.trim() : '';
       if (!devisUrl) { showToast('Renseignez le lien du devis valid\u00e9'); return; }
+      Logger.info('IA', 'analyserDevisValide: ' + devisUrl.substring(0, 60));
       var iaInput = document.getElementById('iaDriveFileUrl');
-      if (iaInput) iaInput.value = devisUrl;
+      if (iaInput) {
+        iaInput.value = devisUrl;
+      } else {
+        Logger.error('IA', 'iaDriveFileUrl introuvable dans le DOM');
+        showToast('Erreur : zone d\'analyse IA introuvable. Ouvrez la section "Importer / Analyser un document" d\'abord.');
+        return;
+      }
       var details = document.getElementById('iaDropZone');
       if (details && !details.open) details.open = true;
+      if (details) details.scrollIntoView({ behavior: 'smooth', block: 'start' });
       analyserLienDrive(projetCode);
     };
 
