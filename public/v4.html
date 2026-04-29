@@ -2031,11 +2031,33 @@
       return data;
     }
 
-    function caEffectue() {
-      var mi = effectiveMonthIndex();
-      var totals = computeMonthlyTotals();
+    // Calculer le montant reellement facture pour un projet sur une annee
+    function getFactureReel(code, annee) {
       var sum = 0;
-      for (var i = 0; i < mi; i++) sum += totals[i];
+      (echeancierData[code] || []).forEach(function(e) {
+        var st = String(e.statut || '').toLowerCase();
+        if (st.indexOf('factur') !== 0 || st.indexOf('a fac') >= 0) return;
+        var dp = String(e.date_prev_facturation || e.date_facture || '');
+        if (dp.length >= 4 && parseInt(dp.substring(0,4)) === annee) {
+          sum += parseFloat(e.montant) || 0;
+        }
+      });
+      return sum;
+    }
+
+    function caEffectue() {
+      // Calcul reel depuis echeancierData : somme des echeances Facturees pour l'annee selectionnee
+      var sum = 0;
+      PROJETS.forEach(function(p) {
+        (echeancierData[p.code] || []).forEach(function(e) {
+          var st = String(e.statut || '').toLowerCase();
+          if (st.indexOf('factur') !== 0 || st.indexOf('a fac') >= 0) return;
+          var dp = String(e.date_prev_facturation || e.date_facture || '');
+          if (dp.length >= 4 && parseInt(dp.substring(0,4)) === selectedYear) {
+            sum += parseFloat(e.montant) || 0;
+          }
+        });
+      });
       return sum;
     }
 
@@ -2558,8 +2580,7 @@
         sorted = PROJETS.slice()
           .map(function(p) {
             var total = p.mois.reduce(function(a,b){return a+b;}, 0);
-            var facture = 0;
-            for (var i = 0; i < mi; i++) facture += p.mois[i];
+            var facture = getFactureReel(p.code, selectedYear);
             return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: total, reste: total - facture, facture: facture };
           })
           .filter(function(p) { return p.amount > 0; })
@@ -2572,8 +2593,7 @@
         sorted = PROJETS.slice()
           .map(function(p) {
             var budget = p.budget || 0;
-            var facture = 0;
-            for (var i = 0; i < mi; i++) facture += p.mois[i];
+            var facture = getFactureReel(p.code, selectedYear);
             var restant = budget > 0 ? budget - facture : 0;
             return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: restant, reste: restant, budget: budget, facture: facture };
           })
@@ -2590,8 +2610,7 @@
         PROJETS.forEach(function(p) {
           var budget = p.budget || p.mois.reduce(function(a,b){return a+b;}, 0);
           if (budget <= 0) return;
-          var facture = 0;
-          for (var i = 0; i < mi; i++) facture += p.mois[i];
+          var facture = getFactureReel(p.code, selectedYear);
           var restant = budget - facture;
           if (restant <= 0) return;
           totalEngagements += restant;
@@ -3241,13 +3260,17 @@
         var total = p.mois.reduce(function(a,b){return a+b;},0);
         var chefCls = p.chef === 'Am\u00e9lie' ? 'chef-a' : 'chef-r';
 
-        // Calculs avancement
-        var facture = 0; // somme mois pass\u00e9s (d\u00e9j\u00e0 factur\u00e9)
-        var prevu = 0;   // somme mois futurs (pr\u00e9visionnel)
-        for (var mx = 0; mx < 12; mx++) {
-          if (mx < mi) facture += p.mois[mx];
-          else prevu += p.mois[mx];
-        }
+        // Calculs avancement — facture reel depuis echeancierData
+        var facture = 0;
+        (echeancierData[p.code] || []).forEach(function(e) {
+          var st = String(e.statut || '').toLowerCase();
+          if (st.indexOf('factur') !== 0 || st.indexOf('a fac') >= 0) return;
+          var dp = String(e.date_prev_facturation || e.date_facture || '');
+          if (dp.length >= 4 && parseInt(dp.substring(0,4)) === forecastYear) {
+            facture += parseFloat(e.montant) || 0;
+          }
+        });
+        var prevu = total - facture;
         var pctFacture = total > 0 ? Math.round(facture / total * 100) : 0;
         var pctAvancement = total > 0 ? Math.round((mi / 12) * 100) : 0;
         // Avancement r\u00e9el = mois avec montant / mois total avec montant
@@ -3291,8 +3314,8 @@
           });
           var cls = '';
           if (v === 0) cls = 'cell-zero';
-          else if (isFactured) cls = 'cell-facture'; // facturé = vert
-          else if (m2 < mi) cls = 'cell-facture'; // mois passé = vert
+          else if (isFactured) cls = 'cell-facture'; // facture reel = vert
+          else if (m2 < mi) cls = 'cell-prev'; // mois passe non facture = jaune (previsionnel en retard)
           else if (m2 === mi) cls = 'cell-current'; // mois en cours = orange
           else cls = 'cell-prev'; // futur = jaune
           var tooltip = p.nom + ' \u2014 ' + MOIS_FULL[m2] + ' : ' + fmtEuro(v);
