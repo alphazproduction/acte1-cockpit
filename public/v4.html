@@ -4205,16 +4205,14 @@
       html += '<div class="form-grid">' +
         '<div class="form-group"><label class="form-label">Dossier commercial</label>' +
           '<div style="display:flex;gap:0.5rem;align-items:center">' +
-            '<input type="text" class="form-input" id="proj_drive_commercial" list="driveCommercialList" value="' + escapeHtml(v.drive_commercial || '') + '" placeholder="Tapez pour chercher ou collez une URL..." style="flex:1" onfocus="loadDriveFoldersList(\'commercial\')">' +
-            '<datalist id="driveCommercialList"></datalist>' +
+            '<input type="text" class="form-input" id="proj_drive_commercial" autocomplete="off" value="' + escapeHtml(v.drive_commercial || '') + '" placeholder="Tapez pour chercher ou collez une URL..." style="flex:1" onfocus="loadDriveFoldersList(\'commercial\')">' +
             (v.drive_commercial ? '<a href="' + escapeHtml(v.drive_commercial) + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
             '<button class="btn" onclick="analyserDossierDrive(\'proj_drive_commercial\',\'' + pCode + '\')" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">Analyser (IA)</button>' +
           '</div>' +
         '</div>' +
         '<div class="form-group"><label class="form-label">Dossier projet</label>' +
           '<div style="display:flex;gap:0.5rem;align-items:center">' +
-            '<input type="text" class="form-input" id="proj_drive_projet_select" list="driveProjetList" value="' + escapeHtml(v.drive_projet || '') + '" placeholder="Tapez un code projet (QQQQ) pour chercher..." style="flex:1" onfocus="loadDriveFoldersList(\'projet\')">' +
-            '<datalist id="driveProjetList"></datalist>' +
+            '<input type="text" class="form-input" id="proj_drive_projet_select" autocomplete="off" value="' + escapeHtml(v.drive_projet || '') + '" placeholder="Tapez un code projet (QQQQ) pour chercher..." style="flex:1" onfocus="loadDriveFoldersList(\'projet\')">' +
             (v.drive_projet ? '<a href="' + escapeHtml(v.drive_projet) + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
             '<button class="btn" onclick="analyserDossierDrive(\'proj_drive_projet_select\',\'' + pCode + '\')" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">Analyser (IA)</button>' +
           '</div>' +
@@ -6244,19 +6242,18 @@
     var driveFoldersCache = { projet: null, commercial: null };
 
     window.loadDriveFoldersList = function(type) {
-      var listId = type === 'commercial' ? 'driveCommercialList' : 'driveProjetList';
-      var datalist = document.getElementById(listId);
-      if (!datalist) return;
+      var inputId = type === 'commercial' ? 'proj_drive_commercial' : 'proj_drive_projet_select';
+      var input = document.getElementById(inputId);
+      if (!input) return;
 
       // Ne charger qu'une fois
       if (driveFoldersCache[type]) {
-        if (datalist.children.length === 0) populateDriveDatalist(datalist, driveFoldersCache[type]);
+        populateDriveDatalist({ id: inputId }, driveFoldersCache[type]);
         return;
       }
 
       if (!apiUrl) return;
       Logger.debug('DRIVE', 'Loading ' + type + ' folders...');
-      datalist.innerHTML = '<option value="Chargement en cours...">';
 
       fetch(apiUrl + '?action=list_drive_folders&type=' + type)
         .then(function(r) { return r.json(); })
@@ -6264,21 +6261,19 @@
           if (res.ok && res.data) {
             driveFoldersCache[type] = res.data;
             Logger.info('DRIVE', type + ' folders loaded: ' + res.data.length);
-            populateDriveDatalist(datalist, res.data);
+            populateDriveDatalist({ id: inputId }, res.data);
           } else {
             Logger.error('DRIVE', 'Failed to load ' + type, res.error);
-            datalist.innerHTML = '';
           }
         })
         .catch(function(err) {
           Logger.error('DRIVE', 'Fetch error ' + type, { error: String(err) });
-          datalist.innerHTML = '';
         });
     };
 
-    function populateDriveDatalist(datalist, folders) {
-      // datalist natif ne filtre pas bien — on utilise un dropdown custom
-      var inputId = datalist.id.replace('List', '');
+    function populateDriveDatalist(ref, folders) {
+      // Dropdown custom avec recherche
+      var inputId = ref.id || ref;
       var input = document.getElementById(inputId);
       if (!input) return;
 
