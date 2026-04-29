@@ -5728,9 +5728,18 @@
           statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || 'inconnue') + '</span>';
           return;
         }
+        var skippedInfo = '';
+        if (resp.filesSkipped > 0) {
+          skippedInfo = ' \u2014 <span style="color:var(--text-muted)">' + resp.filesSkipped + ' d\u00e9j\u00e0 analys\u00e9(s), ignor\u00e9(s)</span>';
+          if (resp.skippedFiles && resp.skippedFiles.length > 0) {
+            skippedInfo += '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem">Fichiers ignor\u00e9s : ';
+            skippedInfo += resp.skippedFiles.map(function(sf) { return escapeHtml(sf.name) + ' (' + toFR(sf.date) + ')'; }).join(', ');
+            skippedInfo += '</div>';
+          }
+        }
         var info = '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem">' +
           'Dossier : <strong>' + (resp.folderName || '?') + '</strong> \u2014 ' +
-          resp.filesAnalyzed + ' fichiers analys\u00e9s sur ' + resp.filesTotal + ' dans le dossier';
+          resp.filesAnalyzed + ' fichiers analys\u00e9s sur ' + resp.filesTotal + ' dans le dossier' + skippedInfo;
         if (resp.folderUrl) info += ' \u2014 <a href="' + resp.folderUrl + '" target="_blank">Ouvrir</a>';
         info += '</div>';
 
