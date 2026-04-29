@@ -3904,7 +3904,11 @@
         drive_projet: '', drive_commercial: '', drive_devis: ''
       };
 
-      var html = '<a class="back-link" onclick="navigateTo(\'projets\')">&larr; Retour aux projets</a>';
+      var saveLabel = isNew ? 'Cr\u00e9er le projet' : 'Enregistrer';
+      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">' +
+        '<a class="back-link" onclick="navigateTo(\'projets\')" style="margin:0">&larr; Retour aux projets</a>' +
+        '<button class="btn btn-primary" onclick="saveProjet()" style="position:sticky;top:0.5rem;z-index:50;padding:0.5rem 1.5rem;font-size:0.9rem;box-shadow:0 2px 8px rgba(0,0,0,0.15)">' + saveLabel + '</button>' +
+      '</div>';
       html += '<div class="page-header"><div class="page-title">' + title + '</div></div>';
 
       // ── DROP ZONE IA ──
@@ -4716,10 +4720,7 @@
       } catch(orgaErr) { html += '<p style="color:var(--red)">Erreur rendu Organisation : ' + orgaErr.message + '</p>'; Logger.error('RENDER', 'Orga render error: ' + orgaErr.message); }
       html += '</div>'; // end volet-orga
 
-      // Save button
-      html += '<div class="params-actions" style="margin-top:2rem">' +
-        '<button class="btn btn-primary" onclick="saveProjet()">' + (isNew ? 'Cr\u00e9er le projet' : 'Enregistrer') + '</button>' +
-      '</div>';
+      // Save button deplace en haut a droite (sticky)
 
       el.innerHTML = html;
     }
