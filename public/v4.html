@@ -6361,11 +6361,25 @@
 
     window.selectDriveFolder = function(inputId, url) {
       var input = document.getElementById(inputId);
-      if (input) {
-        input.value = url;
-        var dd = input._driveDropdown;
-        if (dd) dd.style.display = 'none';
+      if (!input) return;
+
+      // Verifier le quadrigramme si c'est le dossier projet
+      if (inputId === 'proj_drive_projet_select') {
+        var projCode = (document.getElementById('proj_code') || {}).value || '';
+        if (projCode) {
+          // Extraire le quadrigramme du nom du dossier (format AAAA-MM-QQQQ_Nom)
+          var folders = input._driveFolders || [];
+          var folder = folders.find(function(f) { return f.url === url; });
+          if (folder && folder.code && folder.code.toUpperCase() !== projCode.toUpperCase()) {
+            var ok = confirm('Le quadrigramme du dossier (' + folder.code + ') ne correspond pas au code projet (' + projCode + ').\n\nVoulez-vous quand m\u00eame associer ce dossier ?');
+            if (!ok) return;
+          }
+        }
       }
+
+      input.value = url;
+      var dd = input._driveDropdown;
+      if (dd) dd.style.display = 'none';
     };
 
     // Formater date ISO → JJ/MM/AAAA
