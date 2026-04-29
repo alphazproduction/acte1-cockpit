@@ -4287,13 +4287,6 @@
             '<button class="btn" onclick="analyserDossierDrive(\'proj_drive_projet_select\',\'' + pCode + '\')" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap;border-color:var(--accent);color:var(--accent)">Analyser (IA)</button>' +
           '</div>' +
         '</div>' +
-        '<div class="form-group"><label class="form-label">Devis valid\u00e9</label>' +
-          '<div style="display:flex;gap:0.5rem;align-items:center">' +
-            '<input type="url" class="form-input" id="proj_drive_devis" value="' + escapeHtml(v.drive_devis || '') + '" placeholder="https://drive.google.com/file/d/... ou /folders/..." style="flex:1">' +
-            (v.drive_devis ? '<a href="' + escapeHtml(v.drive_devis) + '" target="_blank" style="font-size:0.78rem;white-space:nowrap">Ouvrir</a>' : '') +
-            '<button class="btn" onclick="analyserDevisValide(\'' + pCode + '\')" style="font-size:0.72rem;padding:0.25rem 0.5rem;white-space:nowrap;border-color:var(--green);color:var(--green)">Analyser devis (IA)</button>' +
-          '</div>' +
-        '</div>' +
       '</div>';
       html += '<input type="hidden" id="proj_drive_projet" value="' + escapeHtml(v.drive_commercial || v.drive_projet || '') + '">';
 
