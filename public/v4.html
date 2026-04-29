@@ -6290,59 +6290,79 @@
     };
 
     function populateDriveDatalist(ref, folders) {
-      // Dropdown custom avec recherche
       var inputId = ref.id || ref;
       var input = document.getElementById(inputId);
-      if (!input) return;
+      if (!input) { Logger.warn('DRIVE', 'Input not found: ' + inputId); return; }
 
-      // Creer le dropdown custom
-      var dropId = inputId + '_dropdown';
-      var existing = document.getElementById(dropId);
-      if (existing) existing.remove();
-
-      var dropdown = document.createElement('div');
-      dropdown.id = dropId;
-      dropdown.style.cssText = 'position:absolute;z-index:100;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;max-height:250px;overflow-y:auto;width:' + input.offsetWidth + 'px;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:none';
-      input.parentNode.style.position = 'relative';
-      input.parentNode.appendChild(dropdown);
-
-      // Stocker les folders sur l'input
+      // Stocker les folders
       input._driveFolders = folders;
-      input._driveDropdown = dropdown;
 
-      function renderDropdown(filter) {
-        var q = (filter || '').toLowerCase();
-        var html = '';
-        var count = 0;
-        folders.forEach(function(f) {
-          var label = f.code ? f.code + ' \u2014 ' + f.name : f.name;
-          if (q && label.toLowerCase().indexOf(q) < 0 && f.url.toLowerCase().indexOf(q) < 0) return;
-          if (count >= 30) return; // limiter l'affichage
-          var hl = q ? label.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<strong>$1</strong>') : label;
-          html += '<div style="padding:0.4rem 0.6rem;cursor:pointer;font-size:0.82rem;border-bottom:1px solid var(--border)" ' +
-            'onmouseover="this.style.background=\'var(--accent-light)\'" onmouseout="this.style.background=\'none\'" ' +
-            'onmousedown="selectDriveFolder(\'' + escapeHtml(inputId) + '\',\'' + escapeHtml(f.url) + '\')">' +
-            hl + '</div>';
-          count++;
+      // Creer ou reutiliser le dropdown
+      var dropId = inputId + '_dropdown';
+      var dropdown = document.getElementById(dropId);
+      if (!dropdown) {
+        dropdown = document.createElement('div');
+        dropdown.id = dropId;
+        dropdown.style.cssText = 'position:absolute;left:0;top:100%;z-index:200;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;max-height:250px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:none';
+        // Wrapper pour positionnement
+        var wrapper = input.closest('div[style*="display:flex"]') || input.parentNode;
+        wrapper.style.position = 'relative';
+        wrapper.appendChild(dropdown);
+        dropdown.style.width = Math.max(input.offsetWidth, 300) + 'px';
+
+        // Listeners (une seule fois)
+        input.addEventListener('input', function() { showDriveDropdown(inputId); });
+        input.addEventListener('focus', function() { showDriveDropdown(inputId); });
+        input.addEventListener('blur', function() {
+          setTimeout(function() {
+            var dd = document.getElementById(dropId);
+            if (dd) dd.style.display = 'none';
+          }, 250);
         });
-        if (!html) html = '<div style="padding:0.5rem;color:var(--text-muted);font-size:0.82rem">Aucun r\u00e9sultat</div>';
-        dropdown.innerHTML = html;
-        dropdown.style.display = 'block';
       }
 
-      input.addEventListener('input', function() { renderDropdown(this.value); });
-      input.addEventListener('focus', function() { renderDropdown(this.value); });
-      input.addEventListener('blur', function() { setTimeout(function() { dropdown.style.display = 'none'; }, 200); });
+      input._driveDropdown = dropdown;
 
-      // Afficher immediatement
-      renderDropdown(input.value);
+      // Afficher immediatement si l'input a le focus
+      if (document.activeElement === input) {
+        showDriveDropdown(inputId);
+      }
     }
+
+    window.showDriveDropdown = function(inputId) {
+      var input = document.getElementById(inputId);
+      if (!input || !input._driveFolders) return;
+      var dropdown = input._driveDropdown;
+      if (!dropdown) return;
+
+      var folders = input._driveFolders;
+      var q = (input.value || '').toLowerCase();
+      var html = '';
+      var count = 0;
+
+      folders.forEach(function(f) {
+        var label = f.code ? f.code + ' \u2014 ' + f.name : f.name;
+        if (q && label.toLowerCase().indexOf(q) < 0) return;
+        if (count >= 30) return;
+        var hl = q ? label.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<strong>$1</strong>') : label;
+        html += '<div style="padding:0.45rem 0.7rem;cursor:pointer;font-size:0.82rem;border-bottom:1px solid var(--border)" ' +
+          'onmouseover="this.style.background=\'var(--accent-light)\'" onmouseout="this.style.background=\'none\'" ' +
+          'onmousedown="selectDriveFolder(\'' + escapeHtml(inputId) + '\',\'' + escapeHtml(f.url) + '\')">' +
+          hl + '</div>';
+        count++;
+      });
+
+      if (!html) html = '<div style="padding:0.5rem;color:var(--text-muted);font-size:0.82rem">Aucun r\u00e9sultat</div>';
+      dropdown.innerHTML = html;
+      dropdown.style.display = 'block';
+    };
 
     window.selectDriveFolder = function(inputId, url) {
       var input = document.getElementById(inputId);
       if (input) {
         input.value = url;
-        if (input._driveDropdown) input._driveDropdown.style.display = 'none';
+        var dd = input._driveDropdown;
+        if (dd) dd.style.display = 'none';
       }
     };
 
