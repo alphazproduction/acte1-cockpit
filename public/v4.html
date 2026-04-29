@@ -4371,17 +4371,14 @@
           '<th style="text-align:center;width:80px"></th>' +
         '</tr></thead><tbody>';
 
-        ['ESQ','DIAG','APS','APD','PRO','DCE','ACT','VISA','DET','AOR'].forEach(function(ph, phIdx) {
-          var rowId = 'ct_0_' + phIdx;
-          var phSelect = '<select class="form-select" id="' + rowId + '_phase" style="font-size:0.8rem;padding:0.3rem;width:110px">';
-          ALL_PHASES.forEach(function(mop) { phSelect += '<option' + (mop === ph ? ' selected' : '') + '>' + mop + '</option>'; });
-          phSelect += '</select>';
-          html += '<tr data-row-id="' + rowId + '">' +
-            '<td style="text-align:left;padding-left:0.5rem">' + phSelect + '</td>' +
-            '<td style="text-align:right"><input type="number" class="form-input" id="' + rowId + '_montant" style="width:100px;text-align:right;font-size:0.82rem;padding:0.3rem 0.4rem" placeholder="0" value="" onchange="recalcContratTotals(0)"></td>' +
-            '<td style="text-align:center"><input type="date" class="form-input" id="' + rowId + '_dateprev" style="width:120px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center"></td>' +
-            '<td><input type="text" class="form-input" id="' + rowId + '_comment" style="width:100%;font-size:0.78rem;padding:0.25rem 0.4rem" placeholder="Commentaire"></td>' +
-            '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="removePhaseRow(this);recalcContratTotals(0)" title="Supprimer">\u2716</button></td>' +
+        // Nouveau projet : table vide (pas de phases pre-remplies)
+        // L'utilisateur ajoute des phases manuellement ou via l'analyse IA
+        html += '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:0.85rem">' +
+          'Aucune phase d\u00e9finie. Utilisez <strong>+ Ajouter une phase</strong> ci-dessous ou <strong>analysez un document IA</strong> (devis, contrat) pour pr\u00e9-remplir automatiquement.' +
+          '</td></tr>';
+        // Fake row to keep the forEach structure
+        [].forEach(function(ph, phIdx) {
+          html += '</td>' +
           '</tr>';
           // Echeancier sub-row pour le fallback aussi
           var fallbackEchs = (echeancierData[p ? p.code : ''] || []).filter(function(e) { return (e.phase||'').toUpperCase() === ph; });
