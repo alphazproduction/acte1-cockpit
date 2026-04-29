@@ -1570,7 +1570,12 @@
     var chartCurves = { cumule: true, seuil: true, objectif: true };
     var forecastYear = new Date().getFullYear();
     var dataMode = localStorage.getItem(DATA_MODE_KEY) || 'mock'; // 'mock' ou 'live'
-    var apiUrl = localStorage.getItem(API_URL_KEY) || '';
+    // Normaliser l'URL GAS : /a/macros/domain/ → /macros/ (fix CORS Workspace)
+    function normalizeGasUrl(url) {
+      if (!url) return '';
+      return url.replace(/\/a\/macros\/[^/]+\//, '/macros/');
+    }
+    var apiUrl = normalizeGasUrl(localStorage.getItem(API_URL_KEY) || '');
     var isLoading = false;
     var lastSync = null;
     var prevParAnnee = {}; // { '2024': { 'CODE_PROJET': [m1..m12], ... }, ... }
@@ -1593,8 +1598,8 @@
     };
 
     window.setApiUrl = function(url) {
-      apiUrl = url;
-      localStorage.setItem(API_URL_KEY, url);
+      apiUrl = normalizeGasUrl(url);
+      localStorage.setItem(API_URL_KEY, url); // stocke l'original
     };
 
     window.loadFromSheet = function() {
