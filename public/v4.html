@@ -4115,7 +4115,10 @@
       var saveLabel = isNew ? 'Cr\u00e9er le projet' : 'Enregistrer';
       var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">' +
         '<a class="back-link" onclick="navigateTo(\'projets\')" style="margin:0">&larr; Retour aux projets</a>' +
-        '<button class="btn btn-primary" onclick="saveProjet()" style="position:sticky;top:0.5rem;z-index:50;padding:0.5rem 1.5rem;font-size:0.9rem;box-shadow:0 2px 8px rgba(0,0,0,0.15)">' + saveLabel + '</button>' +
+        '<div style="display:flex;gap:0.5rem;align-items:center">' +
+          (isNew ? '' : '<button class="btn" onclick="deleteProjetCascade(\'' + escapeHtml(p.code) + '\',\'' + escapeHtml(p.nom) + '\')" style="font-size:0.75rem;padding:0.4rem 0.8rem;color:var(--red);border-color:var(--red)" title="Supprimer le projet et toutes ses donn\u00e9es">\u2716 Supprimer</button>') +
+          '<button class="btn btn-primary" onclick="saveProjet()" style="position:sticky;top:0.5rem;z-index:50;padding:0.5rem 1.5rem;font-size:0.9rem;box-shadow:0 2px 8px rgba(0,0,0,0.15)">' + saveLabel + '</button>' +
+        '</div>' +
       '</div>';
       html += '<div class="page-header"><div class="page-title">' + title + '</div></div>';
 
@@ -5999,6 +6002,47 @@
     };
 
     // Analyser le devis validé directement
+    // Supprimer un projet et toutes ses donnees (cascade)
+    window.deleteProjetCascade = function(code, nom) {
+      // Premiere confirmation
+      if (!confirm('\u26a0\uFE0F ATTENTION \u26a0\uFE0F\n\nVous allez supprimer d\u00e9finitivement le projet :\n\n' +
+        code + ' \u2014 ' + nom + '\n\n' +
+        'Cela supprimera TOUTES les donn\u00e9es associ\u00e9es :\n' +
+        '\u2022 Contrats et phases\n' +
+        '\u2022 \u00c9ch\u00e9ancier et pr\u00e9visionnel\n' +
+        '\u2022 Factures\n' +
+        '\u2022 Organisation\n' +
+        '\u2022 Sous-traitance et \u00e9quipe\n\n' +
+        'Cette action est IRR\u00c9VERSIBLE.\n\nContinuer ?')) return;
+
+      // Deuxieme confirmation
+      var confirmCode = prompt('Pour confirmer, tapez le code du projet en majuscules :\n(tapez "' + code + '")');
+      if (confirmCode !== code) {
+        showToast('Suppression annul\u00e9e \u2014 le code ne correspond pas');
+        return;
+      }
+
+      showLoadingToast('Suppression en cours...');
+      Logger.warn('DELETE', 'Suppression cascade du projet ' + code);
+
+      postToSheet('delete_projet_cascade', { code_projet: code }, function(ok) {
+        if (ok) {
+          // Nettoyer les donnees en memoire
+          PROJETS = PROJETS.filter(function(p) { return p.code !== code; });
+          projetsBase = projetsBase.filter(function(p) { return (p.code_projet || p.code) !== code; });
+          delete echeancierData[code];
+          delete contratsData[code];
+          delete soustraitanceData[code];
+          delete ORGANISATION[code];
+          delete PHASES_VALIDEES[code];
+          currentProjetCode = null;
+
+          showToast('Projet ' + code + ' supprim\u00e9 d\u00e9finitivement');
+          navigateTo('projets');
+        }
+      });
+    };
+
     // Deverrouiller une ligne echeancier facturee
     window.unlockEchRow = function(eId) {
       if (!confirm('Cette \u00e9ch\u00e9ance est factur\u00e9e. Modifier les champs mettra aussi \u00e0 jour la facture associ\u00e9e.\n\nContinuer ?')) return;
