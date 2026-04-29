@@ -1648,7 +1648,7 @@
             // A1 fix: Clear mock PROJETS immediately so they never mix with live data
             PROJETS.length = 0;
             // Données live chargées
-            console.log('[Live] projetsBase loaded:', projetsBase.length, 'projects. Mock PROJETS cleared.');
+            Logger.info('DATA', 'projetsBase loaded: ' + projetsBase.length + ' projects');
           }
 
           // 2. Construire le prévisionnel par année depuis PREVISIONNEL
@@ -1704,7 +1704,7 @@
               if (!contratsData[code]) contratsData[code] = [];
               contratsData[code].push(c);
             });
-            console.log('[Live] Contrats chargés:', Object.keys(contratsData).length, 'projets');
+            Logger.debug('DATA', 'Contrats: ' + Object.keys(contratsData).length + ' projets');
           }
 
           // 5b. Charger ECHEANCIER par projet
@@ -1716,7 +1716,7 @@
               if (!echeancierData[code]) echeancierData[code] = [];
               echeancierData[code].push(e);
             });
-            console.log('[Live] Echeancier chargé:', Object.keys(echeancierData).length, 'projets');
+            Logger.debug('DATA', 'Echeancier: ' + Object.keys(echeancierData).length + ' projets');
           }
 
           // 5b2. Charger SOUSTRAITANCE par projet
@@ -1797,8 +1797,8 @@
         .catch(function(err) {
           isLoading = false;
           updateConnectionBadge();
+          Logger.error('API', 'loadFromSheet failed', { error: String(err) });
           showToast('Erreur connexion : ' + err);
-          console.error('Sheet fetch error:', err);
         });
     };
 
@@ -2079,7 +2079,7 @@
       if (!seuilVal || seuilVal < 10000) seuilVal = 350000;
       if (!objVal || objVal < 10000) objVal = 450000;
 
-      console.log('KPI: effectue=' + effectue + ' prev=' + previsionnel + ' seuil=' + seuilVal + ' obj=' + objVal + ' nbProjets=' + PROJETS.length);
+      Logger.debug('KPI', 'effectue=' + effectue + ' prev=' + previsionnel + ' seuil=' + seuilVal + ' obj=' + objVal + ' nbProjets=' + PROJETS.length);
 
       var pctEffSeuil = seuilVal > 0 ? effectue / seuilVal : 0;
       var pctPrevSeuil = seuilVal > 0 ? previsionnel / seuilVal : 0;
@@ -3847,7 +3847,7 @@
         renderProjetDetail(p);
         showPage('projet-detail');
       } catch(err) {
-        console.error('Erreur openProjetDetail:', err);
+        Logger.error('RENDER', 'openProjetDetail error', { error: String(err), stack: err.stack });
         showToast('Erreur ouverture projet: ' + err.message);
       }
     };
@@ -4693,7 +4693,7 @@
       } else {
         html += '<p style="color:var(--text-muted)">L\'organisation sera pr\u00e9-remplie depuis le contrat \u00e0 la cr\u00e9ation.</p>';
       }
-      } catch(orgaErr) { html += '<p style="color:var(--red)">Erreur rendu Organisation : ' + orgaErr.message + '</p>'; console.error('Orga render error:', orgaErr); }
+      } catch(orgaErr) { html += '<p style="color:var(--red)">Erreur rendu Organisation : ' + orgaErr.message + '</p>'; Logger.error('RENDER', 'Orga render error: ' + orgaErr.message); }
       html += '</div>'; // end volet-orga
 
       // Save button
@@ -5239,7 +5239,7 @@
             commentaire: 'Import IA',
             ordre_affichage: idx + 1
           };
-          console.log('Saving phase ' + ph.phase + ' montant=' + montant + ' code=' + projetCode);
+          Logger.debug('SAVE', 'Saving phase ' + ph.phase + ' montant=' + montant + ' code=' + projetCode);
           postToSheet('upsert_contrat', contratLine);
 
           // Update in-memory contratsData
@@ -7254,7 +7254,54 @@
       return now.getMonth();
     }
 
+    function renderFirstRun() {
+      var mainEl = document.querySelector('.main');
+      if (!mainEl) return;
+      // Masquer toutes les pages
+      document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+      // Creer un overlay first-run
+      var existing = document.getElementById('firstRunOverlay');
+      if (existing) existing.remove();
+      var overlay = document.createElement('div');
+      overlay.id = 'firstRunOverlay';
+      overlay.style.cssText = 'padding:3rem;text-align:center;max-width:600px;margin:3rem auto';
+      overlay.innerHTML =
+        '<div style="font-size:2.5rem;margin-bottom:1rem">\uD83D\uDE80</div>' +
+        '<h2 style="font-size:1.5rem;margin-bottom:0.75rem">Bienvenue sur le Cockpit ACTE 1</h2>' +
+        '<p style="color:var(--text-muted);font-size:0.95rem;line-height:1.6;margin-bottom:1.5rem">' +
+          'Le cockpit est connect\u00e9 \u00e0 votre Google Sheet mais aucun projet n\'a encore \u00e9t\u00e9 saisi.<br>' +
+          'Commencez par ajouter vos projets dans l\'onglet <strong>PROJETS</strong> du Sheet.' +
+        '</p>' +
+        '<div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">' +
+          '<a href="' + (apiUrl ? apiUrl.replace('/exec', '').replace('macros/s/', 'spreadsheets/d/').split('/exec')[0] : '#') + '" target="_blank" class="btn btn-primary" style="padding:0.6rem 1.5rem;font-size:0.95rem">' +
+            'Ouvrir le Google Sheet' +
+          '</a>' +
+          '<button class="btn" onclick="loadFromSheet()" style="padding:0.6rem 1.5rem;font-size:0.95rem">' +
+            'Rafra\u00eechir les donn\u00e9es' +
+          '</button>' +
+        '</div>' +
+        '<div style="margin-top:2rem;padding:1rem;background:var(--bg);border-radius:8px;text-align:left">' +
+          '<div style="font-weight:600;margin-bottom:0.5rem">\uD83D\uDCCB Prochaines \u00e9tapes</div>' +
+          '<ol style="font-size:0.85rem;color:var(--text-muted);line-height:1.8;padding-left:1.2rem">' +
+            '<li>Ouvrez le Google Sheet et remplissez l\'onglet <strong>PROJETS</strong> (code, nom, client, budget)</li>' +
+            '<li>Ajoutez les phases dans l\'onglet <strong>CONTRATS</strong></li>' +
+            '<li>D\u00e9finissez l\'\u00e9ch\u00e9ancier dans l\'onglet <strong>ECHEANCIER</strong></li>' +
+            '<li>Revenez ici et cliquez <strong>Rafra\u00eechir</strong></li>' +
+          '</ol>' +
+        '</div>';
+      mainEl.appendChild(overlay);
+      Logger.warn('FIRST_RUN', 'Sheet vide detecte — ecran accueil affiche');
+    }
+
     function renderDashboard() {
+      // Check first-run : aucun projet charge
+      var firstRunEl = document.getElementById('firstRunOverlay');
+      if (PROJETS.length === 0 && projetsBase.length === 0 && dataMode === 'live') {
+        renderFirstRun();
+        return;
+      }
+      if (firstRunEl) firstRunEl.remove();
+
       document.getElementById('dashTitle').textContent = 'Dashboard ' + selectedYear;
       document.getElementById('yearLabel').textContent = selectedYear;
       document.getElementById('chartTitle').textContent = 'Forecast mensuel ' + selectedYear;
