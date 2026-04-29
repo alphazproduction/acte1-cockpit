@@ -3181,7 +3181,9 @@
        ============================================================== */
     function getPhaseCategory(phase) {
       if (!phase) return null;
-      var base = phase.replace(/\s*\d+$/, '').toUpperCase();
+      var p = typeof phase === 'object' ? (phase.phase || '') : String(phase);
+      if (!p) return null;
+      var base = p.replace(/\s*\d+$/, '').toUpperCase();
       var etudes = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE'];
       var travaux = ['ACT','VISA','DET','AOR','GPA'];
       if (etudes.indexOf(base) >= 0) return 'etudes';
@@ -3745,8 +3747,9 @@
       filtered.forEach(function(p) {
         var ph = ORGANISATION[p.code] || [];
         for (var si = 0; si < 12; si++) {
-          if (ph[si]) {
-            var base = ph[si].replace(/\s*\d+$/, '').toUpperCase();
+          var phSi = getOrgaPhase(ph[si]);
+          if (phSi) {
+            var base = phSi.replace(/\s*\d+$/, '').toUpperCase();
             if (phaseCounts[base]) phaseCounts[base][si]++;
             totalCounts[si]++;
           }
