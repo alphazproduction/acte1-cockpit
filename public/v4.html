@@ -2895,32 +2895,96 @@
         '.cat-conseil { background:var(--grey-bg); color:var(--grey); }' +
       '</style>';
 
+      // ── GUIDE : CREER / METTRE A JOUR UN PROJET ──
+      html += '<div class="aide-section" style="border-left:4px solid var(--accent);margin-bottom:1.5rem">' +
+        '<h3 style="color:var(--accent)">Cr\u00e9er ou mettre \u00e0 jour un projet</h3>' +
+        '<p style="margin-bottom:1rem">Il existe <strong>3 m\u00e9thodes</strong> pour cr\u00e9er ou enrichir un projet. Vous pouvez les combiner.</p>' +
+
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">'+
+          '<div style="background:var(--bg);border-radius:8px;padding:1rem;border:1px solid var(--border)">' +
+            '<div style="font-size:1.5rem;text-align:center;margin-bottom:0.5rem">1\uFE0F\u20E3</div>' +
+            '<div style="font-weight:700;text-align:center;margin-bottom:0.5rem">Saisie manuelle</div>' +
+            '<div style="font-size:0.82rem;color:var(--text-muted)">Projets &rarr; + Nouveau projet &rarr; Remplissez les champs &rarr; Enregistrer. Ajoutez les phases dans l\'onglet Contrat, puis les versements dans l\'\u00e9ch\u00e9ancier.</div>' +
+          '</div>' +
+          '<div style="background:var(--bg);border-radius:8px;padding:1rem;border:1px solid var(--accent)">' +
+            '<div style="font-size:1.5rem;text-align:center;margin-bottom:0.5rem">2\uFE0F\u20E3</div>' +
+            '<div style="font-weight:700;text-align:center;margin-bottom:0.5rem;color:var(--accent)">Analyse IA (recommand\u00e9)</div>' +
+            '<div style="font-size:0.82rem;color:var(--text-muted)">D\u00e9posez un devis, contrat ou facture. L\'IA (Claude) extrait automatiquement toutes les infos : phases, montants, dates, client, architecte\u2026</div>' +
+          '</div>' +
+          '<div style="background:var(--bg);border-radius:8px;padding:1rem;border:1px solid var(--border)">' +
+            '<div style="font-size:1.5rem;text-align:center;margin-bottom:0.5rem">3\uFE0F\u20E3</div>' +
+            '<div style="font-weight:700;text-align:center;margin-bottom:0.5rem">Google Sheet direct</div>' +
+            '<div style="font-size:0.82rem;color:var(--text-muted)">Ouvrez le Sheet de production, ajoutez une ligne dans l\'onglet PROJETS. Le cockpit la verra au prochain rafra\u00eechissement.</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<h3 style="font-size:0.95rem">D\u00e9tail de la m\u00e9thode IA</h3>' +
+        '<div style="background:var(--bg);border-radius:8px;padding:1rem;margin-bottom:1rem">' +
+          '<ol style="font-size:0.85rem;line-height:1.8;padding-left:1.2rem">' +
+            '<li>Ouvrez la <strong>fiche projet</strong> (existant ou nouveau)</li>' +
+            '<li>Dans la section <strong>"Importer / Analyser un document (IA)"</strong>, d\u00e9posez un fichier (PDF, Excel) ou collez un lien Drive</li>' +
+            '<li>Ou utilisez le bouton <strong>Analyser (IA)</strong> \u00e0 c\u00f4t\u00e9 du champ Dossier commercial ou Dossier projet</li>' +
+            '<li>L\'IA analyse le document et propose les informations extraites avec des <strong>cases \u00e0 cocher</strong></li>' +
+            '<li><strong>Cochez</strong> les champs que vous voulez importer (infos projet, phases, montants\u2026)</li>' +
+            '<li>Cliquez <strong>"Appliquer la s\u00e9lection"</strong> \u2014 les champs se remplissent automatiquement</li>' +
+            '<li>Cliquez <strong>Enregistrer</strong> (en haut \u00e0 droite) pour sauvegarder dans le Sheet</li>' +
+          '</ol>' +
+        '</div>' +
+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">' +
+          '<div style="background:var(--green-bg);border-radius:8px;padding:0.75rem 1rem">' +
+            '<div style="font-weight:700;color:var(--green);font-size:0.85rem;margin-bottom:0.3rem">\u2705 L\'IA g\u00e8re automatiquement</div>' +
+            '<ul style="font-size:0.8rem;padding-left:1rem;margin:0;color:var(--text)">' +
+              '<li>Extraction du nom, ville, client, architecte</li>' +
+              '<li>D\u00e9coupage des phases MOP avec montants</li>' +
+              '<li>D\u00e9duction des dates depuis le planning</li>' +
+              '<li>Mapping devis \u2192 codes MOP (PRO/DCE \u2192 2 lignes)</li>' +
+              '<li>D\u00e9tection facture vs devis</li>' +
+              '<li>G\u00e9n\u00e9ration du r\u00e9sum\u00e9 projet</li>' +
+            '</ul>' +
+          '</div>' +
+          '<div style="background:rgba(232,96,28,0.08);border-radius:8px;padding:0.75rem 1rem">' +
+            '<div style="font-weight:700;color:var(--accent);font-size:0.85rem;margin-bottom:0.3rem">\u26a0\uFE0F V\u00e9rifiez toujours</div>' +
+            '<ul style="font-size:0.8rem;padding-left:1rem;margin:0;color:var(--text)">' +
+              '<li>Le code projet (quadrigramme 4 lettres)</li>' +
+              '<li>Les montants extraits vs le document original</li>' +
+              '<li>L\'attribution Facturé/Prévisionnel</li>' +
+              '<li>Le chef de projet (Am\u00e9lie ou R\u00e9gis)</li>' +
+            '</ul>' +
+          '</div>' +
+        '</div>' +
+
+        '<div style="margin-top:1rem;padding:0.75rem;background:var(--bg);border-radius:6px;font-size:0.82rem">' +
+          '<strong>Cache IA</strong> : les fichiers d\u00e9j\u00e0 analys\u00e9s sont m\u00e9moris\u00e9s (onglet _IA_CACHE du Sheet). ' +
+          'Lors d\'une analyse de dossier, les fichiers d\u00e9j\u00e0 trait\u00e9s sont ignor\u00e9s automatiquement. ' +
+          'Pour forcer une r\u00e9-analyse, supprimez la ligne correspondante dans _IA_CACHE.' +
+        '</div>' +
+      '</div>';
+
       // ── VUES DU COCKPIT ──
+      html += '<div class="aide-section"><h3>Les pages du cockpit</h3></div>';
       html += '<div class="aide-grid">';
 
       html += '<div class="aide-section">' +
         '<h3>Dashboard</h3>' +
         '<p>Vue d\'ensemble avec indicateurs cl\u00e9s :</p>' +
         '<ul>' +
-          '<li><strong>KPI Seuil de rentabilit\u00e9</strong> : % du CA pr\u00e9visionnel vs seuil min. de survie du cabinet</li>' +
-          '<li><strong>KPI Objectif CA</strong> : % du CA pr\u00e9visionnel vs objectif de d\u00e9veloppement</li>' +
-          '<li><strong>Graphique cumul\u00e9</strong> : courbe du CA cumul\u00e9 vs objectif et seuil pond\u00e9r\u00e9s</li>' +
-          '<li><strong>Top 5</strong> : les 5 plus gros projets de l\'ann\u00e9e</li>' +
-          '<li><strong>Alertes</strong> : phases \u00e9chues non factur\u00e9es</li>' +
-          '<li>Navigation par ann\u00e9e (2015-2030) avec objectifs/seuils diff\u00e9rents par ann\u00e9e</li>' +
+          '<li><strong>KPI Seuil / Objectif</strong> : % du CA pr\u00e9visionnel vs seuil de rentabilit\u00e9 et objectif</li>' +
+          '<li><strong>Graphiques</strong> : histogramme mensuel + courbe cumul\u00e9e vs objectif/seuil pond\u00e9r\u00e9s</li>' +
+          '<li><strong>Top 5</strong> : plus gros projets de l\'ann\u00e9e (CA pr\u00e9vu, restant, engagements)</li>' +
+          '<li><strong>Alertes</strong> : retards de facturation, \u00e9carts contrat/\u00e9ch\u00e9ancier, projets sans \u00e9ch\u00e9ances</li>' +
+          '<li>Navigation par ann\u00e9e (2015-2030)</li>' +
         '</ul>' +
       '</div>';
 
       html += '<div class="aide-section">' +
         '<h3>Forecast</h3>' +
-        '<p>Tableau d\u00e9taill\u00e9 projets &times; 12 mois :</p>' +
+        '<p>Grille projets \u00d7 12 mois — aliment\u00e9e par l\'\u00e9ch\u00e9ancier :</p>' +
         '<ul>' +
-          '<li><span style="display:inline-block;width:12px;height:12px;background:var(--green-bg);border:1px solid var(--green);border-radius:2px;vertical-align:middle"></span> <strong>Vert</strong> : factur\u00e9 / pay\u00e9 (mois pass\u00e9s)</li>' +
-          '<li><span style="display:inline-block;width:12px;height:12px;background:rgba(232,96,28,0.1);border:1px solid var(--accent);border-radius:2px;vertical-align:middle"></span> <strong>Orange</strong> : mois en cours</li>' +
-          '<li><span style="display:inline-block;width:12px;height:12px;background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:2px;vertical-align:middle"></span> <strong>Jaune</strong> : pr\u00e9visionnel (mois futurs)</li>' +
-          '<li>Survoler un projet pour voir le d\u00e9tail : \u00e9tat, chef, avancement, % factur\u00e9</li>' +
-          '<li>Filtrer par chef de projet (Am\u00e9lie / R\u00e9gis)</li>' +
-          '<li>Lignes objectif et seuil pond\u00e9r\u00e9s en bas du tableau</li>' +
+          '<li><span style="display:inline-block;width:12px;height:12px;background:var(--green-bg);border:1px solid var(--green);border-radius:2px;vertical-align:middle"></span> Factur\u00e9 &nbsp; <span style="display:inline-block;width:12px;height:12px;background:rgba(232,96,28,0.1);border:1px solid var(--accent);border-radius:2px;vertical-align:middle"></span> Mois en cours &nbsp; <span style="display:inline-block;width:12px;height:12px;background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:2px;vertical-align:middle"></span> Pr\u00e9visionnel</li>' +
+          '<li><strong>Cliquer sur un montant</strong> \u2192 ouvre la fiche projet (volet facturation)</li>' +
+          '<li>Le forecast est <strong>non \u00e9ditable</strong> : pour modifier un montant, passez par l\'\u00e9ch\u00e9ancier du projet</li>' +
+          '<li>Source : ECHEANCIER du Sheet (pas PREVISIONNEL)</li>' +
         '</ul>' +
       '</div>';
 
@@ -2929,30 +2993,52 @@
         '<p>Vue chronologique des phases MOP par projet :</p>' +
         '<ul>' +
           '<li>Phases \u00e9tudes en <span style="color:var(--blue)">bleu</span>, travaux en <span style="color:var(--accent)">orange</span></li>' +
-          '<li>Phases valid\u00e9es marqu\u00e9es d\'un &#10003;</li>' +
-          '<li>Filtrer par mois, type de phase, chef de projet</li>' +
-          '<li>Navigation par ann\u00e9e</li>' +
+          '<li>Phases valid\u00e9es marqu\u00e9es d\'un \u2713</li>' +
+          '<li>Filtrer par mois, type, chef de projet</li>' +
         '</ul>' +
       '</div>';
 
       html += '<div class="aide-section">' +
         '<h3>\u00c9ch\u00e9ancier</h3>' +
-        '<p>Suivi des \u00e9ch\u00e9ances de facturation par projet :</p>' +
+        '<p>Vue consolid\u00e9e des \u00e9ch\u00e9ances de facturation :</p>' +
         '<ul>' +
-          '<li>KPIs : total \u00e0 encaisser, en retard, prochaine \u00e9ch\u00e9ance</li>' +
-          '<li>Filtre par statut (Factur\u00e9 / \u00c0 facturer / Pr\u00e9visionnel) et chef</li>' +
-          '<li>Regroup\u00e9 par projet avec badge trigramme</li>' +
+          '<li>KPIs : Factur\u00e9 / \u00c0 facturer / Pr\u00e9visionnel / Total</li>' +
+          '<li>Cartes horizontales par projet avec phases et versements</li>' +
+          '<li>Donn\u00e9es r\u00e9elles du Sheet (pas de mock)</li>' +
+          '<li>Filtre par statut et chef de projet</li>' +
         '</ul>' +
       '</div>';
 
       html += '<div class="aide-section">' +
-        '<h3>Projets</h3>' +
-        '<p>Liste compl\u00e8te des projets :</p>' +
+        '<h3>Fiche projet</h3>' +
+        '<p>4 volets pour chaque projet :</p>' +
         '<ul>' +
-          '<li>Filtre : Projets en cours (d\u00e9faut), Tous, Termin\u00e9s, En attente, Gel\u00e9s</li>' +
-          '<li>Recherche textuelle (code, nom, chef, \u00e9tat)</li>' +
-          '<li>Clic sur un projet pour acc\u00e9der \u00e0 sa fiche d\u00e9taill\u00e9e</li>' +
-          '<li>Cr\u00e9ation de nouveau projet via le bouton +</li>' +
+          '<li><strong>Infos projet</strong> : code, nom, client, dates, liens Drive (s\u00e9lecteur de dossiers)</li>' +
+          '<li><strong>Contrat</strong> : documents (devis/avenants), phases avec montants + <strong>\u00e9ch\u00e9ancier par phase</strong> (versements \u00e9ditables)</li>' +
+          '<li><strong>Facturation</strong> : factures enregistr\u00e9es \u2192 mettent \u00e0 jour l\'\u00e9ch\u00e9ancier automatiquement. Si montant partiel \u2192 popup pour le solde restant</li>' +
+          '<li><strong>Organisation</strong> : planning de rendu des phases, validation</li>' +
+        '</ul>' +
+        '<p style="margin-top:0.5rem"><strong>Bouton Enregistrer</strong> toujours visible en haut \u00e0 droite.</p>' +
+      '</div>';
+
+      html += '<div class="aide-section">' +
+        '<h3>Demandes</h3>' +
+        '<p>Signaler des bugs ou proposer des am\u00e9liorations :</p>' +
+        '<ul>' +
+          '<li>Cat\u00e9gories : Bug / Am\u00e9lioration / Question</li>' +
+          '<li>Priorit\u00e9 : Basse / Moyenne / Haute</li>' +
+          '<li>Capture d\'\u00e9cran int\u00e9gr\u00e9e (fichier ou Ctrl+V)</li>' +
+          '<li>Gestion : statut, r\u00e9ponse, date de traitement</li>' +
+        '</ul>' +
+      '</div>';
+
+      html += '<div class="aide-section">' +
+        '<h3>Logs</h3>' +
+        '<p>Journaux de diagnostic pour d\u00e9boguer :</p>' +
+        '<ul>' +
+          '<li>Niveaux : ERROR / WARN / INFO / DEBUG</li>' +
+          '<li>Filtre par niveau et recherche texte</li>' +
+          '<li>Export JSON pour analyse</li>' +
         '</ul>' +
       '</div>';
 
@@ -2960,13 +3046,31 @@
         '<h3>Param\u00e8tres</h3>' +
         '<p>Configuration du cockpit :</p>' +
         '<ul>' +
-          '<li><strong>Connexion Google Sheet</strong> : URL API + mode Mock/Live</li>' +
-          '<li><strong>Objectifs financiers</strong> : objectif CA et seuil par d\u00e9faut + surcharges par ann\u00e9e (2015-2028)</li>' +
-          '<li><strong>Pond\u00e9ration mensuelle</strong> : coefficient 0-1 par mois (0.5 = mois creux : juillet, ao\u00fbt, d\u00e9cembre)</li>' +
+          '<li><strong>Connexion</strong> : URL API Apps Script + URL Google Sheet + mode Live/D\u00e9connect\u00e9</li>' +
+          '<li><strong>Objectifs</strong> : CA et seuil par d\u00e9faut + surcharges par ann\u00e9e</li>' +
+          '<li><strong>Pond\u00e9ration</strong> : coefficient mensuel (0.5 = mois creux)</li>' +
         '</ul>' +
       '</div>';
 
       html += '</div>'; // fin aide-grid
+
+      // ── FLUX DE DONNEES ──
+      html += '<div class="aide-section">' +
+        '<h3>Comment les donn\u00e9es circulent</h3>' +
+        '<div style="background:var(--bg);border-radius:8px;padding:1rem;font-family:monospace;font-size:0.82rem;line-height:2;text-align:center">' +
+          '<strong>Contrat</strong> (phases + montants)<br>' +
+          '\u2193<br>' +
+          '<strong>\u00c9ch\u00e9ancier</strong> (1 ligne = 1 versement avec date + statut)<br>' +
+          '\u2193 agr\u00e9g\u00e9 par mois<br>' +
+          '<strong>Forecast</strong> (lecture seule, cliquable \u2192 projet)<br>' +
+          '\u2193<br>' +
+          '<strong>Dashboard</strong> (KPIs, alertes, graphiques)' +
+        '</div>' +
+        '<p style="font-size:0.82rem;margin-top:0.75rem;color:var(--text-muted)">' +
+          'Le forecast est <strong>calcul\u00e9 automatiquement</strong> depuis l\'\u00e9ch\u00e9ancier. ' +
+          'Pour modifier un montant dans le forecast, modifiez l\'\u00e9ch\u00e9ancier du projet concern\u00e9 (onglet Contrat de la fiche projet).' +
+        '</p>' +
+      '</div>';
 
       // ── PHASES MOP ──
       html += '<div class="aide-section">' +
@@ -3024,13 +3128,13 @@
       // ── À PROPOS ──
       html += '<div class="aide-section">' +
         '<h3>\u00c0 propos</h3>' +
-        '<p><strong>Cockpit ACTE 1 V3</strong> — Outil de pilotage financier et op\u00e9rationnel</p>' +
+        '<p><strong>Cockpit ACTE 1</strong> — Outil de pilotage financier et op\u00e9rationnel</p>' +
         '<ul>' +
           '<li><strong>Client</strong> : ACTE 1 — Bureau d\'\u00e9tudes en ing\u00e9nierie audiovisuelle, sc\u00e9nographie, mus\u00e9ographie et acoustique</li>' +
           '<li><strong>Dirigeants</strong> : Am\u00e9lie Chasseriaux &amp; R\u00e9gis Lamblin</li>' +
           '<li><strong>Consultant</strong> : Gr\u00e9gory Allain — Alpha Z Production</li>' +
-          '<li><strong>Source de donn\u00e9es</strong> : Google Sheets via Apps Script API</li>' +
-          '<li><strong>Version</strong> : V3 Sprint 1 — Avril 2026</li>' +
+          '<li><strong>Stack</strong> : HTML/JS vanilla + Google Sheets + Apps Script API + Claude Sonnet 4 (IA)</li>' +
+          '<li><strong>H\u00e9bergement</strong> : Vercel (front) + Google Apps Script (backend)</li>' +
         '</ul>' +
       '</div>';
 
