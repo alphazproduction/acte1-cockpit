@@ -1213,6 +1213,7 @@
         <span class="header-badge" id="headerBadge">Donn&eacute;es d&eacute;mo</span>
       </div>
       <div class="header-right">
+        <span id="headerUser" style="font-size:0.78rem;color:var(--text-muted);font-weight:500"></span>
         <select class="version-select" id="versionSelect" onchange="handleVersionChange(this)">
           <option value="v4" selected>v4 (actuelle)</option>
           <option value="v3">v3</option>
@@ -1719,6 +1720,12 @@
               if (!contratsData[code]) contratsData[code] = [];
               contratsData[code].push(c);
             });
+            // C3: Trier les contrats par ordre_affichage
+            Object.keys(contratsData).forEach(function(code) {
+              contratsData[code].sort(function(a, b) {
+                return (parseInt(a.ordre_affichage) || 999) - (parseInt(b.ordre_affichage) || 999);
+              });
+            });
             Logger.debug('DATA', 'Contrats: ' + Object.keys(contratsData).length + ' projets');
           }
 
@@ -1730,6 +1737,12 @@
               if (!code) return;
               if (!echeancierData[code]) echeancierData[code] = [];
               echeancierData[code].push(e);
+            });
+            // C3: Trier les echeances par ordre_affichage pour conserver l'ordre
+            Object.keys(echeancierData).forEach(function(code) {
+              echeancierData[code].sort(function(a, b) {
+                return (parseInt(a.ordre_affichage) || 999) - (parseInt(b.ordre_affichage) || 999);
+              });
             });
             Logger.debug('DATA', 'Echeancier: ' + Object.keys(echeancierData).length + ' projets');
           }
@@ -1771,7 +1784,17 @@
                 var m2 = parseInt(orgDateStr.substring(5,7)) - 1;
                 if (m2 >= 0 && m2 < 12) {
                   // Stocker phase + annee pour filtrage dans le planning
-                  ORGANISATION[displayCode][m2] = { phase: org.phase, year: orgYear };
+                  // Supporter plusieurs phases par mois (empilage)
+                  var existing = ORGANISATION[displayCode][m2];
+                  if (existing) {
+                    var existingPhase = getOrgaPhase(existing);
+                    var existingYear = getOrgaYear(existing);
+                    if (existingPhase && existingPhase !== org.phase) {
+                      ORGANISATION[displayCode][m2] = { phase: existingPhase + '+' + org.phase, year: orgYear || existingYear };
+                    }
+                  } else {
+                    ORGANISATION[displayCode][m2] = { phase: org.phase, year: orgYear };
+                  }
                   // Mark as validated if validee field is truthy
                   if (org.validee === true || org.validee === 'true' || org.validee === 'oui' || org.validee === 'Oui' || org.validee === 1) {
                     PHASES_VALIDEES[displayCode][m2] = true;
@@ -1793,6 +1816,14 @@
             params.seuil_rentabilite = data.params.seuil_rentabilite || params.seuil_rentabilite;
             if (data.params.coefficients) params.coefficients = data.params.coefficients;
             saveParams();
+          }
+
+          // Utilisateur connecte
+          if (data.user) {
+            window._currentUser = data.user;
+            var userEl = document.getElementById('headerUser');
+            if (userEl) userEl.textContent = data.user.name || data.user.email || '';
+            Logger.info('AUTH', 'Connecte: ' + (data.user.name || data.user.email));
           }
 
           // Cache
@@ -1997,12 +2028,16 @@
           var mois = buildMoisFromEcheancier(code)
                   || yearData[code] || yearData[pb.code_projet] || [0,0,0,0,0,0,0,0,0,0,0,0];
           var total = mois.reduce(function(a,b) { return a+b; }, 0);
+          // Calculer le montant contrat ACTE 1 (somme des phases contractuelles)
+          var mcActe1 = 0;
+          (contratsData[code] || []).forEach(function(c) { mcActe1 += parseFloat(c.montant) || 0; });
           if (total > 0 || annee === new Date().getFullYear()) {
             PROJETS.push({
               code: pb.code, nom: pb.nom, etat: pb.etat, cat: pb.cat, chef: pb.chef,
               mois: mois.slice(), phase_courante: pb.phase_courante || '',
               lien_devis: pb.lien_devis || '', ville: pb.ville || '',
               type_secteur: pb.type_secteur || '', budget: pb.budget || 0,
+              montant_contrat: mcActe1, // montant engagement ACTE 1 (distinct du budget travaux client)
               client: pb.client || pb.client_code || '', client_code: pb.client_code || '',
               date_debut: pb.date_debut || '', date_fin: pb.date_fin || '',
               date_travaux: pb.date_travaux || '',
@@ -2495,15 +2530,16 @@
           }
         }
 
-        // Alerte 3 : projet avec budget mais aucune echeance
-        if (p.budget > 0 && echs.length === 0) {
+        // Alerte 3 : projet avec contrat mais aucune echeance
+        var alertContrat = p.montant_contrat || 0;
+        if (alertContrat > 0 && echs.length === 0) {
           ALERTES.push({
             type: 'vide',
             code: p.code,
             nom: p.nom,
             phase: '\u2014',
-            montant: p.budget,
-            mois_prevu: 'Budget : ' + fmtEuro(p.budget),
+            montant: alertContrat,
+            mois_prevu: 'Contrat : ' + fmtEuro(alertContrat),
             retard: 'Aucune \u00e9ch.'
           });
         }
@@ -2593,18 +2629,18 @@
         subtitle = 'Reste \u00e0 facturer en ' + selectedYear + ' (pr\u00e9visionnel - d\u00e9j\u00e0 factur\u00e9)';
 
       } else if (top5View === 'ca_restant') {
-        // Top 5 : CA restant à facturer sur le projet entier (budget - total facturé toutes années)
+        // Top 5 : CA restant à facturer sur le projet entier (contrat ACTE 1 - total facturé)
         sorted = PROJETS.slice()
           .map(function(p) {
-            var budget = p.budget || 0;
+            var contrat = p.montant_contrat || 0;
             var facture = getFactureReel(p.code, selectedYear);
-            var restant = budget > 0 ? budget - facture : 0;
-            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: restant, reste: restant, budget: budget, facture: facture };
+            var restant = contrat > 0 ? contrat - facture : 0;
+            return { code: p.code, nom: p.nom, etat: p.etat, chef: p.chef, amount: restant, reste: restant, budget: contrat, facture: facture };
           })
           .filter(function(p) { return p.amount > 0; })
           .sort(function(a,b) { return b.amount - a.amount; })
           .slice(0, 5);
-        subtitle = 'Reste \u00e0 facturer jusqu\'\u00e0 fin de projet (budget - factur\u00e9)';
+        subtitle = 'Reste \u00e0 facturer (contrat ACTE 1 - factur\u00e9)';
 
       } else if (top5View === 'engagements') {
         // Engagements signés : CA restant à facturer ventilé par année
@@ -2612,10 +2648,10 @@
         var yearBuckets = {};
         var totalEngagements = 0;
         PROJETS.forEach(function(p) {
-          var budget = p.budget || p.mois.reduce(function(a,b){return a+b;}, 0);
-          if (budget <= 0) return;
+          var contrat = p.montant_contrat || p.mois.reduce(function(a,b){return a+b;}, 0);
+          if (contrat <= 0) return;
           var facture = getFactureReel(p.code, selectedYear);
-          var restant = budget - facture;
+          var restant = contrat - facture;
           if (restant <= 0) return;
           totalEngagements += restant;
           // Determine target year from date_fin, or use mois distribution
@@ -3743,14 +3779,27 @@
           // Filtrer par annee : ne pas afficher si la phase est d'une autre annee
           if (ph && phYear && phYear !== planningYear) ph = null;
           if (ph) {
-            var cat = getPhaseCategory(ph);
+            // Si multi-phases (PRO+DCE), afficher empilees
+            var phParts = ph.indexOf('+') >= 0 ? ph.split('+') : [ph];
+            var cat = getPhaseCategory(phParts[0]);
             // Si on filtre par type, griser les phases hors filtre
             var matchFilter = (filterPhase === 'tous' || cat === filterPhase);
             var catCls = 'phase-' + cat;
             var isValidee = valids[m2] || false;
             if (isValidee) catCls += ' phase-validee';
             if (!matchFilter) catCls += ' phase-validee'; // dim non-matching
-            html += '<td><div class="phase-cell ' + catCls + '">' + ph + '</div></td>';
+            if (phParts.length > 1) {
+              html += '<td style="padding:0.15rem">';
+              phParts.forEach(function(pp) {
+                var ppCat = getPhaseCategory(pp);
+                var ppCls = 'phase-' + ppCat;
+                if (isValidee) ppCls += ' phase-validee';
+                html += '<div class="phase-cell ' + ppCls + '" style="font-size:0.65rem;padding:0.1rem 0.3rem;margin-bottom:1px">' + pp.trim() + '</div>';
+              });
+              html += '</td>';
+            } else {
+              html += '<td><div class="phase-cell ' + catCls + '">' + ph + '</div></td>';
+            }
           } else {
             html += '<td class="cell-empty"></td>';
           }
@@ -4204,7 +4253,10 @@
           }
         });
         var clientLabel = v.client || '<span style="color:var(--red);font-style:italic">Non renseign\u00e9</span>';
-        var budgetLabel = v.budget_total ? fmtEuro(v.budget_total) : '<span style="color:var(--red);font-style:italic">Non renseign\u00e9</span>';
+        // Montant contrat ACTE 1 = somme des phases contractuelles (pas le budget travaux client)
+        var montantContratActe1 = 0;
+        (contratsData[p.code] || []).forEach(function(c) { montantContratActe1 += parseFloat(c.montant) || 0; });
+        var contratLabel = montantContratActe1 > 0 ? fmtEuro(montantContratActe1) : '<span style="color:var(--red);font-style:italic">Non renseign\u00e9</span>';
         var phaseLabel = p.phase_courante || '<span style="color:var(--text-muted);font-style:italic">N/A</span>';
         var devisLink = p.lien_devis ? '<a href="' + p.lien_devis + '" target="_blank" style="font-size:0.82rem">Voir le devis &rarr;</a>' : '<span style="color:var(--text-muted);font-style:italic">Aucun lien</span>';
 
@@ -4216,12 +4268,13 @@
           '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Phase :</strong> ' + phaseLabel + '</div>' +
           '<div style="font-size:0.85rem"><strong>Devis :</strong> ' + devisLink + '</div>' +
         '</div>';
-        // Col 2: finances
+        // Col 2: finances ACTE 1 (montant contrat, pas budget travaux client)
         html += '<div class="section-card" style="margin-bottom:0;padding:1rem">' +
-          '<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.5rem">Finances</div>' +
-          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Budget total :</strong> ' + budgetLabel + '</div>' +
+          '<div style="font-size:0.72rem;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.5rem">Finances ACTE 1</div>' +
+          '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Contrat :</strong> ' + contratLabel + '</div>' +
           '<div style="font-size:0.85rem;margin-bottom:0.3rem"><strong>Pr\u00e9vu ' + selectedYear + ' :</strong> ' + fmtEuro(totalMois) + '</div>' +
           '<div style="font-size:0.85rem"><strong>Factur\u00e9 :</strong> ' + fmtEuro(facture_det) + '</div>' +
+          (v.budget_total ? '<div style="font-size:0.75rem;margin-top:0.4rem;color:var(--text-muted)">Budget travaux client : ' + fmtEuro(v.budget_total) + '</div>' : '') +
         '</div>';
         // Col 3: dates
         html += '<div class="section-card" style="margin-bottom:0;padding:1rem">' +
@@ -4236,7 +4289,7 @@
         var alerts = [];
         // Check missing fields
         if (!v.client) alerts.push({ type: 'warn', msg: 'Client non renseign\u00e9' });
-        if (!v.budget_total) alerts.push({ type: 'warn', msg: 'Budget total non renseign\u00e9' });
+        if (!v.budget_total) alerts.push({ type: 'info', msg: 'Budget travaux client non renseign\u00e9 (donn\u00e9es r\u00e9f\u00e9rences)' });
         if (!v.date_debut && !v.date_fin) alerts.push({ type: 'warn', msg: 'Dates de d\u00e9but et fin manquantes' });
 
         // Check total contrat vs budget — chercher dans contratsData avec code ET code_projet
@@ -4250,11 +4303,13 @@
           }
         }
         contratLines.forEach(function(c) { contratTotal += parseFloat(c.montant) || 0; });
-        if (v.budget_total && contratTotal > 0) {
-          var budgetNum = parseFloat(v.budget_total) || 0;
-          if (budgetNum > 0 && Math.abs(contratTotal - budgetNum) > budgetNum * 0.05) {
-            var ecartPct = Math.round(((contratTotal - budgetNum) / budgetNum) * 100);
-            alerts.push({ type: 'error', msg: '\u00c9cart contrat/budget : ' + fmtEuro(contratTotal) + ' vs ' + fmtEuro(budgetNum) + ' (' + (ecartPct > 0 ? '+' : '') + ecartPct + '%)' });
+        // Verifier coherence contrat vs echeancier (pas vs budget travaux client)
+        if (contratTotal > 0) {
+          var echTotal = 0;
+          (echeancierData[p.code] || []).forEach(function(e) { echTotal += parseFloat(e.montant) || 0; });
+          if (echTotal > 0 && Math.abs(contratTotal - echTotal) > contratTotal * 0.02) {
+            var ecartPct = Math.round(((echTotal - contratTotal) / contratTotal) * 100);
+            alerts.push({ type: 'error', msg: '\u00c9cart contrat/\u00e9ch\u00e9ancier : ' + fmtEuro(contratTotal) + ' vs ' + fmtEuro(echTotal) + ' (' + (ecartPct > 0 ? '+' : '') + ecartPct + '%)' });
           }
         }
         // Ne pas alerter "aucun contrat" si le rendu a des phases (le contrat existe mais pas encore dans contratsData)
@@ -4292,7 +4347,8 @@
         var preCalcSeen = {};
         orgPhasesPreCalc.forEach(function(ph) { if (ph && !preCalcSeen[ph]) { preCalcPhases.push(ph); preCalcSeen[ph] = true; } });
         if (preCalcPhases.length === 0) preCalcPhases = ['APS','APD','PRO','ACT','DET','AOR'];
-        var preCalcTotal = p.budget || p.mois.reduce(function(a,b){return a+b;},0);
+        // Fallback : utiliser le total prevu (echeancier), pas le budget travaux client
+        var preCalcTotal = p.mois.reduce(function(a,b){return a+b;},0);
         if (preCalcTotal > 0) {
           contratsData[p.code] = preCalcPhases.map(function(ph) { return { code_projet: p.code, phase: ph, montant: Math.round(preCalcTotal / preCalcPhases.length) }; });
         }
@@ -4412,8 +4468,12 @@
             docMap[ref] = { ref: ref, nom: c.nom_document || c.famille_document || 'Document', type: c.type_document || 'Devis initial', date: c.date_document || '', lien_devis: c.lien_devis || '', phases: [], montant: 0, fige: (c.famille_document === 'Montant initial') };
             docOrder.push(ref);
           }
-          docMap[ref].phases.push({ phase: c.phase || '', montant: parseFloat(c.montant) || 0 });
+          docMap[ref].phases.push({ phase: c.phase || '', montant: parseFloat(c.montant) || 0, ordre_affichage: parseInt(c.ordre_affichage) || 999 });
           docMap[ref].montant += parseFloat(c.montant) || 0;
+        });
+        // C3: Trier les phases par ordre_affichage pour conserver l'ordre utilisateur
+        docOrder.forEach(function(ref) {
+          docMap[ref].phases.sort(function(a, b) { return a.ordre_affichage - b.ordre_affichage; });
         });
 
         // Si aucun contrat dans le Sheet, créer un document vide
@@ -4426,7 +4486,7 @@
           var usedPhases = [];
           orgPhasesC.forEach(function(ph){ if (ph && usedPhases.indexOf(ph)<0) usedPhases.push(ph); });
           if (usedPhases.length === 0) usedPhases = ['APS','APD','PRO','ACT','DET','AOR'];
-          var totalProjet = p.budget || p.mois.reduce(function(a,b){return a+b;},0);
+          var totalProjet = p.montant_contrat || p.mois.reduce(function(a,b){return a+b;},0);
           var fallbackPhases = usedPhases.map(function(ph) { return { phase: ph, montant: Math.round(totalProjet / usedPhases.length) }; });
           documents.push({ ref: 'DEV-' + p.code + '-001', nom: 'Devis initial', type: 'Devis initial', date: '', montant: totalProjet, fige: false, phases: fallbackPhases });
           // Mettre à jour contratsData en mémoire pour que le pipeline les voie
@@ -5526,7 +5586,7 @@
             phase: ph.phase,
             montant: montant,
             commentaire: 'Import IA',
-            ordre_affichage: idx + 1
+            ordre_affichage: (idx + 1) * 10
           };
           Logger.debug('SAVE', 'Saving phase ' + ph.phase + ' montant=' + montant + ' code=' + projetCode);
           postToSheet('upsert_contrat', contratLine);
@@ -5546,7 +5606,7 @@
             statut: 'Pr\u00e9visionnel',
             commentaire: 'Import IA',
             montant_soustraitance: '',
-            ordre_affichage: idx + 1
+            ordre_affichage: (idx + 1) * 10
           };
           postToSheet('upsert_echeancier', echLine);
 
@@ -5561,7 +5621,7 @@
             date_validation: '',
             validee: 'FALSE',
             commentaire: 'Import IA \u2014 ' + (montant ? montant.toLocaleString('fr-FR') + ' \u20ac' : ''),
-            ordre_affichage: idx + 1
+            ordre_affichage: (idx + 1) * 10
           });
 
           // Update in-memory ORGANISATION: place phase at the right month index
@@ -6433,7 +6493,7 @@
             n_facture: nfEl ? nfEl.value : '',
             date_facture: dateFact,
             commentaire: '',
-            ordre_affichage: lignes.length + 1
+            ordre_affichage: (lignes.length + 1) * 10
           });
         });
       });
@@ -6842,6 +6902,17 @@
       var yr = String(selectedYear);
       var newMois = [0,0,0,0,0,0,0,0,0,0,0,0];
 
+      // C4: Collecter les montants deja factures par phase pour eviter les doublons
+      var facturéParPhase = {};
+      (echeancierData[code] || []).forEach(function(e) {
+        var st = String(e.statut || '').toLowerCase();
+        var isFacture = st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+        if (isFacture) {
+          var ph = (e.phase || '').toUpperCase();
+          facturéParPhase[ph] = (facturéParPhase[ph] || 0) + (parseFloat(e.montant) || 0);
+        }
+      });
+
       for (var d = 0; d < docCount + 10; d++) {
         var table = document.getElementById('contratTable_' + d);
         if (!table) continue;
@@ -6862,11 +6933,11 @@
           var montant = parseFloat((document.getElementById(rowId + '_montant') || {}).value) || 0;
           var datePrev = (document.getElementById(rowId + '_dateprev') || {}).value || '';
           var commentaire = (document.getElementById(rowId + '_comment') || {}).value || '';
-          var nFacture = '';
-          var dateFacture = '';
-          var statut = 'Pr\u00e9visionnel';
 
           if (!montant && !phase) return;
+
+          // C3: Utiliser des multiples de 10 pour l'ordre (marge pour insertion)
+          var ordreVal = (i + 1) * 10;
 
           var contratLine = {
             code_projet: code,
@@ -6879,24 +6950,37 @@
             phase: phase,
             montant: montant,
             commentaire: '',
-            ordre_affichage: i + 1
-          };
-          var echLine = {
-            code_projet: code,
-            ref_document: refDoc,
-            phase: phase,
-            montant: montant,
-            date_prev_facturation: datePrev,
-            n_facture: nFacture,
-            date_facture: dateFacture,
-            statut: statut,
-            commentaire: '',
-            ordre_affichage: i + 1
+            ordre_affichage: ordreVal
           };
 
           // Update in-memory
           newContrats.push(contratLine);
-          newEcheancier.push(echLine);
+
+          // C4: Ne creer une echeance previsionnelle que pour le montant restant apres facturation
+          var phUpper = phase.toUpperCase();
+          var dejaFacture = facturéParPhase[phUpper] || 0;
+          var montantRestant = montant - dejaFacture;
+          // Consommer le montant facture (pour gerer plusieurs docs avec la meme phase)
+          if (dejaFacture > 0) {
+            facturéParPhase[phUpper] = Math.max(0, dejaFacture - montant);
+          }
+
+          if (montantRestant > 0.01) {
+            var echLine = {
+              code_projet: code,
+              ref_document: refDoc,
+              phase: phase,
+              montant: montantRestant,
+              date_prev_facturation: datePrev,
+              n_facture: '',
+              date_facture: '',
+              statut: 'Pr\u00e9visionnel',
+              commentaire: dejaFacture > 0 ? 'Solde apr\u00e8s facturation partielle' : '',
+              ordre_affichage: ordreVal
+            };
+            newEcheancier.push(echLine);
+          }
+          // Si montantRestant <= 0, la phase est enti\u00e8rement factur\u00e9e : pas d'echeance previsionnelle
 
           // Update ORGANISATION array from datePrev
           if (datePrev && /^\d{4}-\d{2}-\d{2}$/.test(datePrev)) {
@@ -6910,47 +6994,52 @@
             }
           }
 
-          // Save to CONTRATS sheet
-          if (dataMode === 'live' && apiUrl) {
-            postToSheet('upsert_contrat', contratLine);
-            postToSheet('upsert_echeancier', echLine);
-
-            // Also save to ORGANISATION sheet
-            if (phase && datePrev) {
-              postToSheet('upsert_organisation', {
-                code_projet: code,
-                phase: phase,
-                date_rendu_prev: datePrev,
-                date_validation: dateFacture || '',
-                validee: (statut === 'Factur\u00e9') ? 'TRUE' : 'FALSE',
-                commentaire: '',
-                ordre_affichage: i + 1
-              });
-            }
-            saved++;
+          // Collecter l'organisation
+          if (phase && datePrev) {
+            newOrga.push({
+              code_projet: code,
+              phase: phase,
+              date_rendu_prev: datePrev,
+              date_validation: '',
+              validee: 'FALSE',
+              commentaire: '',
+              ordre_affichage: ordreVal
+            });
           }
+          saved++;
         });
       }
 
       // Apply in-memory updates
       contratsData[code] = newContrats;
-      echeancierData[code] = newEcheancier;
-      ORGANISATION[code] = newOrga;
+      // Garder les echeances facturees existantes + ajouter les nouvelles previsionnelles
+      var existingFactures = (echeancierData[code] || []).filter(function(e) {
+        var st = String(e.statut || '').toLowerCase();
+        return st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+      });
+      echeancierData[code] = existingFactures.concat(newEcheancier);
       if (!prevParAnnee[yr]) prevParAnnee[yr] = {};
       prevParAnnee[yr][code] = newMois;
 
-      // Update PROJETS mois
       var proj = PROJETS.find(function(p) { return p.code === code; });
-      if (proj) {
-        proj.mois = newMois.slice();
-      }
+      if (proj) proj.mois = newMois.slice();
 
-      if (saved > 0) {
-        showToast(saved + ' phase(s) sauvegard\u00e9e(s) — rafra\u00eechissement...');
-        setTimeout(function() {
-          renderProjetDetail(PROJETS.find(function(p) { return p.code === code; }) || null);
-          switchVolet('contrat');
-        }, 600);
+      // Sauvegarde ATOMIQUE : un seul appel pour contrat + echeancier + organisation
+      if (dataMode === 'live' && apiUrl && saved > 0) {
+        postToSheet('save_contrat_batch', {
+          code_projet: code,
+          contrats: newContrats,
+          echeancier: newEcheancier,
+          organisation: newOrga
+        }, function(ok) {
+          if (ok) {
+            showToast(saved + ' phase(s) sauvegard\u00e9e(s) \u2014 rafra\u00eechissement...');
+            setTimeout(function() {
+              renderProjetDetail(PROJETS.find(function(p2) { return p2.code === code; }) || null);
+              switchVolet('contrat');
+            }, 600);
+          }
+        });
       } else if (dataMode !== 'live') {
         showToast('Contrat sauvegard\u00e9 (local)');
       }
@@ -7171,10 +7260,10 @@
       showToast(saved + ' sous-traitant(s) enregistr\u00e9(s)');
     };
 
-    window.saveFacturation = function(code) {
+    window.saveFacturation = async function(code) {
       var tbody = document.querySelector('#factTable tbody');
       if (!tbody) return;
-      var rows = tbody.querySelectorAll('tr');
+      var rows = Array.from(tbody.querySelectorAll('tr'));
       var saved = 0;
       var echs = echeancierData[code] || [];
       if (!echeancierData[code]) echeancierData[code] = echs;
@@ -7187,7 +7276,9 @@
         }
       });
 
-      rows.forEach(function(tr, i) {
+      // C5: Traiter les factures sequentiellement pour gerer les modales async
+      for (var fi = 0; fi < rows.length; fi++) {
+        var tr = rows[fi];
         var nFacture = (tr.querySelector('[id^="fact_num_"]') || {}).value || '';
         var dateFacture = (tr.querySelector('[id^="fact_date_"]') || {}).value || '';
         var phaseEl = tr.querySelector('[id^="fact_phase_"]');
@@ -7197,23 +7288,27 @@
         var revision = parseFloat((tr.querySelector('[id^="fact_rev_"]') || {}).value) || 0;
         var commentaire = (tr.querySelector('[id^="fact_comment_"]') || {}).value || '';
 
-        if (!phase || montant <= 0) return;
+        if (!phase || montant <= 0) continue;
 
         // Ignorer les factures deja enregistrees dans l'echeancier
-        if (nFacture && knownInvoices[nFacture + '|' + phase.toUpperCase()]) return;
+        if (nFacture && knownInvoices[nFacture + '|' + phase.toUpperCase()]) continue;
 
-        // 1. Chercher la premiere echeance non-facturee de cette phase
+        // C4: Chercher la premiere echeance non-facturee de cette phase (match exact montant en priorite)
         var echIdx = -1;
+        var echIdxFallback = -1;
         for (var e = 0; e < echs.length; e++) {
           if ((echs[e].phase || '').toUpperCase() === phase.toUpperCase() &&
               echs[e].statut !== 'Factur\u00e9' && echs[e].statut !== 'Facture') {
-            echIdx = e;
-            break;
+            if (echIdxFallback < 0) echIdxFallback = e; // premiere non-facturee
+            if (Math.abs((parseFloat(echs[e].montant) || 0) - montant) < 1) {
+              echIdx = e; break; // match exact du montant
+            }
           }
         }
+        if (echIdx < 0) echIdx = echIdxFallback; // fallback sur la premiere non-facturee
 
         if (echIdx >= 0) {
-          // 2. Echeance trouvee : la passer en Facture
+          // Echeance trouvee : la passer en Facturee
           var ech = echs[echIdx];
           var echMontant = parseFloat(ech.montant) || 0;
           var diff = echMontant - montant;
@@ -7232,47 +7327,76 @@
               date_prev_facturation: ech.date_prev_facturation,
               n_facture: nFacture, date_facture: dateFacture,
               statut: 'Factur\u00e9', commentaire: ech.commentaire,
-              ordre_affichage: ech.ordre_affichage || (echIdx + 1)
+              ordre_affichage: ech.ordre_affichage || ((echIdx + 1) * 10)
             });
             saved++;
           }
 
-          // 3. Si ecart : creer une echeance pour le reste
-          if (diff > 1) {
+          // C5: Si ecart significatif, afficher la modale
+          if (Math.abs(diff) > 1) {
             var dateDefaut = '';
             if (dateFacture) {
               var d = new Date(dateFacture);
               d.setMonth(d.getMonth() + 1);
-              dateDefaut = toFR(d.toISOString().substring(0, 10));
+              dateDefaut = d.toISOString().substring(0, 10);
             }
-            var msg = 'Phase ' + phase + ' : montant factur\u00e9 (' + fmtEuro(montant) + ') inf\u00e9rieur \u00e0 l\'\u00e9ch\u00e9ance pr\u00e9vue (' + fmtEuro(echMontant) + ').\n\n' +
-              'Reste : ' + fmtEuro(diff) + '\n\n' +
-              'Date pr\u00e9vue pour le solde restant ?\n(JJ/MM/AAAA, vide = ' + (dateDefaut || '+1 mois') + ')';
-            var dateSolde = prompt(msg, dateDefaut);
-            if (dateSolde === null) dateSolde = dateDefaut;
-            if (!dateSolde) dateSolde = dateDefaut;
-            var dateISO = fromFR(dateSolde) || dateSolde;
+            // Collecter les echeances restantes non-facturees de cette phase
+            var echRestantes = echs.filter(function(e2) {
+              return (e2.phase || '').toUpperCase() === phase.toUpperCase() &&
+                     e2.statut !== 'Factur\u00e9' && e2.statut !== 'Facture';
+            });
 
-            var soldeLine = {
-              code_projet: code, phase: phase, montant: diff,
-              date_prev_facturation: dateISO, n_facture: '', date_facture: '',
-              statut: 'Pr\u00e9visionnel', commentaire: 'Solde restant (auto)',
-              ordre_affichage: echs.length + 1
-            };
-            echs.push(soldeLine);
-            if (dataMode === 'live' && apiUrl) {
-              postToSheet('upsert_echeancier', soldeLine);
-              saved++;
+            var result = await showEcartModal({
+              phase: phase, montantFacture: montant, montantEcheance: echMontant,
+              diff: diff, echeancesRestantes: echRestantes, dateDefaut: dateDefaut
+            });
+
+            if (result.action === 'cancel') continue; // annuler cette facture
+            if (result.action === 'repartir' && diff > 1) {
+              // Repartir le solde sur les echeances restantes non-facturees
+              if (echRestantes.length > 0) {
+                // Redistribuer proportionnellement
+                var totalRestant = echRestantes.reduce(function(s, er) { return s + (parseFloat(er.montant) || 0); }, 0);
+                echRestantes.forEach(function(er) {
+                  var proportion = totalRestant > 0 ? (parseFloat(er.montant) || 0) / totalRestant : 1 / echRestantes.length;
+                  er.montant = Math.round(diff * proportion);
+                  if (dataMode === 'live' && apiUrl) {
+                    postToSheet('upsert_echeancier', {
+                      code_projet: code, phase: er.phase, montant: er.montant,
+                      date_prev_facturation: er.date_prev_facturation || '',
+                      n_facture: '', date_facture: '', statut: er.statut || 'Pr\u00e9visionnel',
+                      commentaire: 'R\u00e9parti apr\u00e8s facturation',
+                      ordre_affichage: er.ordre_affichage || (echs.length * 10)
+                    });
+                    saved++;
+                  }
+                });
+              } else {
+                // Aucune echeance restante : creer une nouvelle pour le solde
+                var dateISO = result.date || dateDefaut;
+                var soldeLine = {
+                  code_projet: code, phase: phase, montant: diff,
+                  date_prev_facturation: dateISO, n_facture: '', date_facture: '',
+                  statut: 'Pr\u00e9visionnel', commentaire: 'Solde restant (auto)',
+                  ordre_affichage: (echs.length + 1) * 10
+                };
+                echs.push(soldeLine);
+                if (dataMode === 'live' && apiUrl) {
+                  postToSheet('upsert_echeancier', soldeLine);
+                  saved++;
+                }
+              }
             }
+            // Si 'accepter' : on ne fait rien de plus, l'ecart est accepte
           }
         } else {
-          // 4. Aucune echeance trouvee : en creer une nouvelle Facturee
+          // Aucune echeance trouvee : en creer une nouvelle Facturee
           var newEch = {
             code_projet: code, phase: phase, montant: montant,
             date_prev_facturation: dateFacture, n_facture: nFacture,
             date_facture: dateFacture, statut: 'Factur\u00e9',
             commentaire: commentaire || ('Facture ' + nFacture),
-            ordre_affichage: echs.length + 1
+            ordre_affichage: (echs.length + 1) * 10
           };
           echs.push(newEch);
           if (dataMode === 'live' && apiUrl) {
@@ -7298,23 +7422,30 @@
               if (dateFacture) {
                 var d2 = new Date(dateFacture);
                 d2.setMonth(d2.getMonth() + 1);
-                dateDefaut2 = toFR(d2.toISOString().substring(0, 10));
+                dateDefaut2 = d2.toISOString().substring(0, 10);
               }
-              var msg2 = 'Phase ' + phase + ' : il reste ' + fmtEuro(reste2) + ' \u00e0 facturer (contrat : ' + fmtEuro(montantPhase) + ').\n\n' +
-                'Date pr\u00e9vue pour le solde ?\n(JJ/MM/AAAA, vide = ' + (dateDefaut2 || '+1 mois') + ')';
-              var ds2 = prompt(msg2, dateDefaut2);
-              if (ds2 === null) ds2 = dateDefaut2;
-              if (!ds2) ds2 = dateDefaut2;
-              var solde2 = {
-                code_projet: code, phase: phase, montant: reste2,
-                date_prev_facturation: fromFR(ds2) || ds2, n_facture: '', date_facture: '',
-                statut: 'Pr\u00e9visionnel', commentaire: 'Solde restant (auto)',
-                ordre_affichage: echs.length + 1
-              };
-              echs.push(solde2);
-              if (dataMode === 'live' && apiUrl) {
-                postToSheet('upsert_echeancier', solde2);
-                saved++;
+              var echRestantes2 = echs.filter(function(e2) {
+                return (e2.phase || '').toUpperCase() === phase.toUpperCase() &&
+                       e2.statut !== 'Factur\u00e9' && e2.statut !== 'Facture';
+              });
+              var result2 = await showEcartModal({
+                phase: phase, montantFacture: totalFact, montantEcheance: montantPhase,
+                diff: reste2, echeancesRestantes: echRestantes2, dateDefaut: dateDefaut2
+              });
+
+              if (result2.action === 'repartir') {
+                var dateISO2 = result2.date || dateDefaut2;
+                var solde2 = {
+                  code_projet: code, phase: phase, montant: reste2,
+                  date_prev_facturation: dateISO2, n_facture: '', date_facture: '',
+                  statut: 'Pr\u00e9visionnel', commentaire: 'Solde restant (auto)',
+                  ordre_affichage: (echs.length + 1) * 10
+                };
+                echs.push(solde2);
+                if (dataMode === 'live' && apiUrl) {
+                  postToSheet('upsert_echeancier', solde2);
+                  saved++;
+                }
               }
             }
           }
@@ -7327,7 +7458,7 @@
             date_prev_facturation: dateFacture, n_facture: nFacture,
             date_facture: dateFacture, statut: 'Factur\u00e9',
             commentaire: 'R\u00e9vision - Facture ' + nFacture,
-            ordre_affichage: echs.length + 1
+            ordre_affichage: (echs.length + 1) * 10
           };
           echs.push(revLine);
           if (dataMode === 'live' && apiUrl) {
@@ -7335,7 +7466,7 @@
             saved++;
           }
         }
-      });
+      } // fin for (fi)
 
       // Mettre a jour en memoire
       echeancierData[code] = echs;
@@ -7433,7 +7564,7 @@
           date_validation: dateValid,
           validee: validee,
           commentaire: comment,
-          ordre_affichage: i + 1
+          ordre_affichage: (i + 1) * 10
         };
 
         if (dataMode === 'live' && apiUrl) {
@@ -8287,7 +8418,7 @@
       var data = {
         id: id,
         date_creation: new Date().toISOString().substring(0, 10),
-        auteur: 'Utilisateur',
+        auteur: (window._currentUser && window._currentUser.name) || 'Utilisateur',
         titre: titre,
         description: document.getElementById('dmDesc').value.trim(),
         categorie: document.getElementById('dmCat').value,
@@ -8503,10 +8634,89 @@
       });
     }
 
+    // ── C5: Modal ecart facturation ──────────────────────────────
+    var _ecartResolve = null;
+    window.showEcartModal = function(opts) {
+      // opts: { phase, montantFacture, montantEcheance, diff, echeancesRestantes, dateDefaut }
+      // Retourne une Promise qui resolve avec { action: 'repartir'|'accepter'|'cancel', date }
+      return new Promise(function(resolve) {
+        _ecartResolve = resolve;
+        var modal = document.getElementById('ecartModal');
+        var body = document.getElementById('ecartModalBody');
+        var actions = document.getElementById('ecartModalActions');
+        var title = document.getElementById('ecartModalTitle');
+
+        var isPositif = opts.diff > 0; // facture < echeance = reste a facturer
+        title.textContent = isPositif ? '\u00c9cart de facturation \u2014 ' + opts.phase : 'Surfacturation \u2014 ' + opts.phase;
+
+        var html = '<div style="padding:0.75rem;background:var(--accent-light,#f0f4ff);border-radius:8px;margin-bottom:1rem">';
+        html += '<div style="display:flex;justify-content:space-between;margin-bottom:0.5rem">';
+        html += '<span>\u00c9ch\u00e9ance pr\u00e9vue :</span><strong>' + fmtEuro(opts.montantEcheance) + '</strong></div>';
+        html += '<div style="display:flex;justify-content:space-between;margin-bottom:0.5rem">';
+        html += '<span>Montant factur\u00e9 :</span><strong>' + fmtEuro(opts.montantFacture) + '</strong></div>';
+        html += '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:1.05rem;padding-top:0.5rem;border-top:1px solid var(--border)">';
+        html += '<span>' + (isPositif ? 'Reste \u00e0 facturer :' : 'Surfacturation :') + '</span>';
+        html += '<span style="color:' + (isPositif ? 'var(--accent)' : 'var(--red)') + '">' + fmtEuro(Math.abs(opts.diff)) + '</span></div>';
+        html += '</div>';
+
+        if (isPositif && opts.echeancesRestantes && opts.echeancesRestantes.length > 0) {
+          html += '<div style="font-size:0.85rem;margin-bottom:0.75rem">';
+          html += '<strong>\u00c9ch\u00e9ances restantes non factur\u00e9es :</strong>';
+          html += '<ul style="margin:0.4rem 0 0;padding-left:1.2rem">';
+          opts.echeancesRestantes.forEach(function(e) {
+            html += '<li>' + (e.phase || '') + ' \u2014 ' + fmtEuro(parseFloat(e.montant)||0) + ' (' + (e.statut || 'Pr\u00e9visionnel') + ')</li>';
+          });
+          html += '</ul></div>';
+        }
+
+        if (isPositif) {
+          html += '<div style="margin-top:0.75rem">';
+          html += '<label style="font-size:0.85rem;font-weight:600">Date pr\u00e9vue pour le solde restant :</label>';
+          html += '<input type="date" id="ecartModalDate" class="form-input" style="width:100%;margin-top:0.3rem" value="' + (opts.dateDefaut || '') + '">';
+          html += '</div>';
+        }
+
+        body.innerHTML = html;
+
+        var actHtml = '';
+        if (isPositif) {
+          actHtml += '<button class="btn btn-primary" onclick="closeEcartModal(\'repartir\')" style="font-size:0.85rem;padding:0.4rem 1rem">R\u00e9partir le solde</button>';
+        }
+        actHtml += '<button class="btn" onclick="closeEcartModal(\'accepter\')" style="font-size:0.85rem;padding:0.4rem 1rem">Accepter l\'\u00e9cart</button>';
+        actHtml += '<button class="btn" onclick="closeEcartModal(\'cancel\')" style="font-size:0.85rem;padding:0.4rem 1rem;color:var(--text-muted)">Annuler</button>';
+        actions.innerHTML = actHtml;
+
+        modal.style.display = 'flex';
+      });
+    };
+
+    window.closeEcartModal = function(action) {
+      var modal = document.getElementById('ecartModal');
+      modal.style.display = 'none';
+      var dateEl = document.getElementById('ecartModalDate');
+      var dateVal = dateEl ? dateEl.value : '';
+      if (_ecartResolve) {
+        _ecartResolve({ action: action, date: dateVal });
+        _ecartResolve = null;
+      }
+    };
+
     init();
 
   })();
   </script>
+
+<!-- C5: Modal ecart facturation -->
+<div id="ecartModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center">
+  <div style="background:var(--bg-card,#fff);border-radius:12px;max-width:520px;width:90%;padding:1.5rem;box-shadow:0 8px 32px rgba(0,0,0,0.2);max-height:80vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <h3 style="margin:0;font-size:1.05rem" id="ecartModalTitle">Ecart de facturation</h3>
+      <button onclick="closeEcartModal('cancel')" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div id="ecartModalBody"></div>
+    <div style="display:flex;gap:0.5rem;margin-top:1.25rem;justify-content:flex-end" id="ecartModalActions"></div>
+  </div>
+</div>
 
 </body>
 </html>
