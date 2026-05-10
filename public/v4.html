@@ -8360,12 +8360,10 @@
       d.date_traitement = document.getElementById('ddDateTrait').value;
 
       if (dataMode === 'live' && apiUrl) {
-        postToSheet('update_demande', {
-          id: d.id,
-          statut: d.statut,
-          reponse: d.reponse,
-          date_traitement: d.date_traitement
-        }, function(ok) {
+        // Envoyer l'objet complet pour ne pas ecraser les champs existants (titre, description, etc.)
+        var payload = {};
+        for (var k in d) { if (d.hasOwnProperty(k)) payload[k] = d[k]; }
+        postToSheet('update_demande', payload, function(ok) {
           if (ok) showToast('Demande mise \u00e0 jour');
         });
       } else {
