@@ -1411,6 +1411,10 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <!-- L1: Barre de statut sauvegarde -->
+  <div id="saveStatusBar" style="display:none;position:fixed;top:0;left:0;width:100%;z-index:9999;height:3px;background:var(--accent);transition:opacity 0.3s">
+    <div id="saveStatusProgress" style="height:100%;background:var(--green);width:0%;transition:width 0.5s"></div>
+  </div>
 
   <!-- ============================================================
        JAVASCRIPT
@@ -1853,6 +1857,38 @@
 
     // POST data to Sheet
     // \u00c9criture via GET (contourne le bug POST/redirect de GAS)
+    // L1: SafeSave — compteur de saves en cours + protection navigation
+    var _savesInFlight = 0;
+
+    function setSaveState(delta) {
+      _savesInFlight = Math.max(0, _savesInFlight + delta);
+      var bar = document.getElementById('saveStatusBar');
+      var progress = document.getElementById('saveStatusProgress');
+      if (_savesInFlight > 0) {
+        bar.style.display = 'block';
+        progress.style.width = '60%';
+        // Desactiver les boutons save
+        document.querySelectorAll('.btn-primary').forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; });
+      } else {
+        progress.style.width = '100%';
+        setTimeout(function() {
+          bar.style.display = 'none';
+          progress.style.width = '0%';
+        }, 600);
+        // Reactiver les boutons save
+        document.querySelectorAll('.btn-primary').forEach(function(b) { b.disabled = false; b.style.opacity = '1'; });
+      }
+    }
+
+    // Empecher la fermeture de l'onglet pendant un save
+    window.addEventListener('beforeunload', function(e) {
+      if (_savesInFlight > 0) {
+        e.preventDefault();
+        e.returnValue = 'Sauvegarde en cours \u2014 quitter maintenant peut causer une perte de donn\u00e9es.';
+        return e.returnValue;
+      }
+    });
+
     window.postToSheet = function(action, data, callback) {
       if (dataMode !== 'live' || !apiUrl) {
         Logger.warn('API', 'postToSheet blocked: mode=' + dataMode);
@@ -1862,6 +1898,7 @@
       }
       Logger.debug('API', 'postToSheet: ' + action, { keys: Object.keys(data || {}) });
       showLoadingToast('Enregistrement...');
+      setSaveState(+1);
       var t0 = performance.now();
       var payload = JSON.stringify({ action: action, data: data });
       // Si payload > 4KB, utiliser POST (limite URL GET ~8KB)
@@ -1881,6 +1918,7 @@
       fetchPromise
       .then(function(r) { return r.json(); })
       .then(function(res) {
+        setSaveState(-1);
         var dt = Math.round(performance.now() - t0);
         if (res.ok) {
           Logger.info('API', 'postToSheet OK: ' + action, { dt: dt });
@@ -1892,6 +1930,7 @@
         }
       })
       .catch(function(err) {
+        setSaveState(-1);
         showToast('Erreur r\u00e9seau : ' + err);
         if (callback) callback(false);
       });
@@ -8477,6 +8516,7 @@
       if (!apiUrl) { showToast('URL API non configur\u00e9e'); if (callback) callback(false); return; }
       Logger.debug('API', 'POST ' + body.action, { keys: Object.keys(body.data || {}) });
       showLoadingToast('Envoi en cours...');
+      setSaveState(+1);
       var t0 = performance.now();
       fetch(apiUrl, {
         method: 'POST',
@@ -8486,12 +8526,14 @@
       })
       .then(function(r) { return r.json(); })
       .then(function(res) {
+        setSaveState(-1);
         var dt = Math.round(performance.now() - t0);
         Logger.info('API', 'POST ' + body.action + ' result', { dt: dt, ok: res.ok, screenshot: !!res.screenshot_url });
         if (res.ok) { if (callback) callback(true, res); }
         else { Logger.error('API', 'POST ' + body.action + ' error', { error: res.error }); showToast('Erreur : ' + (res.error || 'inconnue')); if (callback) callback(false); }
       })
       .catch(function(err) {
+        setSaveState(-1);
         Logger.error('API', 'POST ' + body.action + ' catch', { error: String(err) });
         showToast('Erreur r\u00e9seau : ' + err);
         if (callback) callback(false);
