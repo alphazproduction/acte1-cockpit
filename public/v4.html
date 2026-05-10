@@ -4600,6 +4600,7 @@
             if (!coherent && phEchs.length > 0) {
               html += '<span style="font-size:0.72rem;padding:0.1rem 0.5rem;border-radius:999px;background:rgba(224,92,92,0.12);color:var(--red);font-weight:600">' +
                 '\u26a0 \u00c9cart : ' + fmtEuro(echTotalPhase) + ' vs ' + fmtEuro(m) + ' contrat</span>';
+              html += '<button class="btn" onclick="fixEcartEch(\'' + p.code + '\',\'' + ph + '\',' + m + ')" style="font-size:0.68rem;padding:0.1rem 0.4rem;color:var(--accent);border-color:var(--accent)" title="Ajuster la derni\u00e8re \u00e9ch\u00e9ance pour retomber sur le montant contrat">Corriger</button>';
             } else if (phEchs.length > 0 && coherent) {
               html += '<span style="font-size:0.72rem;padding:0.1rem 0.5rem;border-radius:999px;background:var(--green-bg);color:var(--green);font-weight:600">\u2713 Coh\u00e9rent</span>';
             }
@@ -6813,6 +6814,56 @@
         }
       }
       recalcEchPhase(key);
+    };
+
+    // Corriger l'ecart echeancier : ajuste la derniere echeance non-facturee pour retomber sur le montant contrat
+    window.fixEcartEch = function(code, phase, montantContrat) {
+      var echs = echeancierData[code] || [];
+      var phUpper = phase.toUpperCase();
+
+      // Trouver les echeances de cette phase
+      var phEchs = echs.filter(function(e) { return (e.phase || '').toUpperCase() === phUpper; });
+      if (phEchs.length === 0) return;
+
+      // Calculer le total des echeances facturees (non modifiables)
+      var totalFacture = 0;
+      var lastNonFacture = null;
+      phEchs.forEach(function(e) {
+        var st = String(e.statut || '').toLowerCase();
+        var isFacture = st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+        if (isFacture) {
+          totalFacture += parseFloat(e.montant) || 0;
+        } else {
+          lastNonFacture = e; // la derniere non-facturee
+        }
+      });
+
+      if (!lastNonFacture) {
+        showToast('Aucune \u00e9ch\u00e9ance modifiable pour ' + phase);
+        return;
+      }
+
+      // Calculer le montant que la derniere echeance devrait avoir
+      var totalAutres = 0;
+      phEchs.forEach(function(e) {
+        if (e !== lastNonFacture) totalAutres += parseFloat(e.montant) || 0;
+      });
+      var nouveauMontant = Math.round(montantContrat - totalAutres);
+
+      if (nouveauMontant <= 0) {
+        showToast('\u00c9cart non r\u00e9solvable : le total factur\u00e9 d\u00e9passe le contrat');
+        return;
+      }
+
+      lastNonFacture.montant = nouveauMontant;
+      showToast(phase + ' : derni\u00e8re \u00e9ch\u00e9ance ajust\u00e9e \u00e0 ' + fmtEuro(nouveauMontant));
+
+      // Sauvegarder et re-render
+      triggerEchAutoSave();
+      setTimeout(function() {
+        var p = PROJETS.find(function(pr) { return pr.code === code; });
+        if (p) { renderProjetDetail(p); switchVolet('contrat'); }
+      }, 2000);
     };
 
     // Recalculer la somme des versements echeancier d'une phase
