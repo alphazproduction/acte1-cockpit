@@ -1864,8 +1864,21 @@
       showLoadingToast('Enregistrement...');
       var t0 = performance.now();
       var payload = JSON.stringify({ action: action, data: data });
-      var url = apiUrl + '?action=write&data=' + encodeURIComponent(payload);
-      fetch(url)
+      // Si payload > 4KB, utiliser POST (limite URL GET ~8KB)
+      var usePost = payload.length > 4000;
+      var fetchPromise;
+      if (usePost) {
+        fetchPromise = fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          redirect: 'follow',
+          body: payload
+        });
+      } else {
+        var url = apiUrl + '?action=write&data=' + encodeURIComponent(payload);
+        fetchPromise = fetch(url);
+      }
+      fetchPromise
       .then(function(r) { return r.json(); })
       .then(function(res) {
         var dt = Math.round(performance.now() - t0);
