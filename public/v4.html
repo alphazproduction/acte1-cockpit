@@ -6543,6 +6543,9 @@
       row.remove();
     };
 
+    // Auto-save debounce apres deplacement de phase
+    var _moveAutoSaveTimer = null;
+
     window.moveContratRow = function(btn, direction) {
       var row = btn.closest('tr');
       if (!row) return;
@@ -6570,6 +6573,15 @@
           tbody.insertBefore(row, insertPoint);
           if (hasEch) tbody.insertBefore(echRow, insertPoint);
         }
+      }
+
+      // Auto-save apres 1.5s sans mouvement (debounce)
+      if (currentProjetCode && dataMode === 'live') {
+        clearTimeout(_moveAutoSaveTimer);
+        _moveAutoSaveTimer = setTimeout(function() {
+          showLoadingToast('Sauvegarde ordre...');
+          saveContrat(currentProjetCode);
+        }, 1500);
       }
     };
 
