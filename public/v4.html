@@ -6457,6 +6457,7 @@
         '<td><input type="text" class="form-input" id="' + rowId + '_comment" style="width:100%;font-size:0.78rem;padding:0.25rem 0.4rem" placeholder="Commentaire"></td>' +
         '<td style="text-align:center"><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,-1)" title="Monter">\u25b2</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem" onclick="moveContratRow(this,1)" title="Descendre">\u25bc</button><button class="btn" style="padding:0.1rem 0.25rem;font-size:0.6rem;color:var(--red)" onclick="removePhaseRow(this);recalcContratTotals(' + docIdx + ')" title="Supprimer">\u2716</button></td>';
       tbody.appendChild(tr);
+      // Pas d'auto-save ici : la phase vient d'etre creee vide, l'utilisateur doit remplir d'abord
     };
 
     // Monter/descendre une phase dans le tableau contrat
@@ -6541,10 +6542,30 @@
       var echRow = row.nextElementSibling;
       if (echRow && echRow.classList.contains('ech-sub-row')) echRow.remove();
       row.remove();
+      triggerContratAutoSave();
     };
 
-    // Auto-save debounce apres deplacement de phase
-    var _moveAutoSaveTimer = null;
+    // Auto-save debounce apres modification de phase/echeancier
+    var _contratAutoSaveTimer = null;
+    var _echAutoSaveTimer = null;
+
+    function triggerContratAutoSave() {
+      if (!currentProjetCode || dataMode !== 'live') return;
+      clearTimeout(_contratAutoSaveTimer);
+      _contratAutoSaveTimer = setTimeout(function() {
+        showLoadingToast('Sauvegarde contrat...');
+        saveContrat(currentProjetCode);
+      }, 1500);
+    }
+
+    function triggerEchAutoSave() {
+      if (!currentProjetCode || dataMode !== 'live') return;
+      clearTimeout(_echAutoSaveTimer);
+      _echAutoSaveTimer = setTimeout(function() {
+        showLoadingToast('Sauvegarde \u00e9ch\u00e9ancier...');
+        saveEcheancier(currentProjetCode);
+      }, 1500);
+    }
 
     window.moveContratRow = function(btn, direction) {
       var row = btn.closest('tr');
@@ -6575,14 +6596,7 @@
         }
       }
 
-      // Auto-save apres 1.5s sans mouvement (debounce)
-      if (currentProjetCode && dataMode === 'live') {
-        clearTimeout(_moveAutoSaveTimer);
-        _moveAutoSaveTimer = setTimeout(function() {
-          showLoadingToast('Sauvegarde ordre...');
-          saveContrat(currentProjetCode);
-        }, 1500);
-      }
+      triggerContratAutoSave();
     };
 
     // Cache des dossiers Drive (charge une seule fois)
@@ -6802,12 +6816,13 @@
     };
 
     // Recalculer la somme des versements echeancier d'une phase
-    window.recalcEchPhase = function(key) {
+    window.recalcEchPhase = function(key, skipAutoSave) {
       var inputs = document.querySelectorAll('[id^="ech_' + key + '_"][id$="_mt"]');
       var total = 0;
       inputs.forEach(function(inp) { total += parseFloat(inp.value) || 0; });
       var sumEl = document.getElementById('ech_sum_' + key);
       if (sumEl) sumEl.textContent = fmtEuro(total);
+      if (!skipAutoSave) triggerEchAutoSave();
     };
 
     // Supprimer un document contrat (devis, avenant, OS)
