@@ -4018,57 +4018,97 @@
       html += totalRow + '</tr>';
       html += '</tfoot></table></div>';
 
-      // Charge histogram — only count phases matching the filter
-      var chargeA = [0,0,0,0,0,0,0,0,0,0,0,0];
-      var chargeR = [0,0,0,0,0,0,0,0,0,0,0,0];
+      // H1: Histogramme charge — stack Etudes/Travaux/Conseil en montants (EUR)
+      var chargeEtudes = [0,0,0,0,0,0,0,0,0,0,0,0];
+      var chargeTravaux = [0,0,0,0,0,0,0,0,0,0,0,0];
+      var chargeConseil = [0,0,0,0,0,0,0,0,0,0,0,0];
+      var chargeTooltips = []; // par mois : [{projet, details}]
+      for (var cm = 0; cm < 12; cm++) chargeTooltips.push([]);
+
       filtered.forEach(function(p) {
-        var phases = ORGANISATION[p.code] || [];
-        for (var i=0;i<12;i++) {
-          if (phases[i]) {
-            var phCat = getPhaseCategory(phases[i]);
-            if (filterPhase !== 'tous' && phCat !== filterPhase) continue;
-            if (p.chef === 'Am\u00e9lie') chargeA[i]++;
-            else chargeR[i]++;
+        if (filterChef !== 'tous' && p.chef !== filterChef) return;
+        var echs = echeancierData[p.code] || [];
+        var projetContribs = {}; // { mois: { etudes: X, travaux: Y, conseil: Z } }
+
+        echs.forEach(function(e) {
+          var dp = String(e.date_prev_facturation || e.date_facture || '');
+          if (dp.length < 7) return;
+          var eYear = parseInt(dp.substring(0, 4));
+          var eMonth = parseInt(dp.substring(5, 7)) - 1;
+          if (eYear !== planningYear || eMonth < 0 || eMonth > 11) return;
+          var montant = parseFloat(e.montant) || 0;
+          if (montant <= 0) return;
+          var cat = getPhaseCategory(e.phase || '');
+          if (filterPhase !== 'tous' && cat !== filterPhase) return;
+
+          if (cat === 'etudes') chargeEtudes[eMonth] += montant;
+          else if (cat === 'travaux') chargeTravaux[eMonth] += montant;
+          else chargeConseil[eMonth] += montant;
+
+          if (!projetContribs[eMonth]) projetContribs[eMonth] = { etudes: 0, travaux: 0, conseil: 0 };
+          projetContribs[eMonth][cat] += montant;
+        });
+
+        // Ajouter au tooltip
+        for (var tmi in projetContribs) {
+          var c = projetContribs[tmi];
+          var parts = [];
+          if (c.etudes > 0) parts.push('\u00c9tudes ' + fmtEuro(c.etudes));
+          if (c.travaux > 0) parts.push('Travaux ' + fmtEuro(c.travaux));
+          if (c.conseil > 0) parts.push('Conseil ' + fmtEuro(c.conseil));
+          if (parts.length > 0) {
+            chargeTooltips[parseInt(tmi)].push(p.code + ' \u2014 ' + parts.join(', '));
           }
         }
       });
 
       var maxCharge = 1;
-      for (var mc=0;mc<12;mc++) {
-        var tot = chargeA[mc]+chargeR[mc];
-        if (tot>maxCharge) maxCharge=tot;
+      for (var mc = 0; mc < 12; mc++) {
+        var tot = chargeEtudes[mc] + chargeTravaux[mc] + chargeConseil[mc];
+        if (tot > maxCharge) maxCharge = tot;
       }
-      var barMaxH = 80;
+      var barMaxH = 100;
 
       html += '<div class="charge-section">';
-      var chargeLabel = filterPhase === 'tous' ? 'toutes phases' :
-                        filterPhase === 'etudes' ? 'phases \u00e9tudes' :
-                        filterPhase === 'travaux' ? 'phases travaux' : 'phases conseil';
-      html += '<div class="charge-title">Charge par mois (' + chargeLabel + ')</div>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">';
+      html += '<div class="charge-title" style="margin:0">Charge pr\u00e9visionnelle par mois (' + planningYear + ')</div>';
+      html += '</div>';
       html += '<div class="charge-grid">';
       html += '<div class="charge-label"></div>';
-      for (var h=0;h<12;h++) {
+      for (var h = 0; h < 12; h++) {
         html += '<div style="text-align:center;font-size:0.7rem;font-weight:600;color:var(--text-muted);padding-bottom:0.3rem">' + MOIS_LABELS[h] + '</div>';
       }
-      html += '<div class="charge-label" style="align-self:end;padding-bottom:0.3rem">Phases</div>';
-      for (var b=0;b<12;b++) {
-        var hA = Math.round((chargeA[b]/maxCharge)*barMaxH);
-        var hR = Math.round((chargeR[b]/maxCharge)*barMaxH);
-        var totalB = chargeA[b]+chargeR[b];
-        html += '<div class="charge-bar-cell" style="height:' + (barMaxH+20) + 'px;justify-content:flex-end">';
+      html += '<div class="charge-label" style="align-self:end;padding-bottom:0.3rem">\u20ac</div>';
+      for (var b = 0; b < 12; b++) {
+        var totalB = chargeEtudes[b] + chargeTravaux[b] + chargeConseil[b];
+        var hE = maxCharge > 0 ? Math.round((chargeEtudes[b] / maxCharge) * barMaxH) : 0;
+        var hT = maxCharge > 0 ? Math.round((chargeTravaux[b] / maxCharge) * barMaxH) : 0;
+        var hC = maxCharge > 0 ? Math.round((chargeConseil[b] / maxCharge) * barMaxH) : 0;
+        var tipLines = chargeTooltips[b].join('\\n');
+        var tipAttr = tipLines ? ' title="' + escapeHtml(tipLines) + '"' : '';
+        var isCurrentMonth = (b === mi);
+        var barBorder = isCurrentMonth ? 'border:2px solid var(--accent);border-radius:4px;' : '';
+
+        html += '<div class="charge-bar-cell" style="height:' + (barMaxH + 25) + 'px;justify-content:flex-end;' + barBorder + '"' + tipAttr + '>';
         if (totalB > 0) {
-          html += '<div class="charge-count">' + totalB + '</div>';
-          html += '<div style="display:flex;flex-direction:column;width:70%;gap:1px">';
-          if (chargeA[b]>0) html += '<div class="charge-bar charge-bar-a" style="height:'+hA+'px" title="Am\u00e9lie: '+chargeA[b]+'"></div>';
-          if (chargeR[b]>0) html += '<div class="charge-bar charge-bar-r" style="height:'+hR+'px" title="R\u00e9gis: '+chargeR[b]+'"></div>';
+          html += '<div class="charge-count" style="font-size:0.65rem">' + (totalB >= 1000 ? Math.round(totalB / 1000) + 'k' : totalB) + '</div>';
+          html += '<div style="display:flex;flex-direction:column;width:75%;gap:0">';
+          if (hE > 0) html += '<div style="height:' + hE + 'px;background:#3B82F6;border-radius:2px 2px 0 0;min-height:2px"></div>';
+          if (hT > 0) html += '<div style="height:' + hT + 'px;background:#E8601C;min-height:2px"></div>';
+          if (hC > 0) html += '<div style="height:' + hC + 'px;background:#94A3B8;border-radius:0 0 2px 2px;min-height:2px"></div>';
           html += '</div>';
         }
         html += '</div>';
       }
       html += '</div>';
+      // Legende
       html += '<div style="display:flex;gap:1.5rem;margin-top:0.75rem;font-size:0.75rem;color:var(--text-muted)">';
-      html += '<div style="display:flex;align-items:center;gap:0.3rem"><div style="width:12px;height:12px;border-radius:2px;background:#3B82F6"></div> Am\u00e9lie</div>';
-      html += '<div style="display:flex;align-items:center;gap:0.3rem"><div style="width:12px;height:12px;border-radius:2px;background:#EF476F"></div> R\u00e9gis</div>';
+      html += '<div style="display:flex;align-items:center;gap:0.3rem"><div style="width:12px;height:12px;border-radius:2px;background:#3B82F6"></div> \u00c9tudes</div>';
+      html += '<div style="display:flex;align-items:center;gap:0.3rem"><div style="width:12px;height:12px;border-radius:2px;background:#E8601C"></div> Travaux</div>';
+      html += '<div style="display:flex;align-items:center;gap:0.3rem"><div style="width:12px;height:12px;border-radius:2px;background:#94A3B8"></div> Conseil</div>';
+      var totalAnnee = 0;
+      for (var ta = 0; ta < 12; ta++) totalAnnee += chargeEtudes[ta] + chargeTravaux[ta] + chargeConseil[ta];
+      html += '<span style="margin-left:auto;font-weight:600">Total ' + planningYear + ' : ' + fmtEuro(totalAnnee) + '</span>';
       html += '</div>';
       html += '</div>';
 
