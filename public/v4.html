@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cockpit_ACTE1</title>
+  <title>Coulisse_ACTE1</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23E8601C'/><text x='50' y='68' font-family='sans-serif' font-size='48' font-weight='bold' fill='white' text-anchor='middle'>A1</text></svg>">
   <style>
     /* ============================================================
@@ -1209,7 +1209,7 @@
     <!-- Header -->
     <header class="header">
       <div class="header-left">
-        <h1>Cockpit ACTE 1</h1>
+        <h1>Coulisse ACTE 1</h1>
         <span class="header-badge" id="headerBadge">Donn&eacute;es d&eacute;mo</span>
       </div>
       <div class="header-right">
@@ -1492,7 +1492,7 @@
       }
     }
 
-    Logger.info('INIT', 'Cockpit V4 logger ready');
+    Logger.info('INIT', 'Coulisse V4 logger ready');
 
     /* ==============================================================
        DATA — Projets r&eacute;els ACTE 1 (source: forecast mars 2026)
@@ -2789,7 +2789,7 @@
       var html = '<div class="params-section full-width" style="margin-bottom:1.5rem;border-left:4px solid var(--accent)">' +
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem">' +
           '<div><h3 style="margin:0;border:none;padding:0">Connexion Google Sheet</h3>' +
-          '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">Source de donn\u00e9es du cockpit' +
+          '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">Source de donn\u00e9es de Coulisse' +
             (lastSync ? ' &mdash; Derni\u00e8re synchro : ' + lastSync.toLocaleString('fr-FR') : '') +
           '</div></div>' +
           '<div style="display:flex;gap:0.5rem">' +
@@ -2989,7 +2989,7 @@
       var el = document.getElementById('aideContainer');
       var html = '<div class="page-header"><div>' +
         '<div class="page-title">Aide &amp; Documentation</div>' +
-        '<div class="page-subtitle">Guide d\'utilisation du Cockpit ACTE 1</div>' +
+        '<div class="page-subtitle">Guide d\'utilisation de Coulisse ACTE 1</div>' +
       '</div></div>';
 
       // Style sections aide
@@ -3030,7 +3030,7 @@
           '<div style="background:var(--bg);border-radius:8px;padding:1rem;border:1px solid var(--border)">' +
             '<div style="font-size:1.5rem;text-align:center;margin-bottom:0.5rem">3\uFE0F\u20E3</div>' +
             '<div style="font-weight:700;text-align:center;margin-bottom:0.5rem">Google Sheet direct</div>' +
-            '<div style="font-size:0.82rem;color:var(--text-muted)">Ouvrez le Sheet de production, ajoutez une ligne dans l\'onglet PROJETS. Le cockpit la verra au prochain rafra\u00eechissement.</div>' +
+            '<div style="font-size:0.82rem;color:var(--text-muted)">Ouvrez le Sheet de production, ajoutez une ligne dans l\'onglet PROJETS. Coulisse la verra au prochain rafra\u00eechissement.</div>' +
           '</div>' +
         '</div>' +
 
@@ -3077,8 +3077,8 @@
         '</div>' +
       '</div>';
 
-      // ── PAGES DU COCKPIT (sidebar) ──
-      html += '<div class="aide-section"><h3>Les 7 pages du cockpit</h3>' +
+      // ── PAGES DE COULISSE (sidebar) ──
+      html += '<div class="aide-section"><h3>Les 7 pages de Coulisse</h3>' +
         '<p style="font-size:0.85rem;color:var(--text-muted)">Accessibles depuis la barre lat\u00e9rale gauche.</p></div>';
       html += '<div class="aide-grid">';
 
@@ -3255,7 +3255,7 @@
       // ── À PROPOS ──
       html += '<div class="aide-section">' +
         '<h3>\u00c0 propos</h3>' +
-        '<p><strong>Cockpit ACTE 1</strong> — Outil de pilotage financier et op\u00e9rationnel</p>' +
+        '<p><strong>Coulisse ACTE 1</strong> — Outil de pilotage financier et op\u00e9rationnel</p>' +
         '<ul>' +
           '<li><strong>Client</strong> : ACTE 1 — Bureau d\'\u00e9tudes en ing\u00e9nierie audiovisuelle, sc\u00e9nographie, mus\u00e9ographie et acoustique</li>' +
           '<li><strong>Dirigeants</strong> : Am\u00e9lie Chasseriaux &amp; R\u00e9gis Lamblin</li>' +
@@ -8075,9 +8075,9 @@
       overlay.style.cssText = 'padding:3rem;text-align:center;max-width:600px;margin:3rem auto';
       overlay.innerHTML =
         '<div style="font-size:2.5rem;margin-bottom:1rem">\uD83D\uDE80</div>' +
-        '<h2 style="font-size:1.5rem;margin-bottom:0.75rem">Bienvenue sur le Cockpit ACTE 1</h2>' +
+        '<h2 style="font-size:1.5rem;margin-bottom:0.75rem">Bienvenue sur Coulisse ACTE 1</h2>' +
         '<p style="color:var(--text-muted);font-size:0.95rem;line-height:1.6;margin-bottom:1.5rem">' +
-          'Le cockpit est connect\u00e9 \u00e0 votre Google Sheet mais aucun projet n\'a encore \u00e9t\u00e9 saisi.<br>' +
+          'Coulisse est connect\u00e9e \u00e0 votre Google Sheet mais aucun projet n\'a encore \u00e9t\u00e9 saisi.<br>' +
           'Commencez par ajouter vos projets dans l\'onglet <strong>PROJETS</strong> du Sheet.' +
         '</p>' +
         '<div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">' +
