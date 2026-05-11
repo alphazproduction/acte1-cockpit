@@ -1186,6 +1186,9 @@
       <a class="nav-item" data-page="demandes" onclick="navigateTo('demandes')">
         <span class="nav-icon">&#9993;</span> Demandes <span id="demandesBadge" style="background:var(--red);color:#fff;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:999px;margin-left:0.3rem;display:none"></span>
       </a>
+      <a class="nav-item" data-page="diagnostic" onclick="navigateTo('diagnostic')">
+        <span class="nav-icon">&#9888;</span> Diagnostic <span id="diagBadge" style="background:var(--red);color:#fff;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:999px;margin-left:0.3rem;display:none"></span>
+      </a>
       <a class="nav-item" data-page="logs" onclick="navigateTo('logs')">
         <span class="nav-icon">&#128270;</span> Logs
       </a>
@@ -1349,6 +1352,17 @@
           </div>
         </div>
         <div id="echeancierContent"></div>
+      </section>
+
+      <!-- V2: Diagnostic global -->
+      <section id="page-diagnostic" class="page">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Diagnostic global</div>
+            <div class="page-subtitle" id="diagSubtitle">Tous les projets avec incoh&eacute;rences</div>
+          </div>
+        </div>
+        <div id="diagnosticContent"></div>
       </section>
 
       <!-- Logs -->
@@ -7487,7 +7501,10 @@
       if (avancEl && phMontant > 0 && montant > 0) {
         var pct = Math.round(montant / phMontant * 100);
         avancEl.value = pct + '%';
-        avancEl.style.borderColor = 'var(--green)';
+        // U9: alerte visuelle si > 100%
+        avancEl.style.borderColor = pct > 100 ? 'var(--red)' : 'var(--green)';
+        if (pct > 100) avancEl.title = 'Surfacturation : ' + pct + '% du contrat phase';
+        else avancEl.title = '';
       }
       recalcFactTotal();
     };
@@ -7506,8 +7523,12 @@
       if (phMontant > 0 && pct > 0) {
         var calculated = Math.round(phMontant * pct / 100);
         montantEl.value = calculated;
-        montantEl.style.borderColor = 'var(--green)';
+        montantEl.style.borderColor = pct > 100 ? 'var(--red)' : 'var(--green)';
         avancEl.value = pct + '%';
+        // U9: alerte visuelle si > 100%
+        avancEl.style.borderColor = pct > 100 ? 'var(--red)' : 'var(--green)';
+        if (pct > 100) avancEl.title = 'Surfacturation : ' + pct + '% du contrat phase';
+        else avancEl.title = '';
       }
       recalcFactTotal();
     };
@@ -8406,6 +8427,7 @@
       if (page === 'parametres') renderParams();
       if (page === 'aide') renderAide();
       if (page === 'demandes') renderDemandes();
+      if (page === 'diagnostic') renderDiagnosticGlobal();
       if (page === 'logs') renderLogs();
       // Update hash
       history.replaceState(null, '', '#' + page);
@@ -8428,6 +8450,78 @@
       'Basse': { bg: '#D1FAE5', text: '#065F46' }
     };
     var CAT_ICONS = { 'Bug': '\uD83D\uDC1B', 'Amelioration': '\u2728', 'Question': '\u2753' };
+
+    // V2: Diagnostic global — liste tous les projets avec incoherences
+    window.renderDiagnosticGlobal = function() {
+      var el = document.getElementById('diagnosticContent');
+      resetDiagCache();
+
+      var projetsWithIssues = [];
+      PROJETS.forEach(function(p) {
+        var issues = getDiagnostic(p.code);
+        if (issues.length > 0) {
+          projetsWithIssues.push({ code: p.code, nom: p.nom, chef: p.chef, etat: p.etat, issues: issues });
+        }
+      });
+
+      // Trier par severite (erreurs d'abord)
+      projetsWithIssues.sort(function(a, b) {
+        var ae = a.issues.filter(function(i) { return i.severity === 'error'; }).length;
+        var be = b.issues.filter(function(i) { return i.severity === 'error'; }).length;
+        if (ae !== be) return be - ae;
+        return b.issues.length - a.issues.length;
+      });
+
+      // Badge sidebar
+      var badge = document.getElementById('diagBadge');
+      if (badge) {
+        var nbErr = projetsWithIssues.filter(function(p) { return p.issues.some(function(i) { return i.severity === 'error'; }); }).length;
+        if (nbErr > 0) { badge.textContent = nbErr; badge.style.display = 'inline'; }
+        else { badge.style.display = 'none'; }
+      }
+
+      var subtitle = document.getElementById('diagSubtitle');
+      if (subtitle) subtitle.textContent = projetsWithIssues.length + ' projet' + (projetsWithIssues.length > 1 ? 's' : '') + ' avec incoh\u00e9rences sur ' + PROJETS.length;
+
+      if (projetsWithIssues.length === 0) {
+        el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--green)">' +
+          '<div style="font-size:2rem;margin-bottom:0.5rem">\u2713</div>' +
+          '<div style="font-size:1.1rem;font-weight:700">Tous les projets sont coh\u00e9rents</div>' +
+          '<div style="font-size:0.85rem;color:var(--text-muted);margin-top:0.5rem">' + PROJETS.length + ' projets analys\u00e9s \u2014 aucune incoh\u00e9rence d\u00e9tect\u00e9e</div></div>';
+        return;
+      }
+
+      var html = '';
+      projetsWithIssues.forEach(function(p) {
+        var errors = p.issues.filter(function(i) { return i.severity === 'error'; });
+        var warnings = p.issues.filter(function(i) { return i.severity === 'warning'; });
+        var infos = p.issues.filter(function(i) { return i.severity === 'info'; });
+        var borderColor = errors.length > 0 ? 'var(--red)' : warnings.length > 0 ? 'var(--yellow)' : 'var(--blue)';
+
+        html += '<div class="section-card" style="margin-bottom:0.75rem;border-left:4px solid ' + borderColor + ';padding:0.75rem 1rem;cursor:pointer" onclick="openProjetDetail(\'' + p.code + '\')">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem">';
+        html += '<div style="display:flex;align-items:center;gap:0.5rem">';
+        html += '<span class="code-badge">' + escapeHtml(p.code) + '</span>';
+        html += '<span style="font-weight:600;font-size:0.9rem">' + escapeHtml(p.nom) + '</span>';
+        html += '<span style="font-size:0.75rem;color:var(--text-muted)">' + escapeHtml(p.chef || '') + '</span>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:0.3rem">';
+        if (errors.length > 0) html += '<span style="background:rgba(224,92,92,0.12);color:var(--red);font-size:0.7rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:999px">' + errors.length + ' err.</span>';
+        if (warnings.length > 0) html += '<span style="background:var(--yellow-bg);color:#92400E;font-size:0.7rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:999px">' + warnings.length + ' alerte' + (warnings.length > 1 ? 's' : '') + '</span>';
+        if (infos.length > 0) html += '<span style="background:var(--blue-bg,#EFF6FF);color:var(--blue);font-size:0.7rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:999px">' + infos.length + ' info' + (infos.length > 1 ? 's' : '') + '</span>';
+        html += '</div></div>';
+
+        p.issues.forEach(function(d) {
+          var icon = d.severity === 'error' ? '<span style="color:var(--red)">\u2716</span>' :
+                     d.severity === 'warning' ? '<span style="color:var(--yellow)">\u26a0</span>' :
+                     '<span style="color:var(--blue)">\u2139</span>';
+          html += '<div style="font-size:0.8rem;padding:0.15rem 0;display:flex;align-items:center;gap:0.4rem">' + icon + ' ' + d.message + '</div>';
+        });
+        html += '</div>';
+      });
+
+      el.innerHTML = html;
+    };
 
     window.renderDemandes = function() {
       var el = document.getElementById('demandesContent');
