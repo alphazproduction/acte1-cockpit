@@ -1439,9 +1439,14 @@
       } catch (e) { /* ignore */ }
     }
 
+    // U2/U3: Formater les timestamps en Europe/Paris
+    function nowParis() {
+      return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Paris' }).replace(' ', 'T');
+    }
+
     function logEntry(level, scope, message, data) {
       var entry = {
-        ts: new Date().toISOString(),
+        ts: nowParis(),
         level: level,
         scope: scope,
         message: message,
@@ -1832,6 +1837,7 @@
 
           // Cache
           lastSync = new Date();
+          _lastPingOk = lastSync; // U1: marquer le dernier contact reussi
           localStorage.setItem(CACHE_KEY, JSON.stringify({
             timestamp: lastSync.toISOString(),
             projetsBase: projetsBase,
@@ -1921,6 +1927,8 @@
         setSaveState(-1);
         var dt = Math.round(performance.now() - t0);
         if (res.ok) {
+          _lastPingOk = new Date(); // U1: save reussi = contact OK
+          updateConnectionBadge();
           Logger.info('API', 'postToSheet OK: ' + action, { dt: dt });
           showToast(res.message || 'Sauvegard\u00e9');
           if (callback) callback(true);
@@ -1936,13 +1944,31 @@
       });
     };
 
+    // U1: Voyant Live avec ping periodique
+    var _lastPingOk = null; // timestamp du dernier ping reussi
+
     function updateConnectionBadge() {
       var badge = document.getElementById('headerBadge');
       var footer = document.getElementById('sidebarFooter');
+
+      // Determiner la couleur du voyant selon l'age du dernier contact
+      var liveColor = 'var(--green)';
+      var liveLabel = 'Live';
+      if (dataMode === 'live' && !isLoading) {
+        var lastContact = _lastPingOk || lastSync;
+        if (lastContact) {
+          var ageSec = (Date.now() - lastContact.getTime()) / 1000;
+          if (ageSec < 60) { liveColor = 'var(--green)'; liveLabel = 'Live'; }
+          else if (ageSec < 180) { liveColor = 'var(--yellow)'; liveLabel = 'Live \u00b7 ' + Math.round(ageSec / 60) + 'min'; }
+          else { liveColor = 'var(--red)'; liveLabel = 'Hors ligne ?'; }
+          liveLabel += ' \u2014 ' + lastContact.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris' });
+        }
+      }
+
       if (footer) {
         if (dataMode === 'live') {
-          footer.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:0.4rem"></span>Live';
-          footer.style.color = 'var(--green)';
+          footer.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + liveColor + ';margin-right:0.4rem"></span>' + liveLabel;
+          footer.style.color = liveColor;
         } else {
           footer.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:0.4rem"></span>D\u00e9mo';
           footer.style.color = 'var(--yellow)';
@@ -1955,15 +1981,38 @@
           badge.style.background = 'var(--blue-bg)';
           badge.style.color = 'var(--blue)';
         } else {
-          badge.textContent = 'Live' + (lastSync ? ' \u2014 ' + lastSync.toLocaleTimeString('fr-FR') : '');
-          badge.style.background = 'var(--green-bg)';
-          badge.style.color = 'var(--green)';
+          badge.textContent = liveLabel;
+          badge.style.background = liveColor === 'var(--green)' ? 'var(--green-bg)' :
+                                   liveColor === 'var(--yellow)' ? 'var(--yellow-bg)' : 'rgba(224,92,92,0.12)';
+          badge.style.color = liveColor;
         }
       } else {
         badge.textContent = 'Donn\u00e9es d\u00e9mo';
         badge.style.background = 'var(--yellow-bg)';
         badge.style.color = '#92400E';
       }
+    }
+
+    // Ping silencieux toutes les 30s pour verifier la connexion
+    function startLivePing() {
+      if (dataMode !== 'live' || !apiUrl) return;
+      setInterval(function() {
+        if (dataMode !== 'live' || !apiUrl) return;
+        fetch(apiUrl + '?action=get_user')
+          .then(function(r) { return r.json(); })
+          .then(function(res) {
+            if (res.ok) {
+              _lastPingOk = new Date();
+              if (res.user && res.user.name) {
+                window._currentUser = res.user;
+                var userEl = document.getElementById('headerUser');
+                if (userEl) userEl.textContent = res.user.name;
+              }
+            }
+            updateConnectionBadge();
+          })
+          .catch(function() { updateConnectionBadge(); });
+      }, 30000);
     }
 
     /* ==============================================================
@@ -8809,8 +8858,18 @@
 
       logs.forEach(function(l) {
         var lc = levelColors[l.level] || levelColors.DEBUG;
-        var ts = (l.ts || '').substring(11, 19);
-        var date = (l.ts || '').substring(0, 10);
+        // Afficher en heure Paris (les serveur logs sont en UTC, les client logs en Paris)
+        var tsRaw = l.ts || '';
+        var tsDate;
+        try { tsDate = new Date(tsRaw); } catch(e) { tsDate = null; }
+        var ts, date;
+        if (tsDate && !isNaN(tsDate.getTime())) {
+          date = tsDate.toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric' });
+          ts = tsDate.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        } else {
+          date = tsRaw.substring(0, 10);
+          ts = tsRaw.substring(11, 19);
+        }
         var dataStr = l.data ? JSON.stringify(l.data) : '';
         if (dataStr.length > 100) dataStr = dataStr.substring(0, 100) + '\u2026';
 
@@ -8897,6 +8956,7 @@
       // Auto-load from Sheet if live mode
       if (dataMode === 'live' && apiUrl) {
         loadFromSheet();
+        startLivePing(); // U1: ping toutes les 30s
       }
 
       // Route
