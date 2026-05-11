@@ -4167,7 +4167,8 @@
     /* ==============================================================
        PIPELINE — phases visuelles par projet
        ============================================================== */
-    var ALL_PHASES = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL'];
+    // U5: Phases standard + hors-nomenclature
+    var ALL_PHASES = ['ESQ','DIAG','APS','APD','AVP','PRO','DCE','ACT','VISA','DET','AOR','GPA','CONSEIL','DEPLACEMENT','DIVERS'];
     var PHASE_SHORT = {ESQ:'ESQ',DIAG:'DIAG',APS:'APS',APD:'APD',AVP:'AVP',PRO:'PRO',DCE:'DCE',ACT:'ACT',VISA:'VISA',DET:'DET',AOR:'AOR',GPA:'GPA',CONSEIL:'CSL'};
     var PHASE_COLORS = {
       etudes: '#06D6A0',
@@ -4832,9 +4833,15 @@
             var ecart = Math.abs(echTotalPhase - m);
             var coherent = ecart < 1 || m === 0;
 
+            // U11: Echeancier compact par defaut — resume 1 ligne + bouton deplier
+            var echSummary = phEchs.length + ' versement' + (phEchs.length > 1 ? 's' : '') + ' \u2014 ' + fmtEuro(echTotalPhase);
+            var echDetailId = 'echDetail_' + docIdx + '_' + phIdx;
+
             html += '<tr class="ech-sub-row ech-doc-' + docIdx + '"><td colspan="5" style="padding:0.3rem 0.5rem 0.7rem 2rem;background:var(--bg)" id="echContainer_' + docIdx + '_' + phIdx + '">';
             html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">';
+            html += '<button class="btn" onclick="var d=document.getElementById(\'' + echDetailId + '\');d.style.display=d.style.display===\'none\'?\'\':\'none\';this.textContent=d.style.display===\'none\'?\'\u25b8\':\'\u25be\'" style="padding:0;width:18px;height:18px;font-size:0.7rem;line-height:1;border:none;color:var(--accent);background:none;cursor:pointer">\u25b8</button>';
             html += '<span style="font-size:0.75rem;font-weight:600;color:var(--accent)">\u00c9ch\u00e9ancier ' + ph + '</span>';
+            if (phEchs.length > 0) html += '<span style="font-size:0.72rem;color:var(--text-muted)">' + echSummary + '</span>';
             if (!coherent && phEchs.length > 0) {
               html += '<span style="font-size:0.72rem;padding:0.1rem 0.5rem;border-radius:999px;background:rgba(224,92,92,0.12);color:var(--red);font-weight:600">' +
                 '\u26a0 \u00c9cart : ' + fmtEuro(echTotalPhase) + ' vs ' + fmtEuro(m) + ' contrat</span>';
@@ -4845,6 +4852,7 @@
             html += '</div>';
 
             if (phEchs.length > 0) {
+              html += '<div id="' + echDetailId + '" style="display:none">';
               html += '<table style="width:100%;font-size:0.78rem;border-collapse:collapse">';
               html += '<tr style="color:var(--text-muted);font-weight:600;font-size:0.7rem">' +
                 '<td style="width:40px">N\u00b0</td><td style="width:110px">Montant</td><td style="width:120px">Date pr\u00e9vue</td>' +
@@ -4884,7 +4892,7 @@
               });
 
               html += '<tr style="font-weight:600"><td></td><td id="ech_sum_' + docIdx + '_' + phIdx + '" style="text-align:right;font-size:0.8rem">' + fmtEuro(echTotalPhase) + '</td><td colspan="5"></td></tr>';
-              html += '</table>';
+              html += '</table></div>'; // fermer echDetail div (U11)
             } else {
               var phaseMontant = parseFloat((document.getElementById ? '' : '') || m || 0);
             html += '<div style="font-size:0.75rem;display:flex;align-items:center;gap:0.5rem">' +
@@ -4923,11 +4931,22 @@
           '</div>' +
         '</div>';
 
+        // U6: Badge "Vérifié par"
+        var verifPb = projetsBase.find(function(pb2) { return pb2.code === p.code; });
+        var verifPar = verifPb ? (verifPb.verifie_par || '') : '';
+        var verifLe = verifPb ? (verifPb.verifie_le || '') : '';
+        if (verifPar) {
+          html += '<div style="margin-top:0.5rem;padding:0.4rem 0.75rem;background:var(--green-bg);border-radius:6px;display:inline-flex;align-items:center;gap:0.4rem;font-size:0.8rem">' +
+            '<span style="color:var(--green);font-weight:700">\u2713</span> V\u00e9rifi\u00e9 par ' + escapeHtml(verifPar) + (verifLe ? ' le ' + toFR(verifLe) : '') +
+          '</div>';
+        }
+
         // Action buttons
         html += '<div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">' +
           '<button class="btn" onclick="addContratDocument(\'' + p.code + '\')">+ Document (avenant, OS\u2026)</button>' +
           '<button class="btn btn-primary" onclick="saveContrat(\'' + p.code + '\')">Enregistrer le contrat</button>' +
           '<button class="btn" style="background:var(--accent);color:#fff;border-color:var(--accent)" onclick="saveEcheancier(\'' + p.code + '\')">Enregistrer l\'\u00e9ch\u00e9ancier</button>' +
+          '<button class="btn" onclick="marquerVerifie(\'' + p.code + '\')" style="font-size:0.78rem;padding:0.3rem 0.7rem;color:var(--green);border-color:var(--green)">' + (verifPar ? 'Re-v\u00e9rifier' : '\u2713 Marquer v\u00e9rifi\u00e9') + '</button>' +
         '</div>';
 
         // Hidden data for JS
@@ -6391,6 +6410,50 @@
     };
 
     // Deverrouiller une ligne echeancier facturee
+    // U6: Marquer un contrat comme verifie
+    window.marquerVerifie = function(code) {
+      var userName = (window._currentUser && window._currentUser.name) || 'Utilisateur';
+      var now = new Date().toISOString().substring(0, 10);
+      // Mettre a jour projetsBase en memoire
+      var pb = projetsBase.find(function(p) { return p.code === code; });
+      if (pb) { pb.verifie_par = userName; pb.verifie_le = now; }
+      // Sauvegarder dans le Sheet
+      if (dataMode === 'live' && apiUrl) {
+        postToSheet('upsert_projet', { code_projet: code, verifie_par: userName, verifie_le: now }, function(ok) {
+          if (ok) {
+            showToast('Contrat marqu\u00e9 comme v\u00e9rifi\u00e9 par ' + userName);
+            var p = PROJETS.find(function(pr) { return pr.code === code; });
+            if (p) renderProjetDetail(p);
+          }
+        });
+      }
+    };
+
+    // U8: Re-verrouiller une echeance deverrouillee
+    window.relockEchRow = function(eId) {
+      var row = document.querySelector('[data-ech-id="' + eId + '"]');
+      if (!row) return;
+      // Remettre en readonly
+      row.querySelectorAll('input').forEach(function(inp) {
+        inp.setAttribute('readonly', '');
+        inp.style.background = 'var(--grey-bg)';
+        inp.style.cursor = 'not-allowed';
+      });
+      row.querySelectorAll('select').forEach(function(sel) {
+        sel.setAttribute('disabled', '');
+        sel.style.background = 'var(--grey-bg)';
+        sel.style.cursor = 'not-allowed';
+      });
+      row.style.background = 'rgba(6,214,160,0.04)';
+      // Changer le bouton supprimer en cadenas
+      var delBtn = row.querySelector('button');
+      if (delBtn) {
+        delBtn.outerHTML = '<button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem" onclick="unlockEchRow(\'' + eId + '\')" title="D\u00e9verrouiller">\uD83D\uDD12</button>';
+      }
+      showToast('\u00c9ch\u00e9ance re-verrouill\u00e9e');
+      triggerEchAutoSave();
+    };
+
     window.unlockEchRow = function(eId) {
       if (!confirm('Cette \u00e9ch\u00e9ance est factur\u00e9e. Modifier les champs mettra aussi \u00e0 jour la facture associ\u00e9e.\n\nContinuer ?')) return;
       var row = document.querySelector('[data-ech-id="' + eId + '"]');
@@ -6407,11 +6470,13 @@
         sel.style.cursor = '';
       });
       row.style.background = '';
-      // Changer le cadenas en bouton supprimer
+      // Changer le cadenas en boutons re-lock + supprimer
       var lockBtn = row.querySelector('button');
       if (lockBtn) {
         var key = eId.replace('ech_', '').split('_');
-        lockBtn.outerHTML = '<button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcEchPhase(\'' + key[0] + '_' + key[1] + '\')" title="Supprimer">\u2716</button>';
+        lockBtn.outerHTML =
+          '<button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem" onclick="relockEchRow(\'' + eId + '\')" title="Re-verrouiller">\uD83D\uDD13</button>' +
+          '<button class="btn" style="padding:0.1rem 0.3rem;font-size:0.6rem;color:var(--red)" onclick="this.closest(\'tr\').remove();recalcEchPhase(\'' + key[0] + '_' + key[1] + '\')" title="Supprimer">\u2716</button>';
       }
       showToast('\u00c9ch\u00e9ance d\u00e9verrouill\u00e9e \u2014 les modifications seront report\u00e9es sur la facture');
     };
