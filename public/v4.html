@@ -2136,6 +2136,104 @@
       return sum;
     }
 
+    // ── V1: Diagnostic projet — detecte les incoherences ──────
+    function diagnoseProjet(code) {
+      var issues = [];
+      var contrats = contratsData[code] || [];
+      var echs = echeancierData[code] || [];
+      var p = PROJETS.find(function(pr) { return pr.code === code; });
+      var pb = projetsBase.find(function(pr) { return pr.code === code; });
+
+      // 1. Contrat vide
+      var totalContrat = 0;
+      contrats.forEach(function(c) { totalContrat += parseFloat(c.montant) || 0; });
+      if (contrats.length === 0 || totalContrat === 0) {
+        issues.push({ severity: 'warning', code: 'NO_CONTRAT', message: 'Aucun contrat renseign\u00e9' });
+      }
+
+      // 2. Echeancier vide alors qu'il y a un contrat
+      if (totalContrat > 0 && echs.length === 0) {
+        issues.push({ severity: 'error', code: 'NO_ECH', message: 'Contrat de ' + fmtEuro(totalContrat) + ' sans \u00e9ch\u00e9ancier' });
+      }
+
+      // 3. Ecart contrat vs echeancier
+      if (totalContrat > 0 && echs.length > 0) {
+        var totalEch = 0;
+        echs.forEach(function(e) { totalEch += parseFloat(e.montant) || 0; });
+        if (Math.abs(totalContrat - totalEch) > totalContrat * 0.02 && Math.abs(totalContrat - totalEch) > 50) {
+          var pct = Math.round(((totalEch - totalContrat) / totalContrat) * 100);
+          issues.push({ severity: 'error', code: 'ECART_ECH', message: '\u00c9cart contrat/\u00e9ch\u00e9ancier : ' + fmtEuro(totalContrat) + ' vs ' + fmtEuro(totalEch) + ' (' + (pct > 0 ? '+' : '') + pct + '%)' });
+        }
+      }
+
+      // 4. Ecart par phase (contrat vs echeancier par phase)
+      if (contrats.length > 0 && echs.length > 0) {
+        var phaseContrat = {};
+        contrats.forEach(function(c) {
+          var ph = (c.phase || '').toUpperCase();
+          if (ph) phaseContrat[ph] = (phaseContrat[ph] || 0) + (parseFloat(c.montant) || 0);
+        });
+        var phaseEch = {};
+        echs.forEach(function(e) {
+          var ph = (e.phase || '').toUpperCase();
+          if (ph) phaseEch[ph] = (phaseEch[ph] || 0) + (parseFloat(e.montant) || 0);
+        });
+        for (var ph in phaseContrat) {
+          var mc = phaseContrat[ph];
+          var me = phaseEch[ph] || 0;
+          if (Math.abs(mc - me) > mc * 0.02 && Math.abs(mc - me) > 50) {
+            issues.push({ severity: 'warning', code: 'ECART_PHASE', message: ph + ' : contrat ' + fmtEuro(mc) + ' vs \u00e9ch\u00e9ancier ' + fmtEuro(me) });
+          }
+        }
+      }
+
+      // 5. Phase sans date previsionnelle
+      echs.forEach(function(e) {
+        var st = String(e.statut || '').toLowerCase();
+        if (st.indexOf('factur') === 0 && st.indexOf('a fac') < 0) return; // facturee = ok
+        if (!e.date_prev_facturation) {
+          issues.push({ severity: 'warning', code: 'ECH_NO_DATE', message: (e.phase || '?') + ' : \u00e9ch\u00e9ance de ' + fmtEuro(parseFloat(e.montant) || 0) + ' sans date pr\u00e9visionnelle' });
+        }
+      });
+
+      // 6. Date fin < date debut
+      if (pb && pb.date_debut && pb.date_fin && pb.date_fin < pb.date_debut) {
+        issues.push({ severity: 'error', code: 'DATE_INV', message: 'Date de fin (' + toFR(pb.date_fin) + ') ant\u00e9rieure \u00e0 date de d\u00e9but (' + toFR(pb.date_debut) + ')' });
+      }
+
+      // 7. Client non renseigne
+      if (p && !p.client) {
+        issues.push({ severity: 'info', code: 'NO_CLIENT', message: 'Client non renseign\u00e9' });
+      }
+
+      // 8. Dates manquantes
+      if (pb && !pb.date_debut && !pb.date_fin) {
+        issues.push({ severity: 'info', code: 'NO_DATES', message: 'Dates de d\u00e9but et fin manquantes' });
+      }
+
+      // 9. Facture > contrat (surfacturation)
+      if (totalContrat > 0) {
+        var totalFacture = 0;
+        echs.forEach(function(e) {
+          var st = String(e.statut || '').toLowerCase();
+          if (st.indexOf('factur') === 0 && st.indexOf('a fac') < 0) totalFacture += parseFloat(e.montant) || 0;
+        });
+        if (totalFacture > totalContrat * 1.02) {
+          issues.push({ severity: 'error', code: 'SURFACT', message: 'Surfacturation : ' + fmtEuro(totalFacture) + ' factur\u00e9 vs ' + fmtEuro(totalContrat) + ' contrat' });
+        }
+      }
+
+      return issues;
+    }
+
+    // Cache des diagnostics (recalcule a chaque refresh)
+    var _diagCache = {};
+    function getDiagnostic(code) {
+      if (!_diagCache[code]) _diagCache[code] = diagnoseProjet(code);
+      return _diagCache[code];
+    }
+    function resetDiagCache() { _diagCache = {}; }
+
     function caEffectue() {
       // Calcul reel depuis echeancierData : somme des echeances Facturees pour l'annee selectionnee
       var sum = 0;
@@ -2260,6 +2358,33 @@
             ecartBadge(pctEffObj, te) +
           '</div>' +
           '<div class="kpi-footer">Objectif ' + selectedYear + ' : <a href="#" onclick="navigateTo(\'parametres\');return false;">' + fmtEuro(objVal) + '</a></div>' +
+        '</div>';
+
+      // Card 4: Diagnostic global
+      resetDiagCache();
+      var nbErrors = 0, nbWarnings = 0, nbClean = 0;
+      PROJETS.forEach(function(pr) {
+        var d = getDiagnostic(pr.code);
+        var hasErr = d.some(function(i) { return i.severity === 'error'; });
+        var hasWarn = d.some(function(i) { return i.severity === 'warning'; });
+        if (hasErr) nbErrors++;
+        else if (hasWarn) nbWarnings++;
+        else nbClean++;
+      });
+      var diagColor = nbErrors > 0 ? 'color-red' : nbWarnings > 0 ? 'color-yellow' : 'color-green';
+      var diagTotal = nbErrors + nbWarnings;
+      grid.innerHTML +=
+        '<div class="kpi-card" style="cursor:pointer" onclick="navigateTo(\'projets\')">' +
+          '<div class="kpi-header"><span class="kpi-icon">&#9888;</span> DIAGNOSTIC</div>' +
+          '<div class="kpi-value font-din ' + diagColor + '">' + (diagTotal > 0 ? diagTotal : '\u2713') + '</div>' +
+          '<div class="kpi-sublabel">' + (diagTotal > 0 ? 'projet' + (diagTotal > 1 ? 's' : '') + ' avec incoh\u00e9rences' : 'tous les projets sont coh\u00e9rents') + '</div>' +
+          '<hr class="kpi-separator">' +
+          '<div style="font-size:0.8rem;display:flex;gap:0.75rem;justify-content:center">' +
+            (nbErrors > 0 ? '<span style="color:var(--red)">\u2716 ' + nbErrors + ' erreur' + (nbErrors > 1 ? 's' : '') + '</span>' : '') +
+            (nbWarnings > 0 ? '<span style="color:var(--yellow)">\u26a0 ' + nbWarnings + ' alerte' + (nbWarnings > 1 ? 's' : '') + '</span>' : '') +
+            '<span style="color:var(--green)">\u2713 ' + nbClean + ' OK</span>' +
+          '</div>' +
+          '<div class="kpi-footer">Cliquer pour voir les projets</div>' +
         '</div>';
     }
 
@@ -4145,8 +4270,19 @@
           phasePipeline += '</div>';
         }
 
+        // V1: icone diagnostic sur la liste
+        var pDiag = getDiagnostic(p.code);
+        var pErrors = pDiag.filter(function(d) { return d.severity === 'error'; });
+        var pWarnings = pDiag.filter(function(d) { return d.severity === 'warning'; });
+        var diagIcon = '';
+        if (pErrors.length > 0) {
+          diagIcon = '<span title="' + pErrors.length + ' erreur(s) de coh\u00e9rence" style="color:var(--red);font-size:0.85rem;cursor:help">\u26a0</span>';
+        } else if (pWarnings.length > 0) {
+          diagIcon = '<span title="' + pWarnings.length + ' alerte(s)" style="color:var(--yellow);font-size:0.85rem;cursor:help">\u26a0</span>';
+        }
+
         html += '<div class="projet-card" style="grid-template-columns:auto 1fr auto;align-items:center" onclick="openProjetDetail(\'' + p.code + '\')">' +
-          '<div><span class="code-badge" style="font-size:0.85rem">' + p.code + '</span></div>' +
+          '<div style="display:flex;align-items:center;gap:0.3rem"><span class="code-badge" style="font-size:0.85rem">' + p.code + '</span>' + diagIcon + '</div>' +
           '<div><div class="projet-card-name">' + p.nom + clientTag + (p.ville ? ' <span style="color:var(--text-muted);font-size:0.8rem">' + p.ville + '</span>' : '') + '</div>' +
           '<div class="projet-card-meta">' + p.chef + ' &middot; <span class="etat-badge ' + etatCls + '">' + p.etat + '</span>' + phaseTag + '</div>' + phasePipeline + '</div>' +
           '<div class="projet-card-amount">' + fmtEuro(total) + '</div>' +
@@ -4337,56 +4473,30 @@
         '</div>';
         html += '</div>';
 
-        // ── COHERENCE ALERTS ──
-        var alerts = [];
-        // Check missing fields
-        if (!v.client) alerts.push({ type: 'warn', msg: 'Client non renseign\u00e9' });
-        if (!v.budget_total) alerts.push({ type: 'info', msg: 'Budget travaux client non renseign\u00e9 (donn\u00e9es r\u00e9f\u00e9rences)' });
-        if (!v.date_debut && !v.date_fin) alerts.push({ type: 'warn', msg: 'Dates de d\u00e9but et fin manquantes' });
+        // ── V1: DIAGNOSTIC PROJET ──
+        var diag = diagnoseProjet(p.code);
+        _diagCache[p.code] = diag; // mettre en cache
+        var errors = diag.filter(function(d) { return d.severity === 'error'; });
+        var warnings = diag.filter(function(d) { return d.severity === 'warning'; });
+        var infos = diag.filter(function(d) { return d.severity === 'info'; });
 
-        // Check total contrat vs budget — chercher dans contratsData avec code ET code_projet
-        var contratTotal = 0;
-        var contratLines = contratsData[p.code] || [];
-        // Aussi chercher par code_projet si différent du quadrigramme
-        if (contratLines.length === 0) {
-          for (var ccKey in contratsData) {
-            var projMatch = projetsBase.find(function(pb) { return pb.code === p.code && (pb.code_projet === ccKey || pb.code === ccKey); });
-            if (projMatch && contratsData[ccKey].length > 0) { contratLines = contratsData[ccKey]; break; }
-          }
-        }
-        contratLines.forEach(function(c) { contratTotal += parseFloat(c.montant) || 0; });
-        // Verifier coherence contrat vs echeancier (pas vs budget travaux client)
-        if (contratTotal > 0) {
-          var echTotal = 0;
-          (echeancierData[p.code] || []).forEach(function(e) { echTotal += parseFloat(e.montant) || 0; });
-          if (echTotal > 0 && Math.abs(contratTotal - echTotal) > contratTotal * 0.02) {
-            var ecartPct = Math.round(((echTotal - contratTotal) / contratTotal) * 100);
-            alerts.push({ type: 'error', msg: '\u00c9cart contrat/\u00e9ch\u00e9ancier : ' + fmtEuro(contratTotal) + ' vs ' + fmtEuro(echTotal) + ' (' + (ecartPct > 0 ? '+' : '') + ecartPct + '%)' });
-          }
-        }
-        // Ne pas alerter "aucun contrat" si le rendu a des phases (le contrat existe mais pas encore dans contratsData)
-        // On vérifie aussi si des documents existent déjà dans la page
-        if (contratTotal === 0 && contratLines.length === 0) {
-          // Vérifier aussi le fallback : si le projet a des phases dans ORGANISATION ou des mois > 0, il y a un contrat implicite
-          var hasImplicitContrat = (ORGANISATION[p.code] && ORGANISATION[p.code].some(function(ph) { return ph !== null; })) || totalMois > 0;
-          if (!hasImplicitContrat) {
-            alerts.push({ type: 'info', msg: 'Aucun contrat renseign\u00e9 \u2014 Importez un devis via l\'IA' });
-          }
-        }
-
-        if (alerts.length > 0) {
-          html += '<div class="section-card" style="margin-bottom:1.25rem;border-left:4px solid var(--yellow);padding:1rem 1.25rem">';
+        if (diag.length > 0) {
+          var borderColor = errors.length > 0 ? 'var(--red)' : warnings.length > 0 ? 'var(--yellow)' : 'var(--blue)';
+          var badgeBg = errors.length > 0 ? 'rgba(224,92,92,0.12)' : 'var(--yellow-bg)';
+          var badgeColor = errors.length > 0 ? 'var(--red)' : '#92400E';
+          html += '<div class="section-card" style="margin-bottom:1.25rem;border-left:4px solid ' + borderColor + ';padding:1rem 1.25rem">';
           html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">' +
             '<span style="font-size:1rem">&#9888;</span>' +
-            '<strong style="font-size:0.9rem">Alertes de coh\u00e9rence</strong>' +
-            '<span class="alert-badge" style="background:var(--yellow-bg);color:#92400E">' + alerts.length + '</span>' +
-            '<button class="btn" onclick="openProjetDetail(\'' + p.code + '\')" style="margin-left:auto;font-size:0.72rem;padding:0.2rem 0.5rem">Rafra\u00eechir</button>' +
+            '<strong style="font-size:0.9rem">Diagnostic</strong>' +
+            (errors.length > 0 ? '<span style="background:rgba(224,92,92,0.12);color:var(--red);font-size:0.72rem;font-weight:700;padding:0.1rem 0.45rem;border-radius:999px">' + errors.length + ' erreur' + (errors.length > 1 ? 's' : '') + '</span>' : '') +
+            (warnings.length > 0 ? '<span style="background:var(--yellow-bg);color:#92400E;font-size:0.72rem;font-weight:700;padding:0.1rem 0.45rem;border-radius:999px">' + warnings.length + ' alerte' + (warnings.length > 1 ? 's' : '') + '</span>' : '') +
+            (infos.length > 0 ? '<span style="background:var(--blue-bg,#EFF6FF);color:var(--blue);font-size:0.72rem;font-weight:700;padding:0.1rem 0.45rem;border-radius:999px">' + infos.length + ' info' + (infos.length > 1 ? 's' : '') + '</span>' : '') +
           '</div>';
-          alerts.forEach(function(a) {
-            var icon = a.type === 'error' ? '<span style="color:var(--red)">&#9679;</span>' :
-                       a.type === 'warn' ? '<span style="color:var(--yellow)">&#9679;</span>' :
-                       '<span style="color:var(--blue)">&#9679;</span>';
-            html += '<div style="font-size:0.82rem;padding:0.2rem 0;display:flex;align-items:center;gap:0.4rem">' + icon + ' ' + a.msg + '</div>';
+          diag.forEach(function(d) {
+            var icon = d.severity === 'error' ? '<span style="color:var(--red)">\u2716</span>' :
+                       d.severity === 'warning' ? '<span style="color:var(--yellow)">\u26a0</span>' :
+                       '<span style="color:var(--blue)">\u2139</span>';
+            html += '<div style="font-size:0.82rem;padding:0.25rem 0;display:flex;align-items:center;gap:0.4rem">' + icon + ' ' + d.message + '</div>';
           });
           html += '</div>';
         }
