@@ -2121,14 +2121,17 @@
         var mois = [0,0,0,0,0,0,0,0,0,0,0,0];
         var found = false;
         echs.forEach(function(e) {
-          var dp = String(e.date_prev_facturation || '');
+          var st = String(e.statut || '').toLowerCase();
+          if (st.indexOf('hypo') >= 0) return; // exclure les hypothetiques
+          // Pour les Facturés, utiliser date_facture (date réelle) ; sinon date_prev_facturation
+          var isFacture = st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+          var dp = isFacture
+            ? String(e.date_facture || e.date_prev_facturation || '')
+            : String(e.date_prev_facturation || '');
           if (!dp || dp.length < 7) return;
           var eYear = parseInt(dp.substring(0,4));
           var eMonth = parseInt(dp.substring(5,7)) - 1;
           if (eYear !== annee || eMonth < 0 || eMonth > 11) return;
-          // Exclure les hypothetiques du forecast
-          var st = String(e.statut || '').toLowerCase();
-          if (st.indexOf('hypo') >= 0) return;
           mois[eMonth] += parseFloat(e.montant) || 0;
           found = true;
         });
@@ -3588,9 +3591,11 @@
           var isFactured = false;
           var pEch = echeancierData[p.code] || [];
           pEch.forEach(function(ech) {
-            if (ech.statut === 'Factur\u00e9' && ech.date_prev_facturation) {
-              var echMonth = parseInt(String(ech.date_prev_facturation).substring(5,7)) - 1;
-              var echYear = parseInt(String(ech.date_prev_facturation).substring(0,4));
+            if (ech.statut === 'Factur\u00e9') {
+              var echDate = String(ech.date_facture || ech.date_prev_facturation || '');
+              if (!echDate || echDate.length < 7) return;
+              var echMonth = parseInt(echDate.substring(5,7)) - 1;
+              var echYear = parseInt(echDate.substring(0,4));
               if (echMonth === m2 && echYear === forecastYear) isFactured = true;
             }
           });
