@@ -1610,6 +1610,7 @@
     var projetsBase = [];  // liste projets complète (sans mois), rechargée depuis le Sheet
     var contratsData = {}; // { 'CODE': [{ref_document, phase, montant, ...}] }
     var echeancierData = {}; // { 'CODE': [{phase, montant, date_prev, statut, ...}] }
+    var facturesByNum = {}; // { 'F2070': '2026-04-30' } — lookup n_facture → date réelle (source: FACTURES)
     var soustraitanceData = {}; // { 'CODE': [{nom_soustraitant, montant_estime, montant_facture, ...}] }
 
     /* ==============================================================
@@ -1768,6 +1769,19 @@
               });
             });
             Logger.debug('DATA', 'Echeancier: ' + Object.keys(echeancierData).length + ' projets');
+          }
+
+          // 5b1b. Construire index factures par n_facture → date réelle
+          facturesByNum = {};
+          if (data.factures && data.factures.length > 0) {
+            data.factures.forEach(function(f) {
+              var num = String(f.n_facture || '').trim();
+              if (!num) return;
+              var d = String(f.date || '').trim();
+              if (d && d.length >= 7 && !facturesByNum[num]) {
+                facturesByNum[num] = d;
+              }
+            });
           }
 
           // 5b2. Charger SOUSTRAITANCE par projet
@@ -2123,10 +2137,10 @@
         echs.forEach(function(e) {
           var st = String(e.statut || '').toLowerCase();
           if (st.indexOf('hypo') >= 0) return; // exclure les hypothetiques
-          // Pour les Facturés, utiliser date_facture (date réelle) ; sinon date_prev_facturation
+          // Pour les Facturés, utiliser date_facture > FACTURES table > date_prev_facturation
           var isFacture = st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
           var dp = isFacture
-            ? String(e.date_facture || e.date_prev_facturation || '')
+            ? String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '')
             : String(e.date_prev_facturation || '');
           if (!dp || dp.length < 7) return;
           var eYear = parseInt(dp.substring(0,4));
@@ -2194,7 +2208,7 @@
       (echeancierData[code] || []).forEach(function(e) {
         var st = String(e.statut || '').toLowerCase();
         if (st.indexOf('factur') !== 0 || st.indexOf('a fac') >= 0) return;
-        var dp = String(e.date_prev_facturation || e.date_facture || '');
+        var dp = String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '');
         if (dp.length >= 4 && parseInt(dp.substring(0,4)) === annee) {
           sum += parseFloat(e.montant) || 0;
         }
@@ -2307,7 +2321,7 @@
         (echeancierData[p.code] || []).forEach(function(e) {
           var st = String(e.statut || '').toLowerCase();
           if (st.indexOf('factur') !== 0 || st.indexOf('a fac') >= 0) return;
-          var dp = String(e.date_prev_facturation || e.date_facture || '');
+          var dp = String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '');
           if (dp.length >= 4 && parseInt(dp.substring(0,4)) === selectedYear) {
             sum += parseFloat(e.montant) || 0;
           }
@@ -3592,7 +3606,7 @@
           var pEch = echeancierData[p.code] || [];
           pEch.forEach(function(ech) {
             if (ech.statut === 'Factur\u00e9') {
-              var echDate = String(ech.date_facture || ech.date_prev_facturation || '');
+              var echDate = String(ech.date_facture || facturesByNum[String(ech.n_facture || '').trim()] || ech.date_prev_facturation || '');
               if (!echDate || echDate.length < 7) return;
               var echMonth = parseInt(echDate.substring(5,7)) - 1;
               var echYear = parseInt(echDate.substring(0,4));
