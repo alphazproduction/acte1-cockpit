@@ -1554,7 +1554,7 @@
       try {
         var saved = localStorage.getItem(OBJECTIFS_KEY);
         if (saved) return JSON.parse(saved);
-      } catch(e) {}
+      } catch(e) { Logger.warn('PARAMS', 'Objectifs localStorage illisibles, reset', { error: String(e) }); }
       return {};
     }
 
@@ -1586,6 +1586,7 @@
     var SHEET_URL_KEY = 'cockpit-acte1-v2-sheet-url';
     var CACHE_KEY = 'cockpit-acte1-v2-cache';
     var DATA_MODE_KEY = 'cockpit-acte1-v2-mode';
+    var API_TOKEN_KEY = 'cockpit-api-token'; // P3 (ADR-003) : token API partage
 
     /* ==============================================================
        STATE
@@ -1631,6 +1632,33 @@
       localStorage.setItem(API_URL_KEY, url); // stocke l'original
     };
 
+    // P3 (ADR-003) : token API partage. Vide = mode grace (le backend accepte
+    // tout tant que la Script Property API_TOKEN n'est pas configuree cote GAS).
+    var apiToken = '';
+    try { apiToken = localStorage.getItem(API_TOKEN_KEY) || ''; } catch (e) {}
+
+    window.setApiToken = function(t) {
+      apiToken = String(t || '').trim();
+      try { localStorage.setItem(API_TOKEN_KEY, apiToken); } catch (e) {}
+    };
+
+    // Wrapper unique de tous les appels a l'API GAS : injecte le token.
+    // GET → parametre d'URL ; POST → champ "token" dans le body JSON.
+    function gasFetch(url, opts) {
+      if (apiToken) {
+        if (opts && opts.method === 'POST') {
+          try {
+            var b = JSON.parse(opts.body);
+            b.token = apiToken;
+            opts.body = JSON.stringify(b);
+          } catch (e) { Logger.warn('API', 'gasFetch: body POST non-JSON, token non injecte'); }
+        } else {
+          url += (url.indexOf('?') >= 0 ? '&' : '?') + 'token=' + encodeURIComponent(apiToken);
+        }
+      }
+      return fetch(url, opts);
+    }
+
     window.loadFromSheet = function() {
       if (!apiUrl) { Logger.warn('API', 'URL API non configuree'); showToast('URL API non configur\u00e9e'); return; }
       isLoading = true;
@@ -1638,7 +1666,7 @@
       var t0 = performance.now();
       Logger.info('API', 'loadFromSheet start', { url: apiUrl.substring(0, 50) + '...' });
 
-      fetch(apiUrl)
+      gasFetch(apiUrl)
         .then(function(r) { return r.json(); })
         .then(function(data) {
           var dt = Math.round(performance.now() - t0);
@@ -1759,6 +1787,9 @@
             data.echeancier.forEach(function(e) {
               var code = String(e.code_projet || '');
               if (!code) return;
+              // P5 : normaliser les dates (JJ/MM/AAAA -> ISO) des l'ingestion
+              if (e.date_prev_facturation) e.date_prev_facturation = normDateISO(e.date_prev_facturation);
+              if (e.date_facture) e.date_facture = normDateISO(e.date_facture);
               if (!echeancierData[code]) echeancierData[code] = [];
               echeancierData[code].push(e);
             });
@@ -1777,7 +1808,7 @@
             data.factures.forEach(function(f) {
               var num = String(f.n_facture || '').trim();
               if (!num) return;
-              var d = String(f.date || '').trim();
+              var d = normDateISO(f.date);
               if (d && d.length >= 7 && !facturesByNum[num]) {
                 facturesByNum[num] = d;
               }
@@ -1816,7 +1847,7 @@
               if (!ORGANISATION[displayCode]) ORGANISATION[displayCode] = [null,null,null,null,null,null,null,null,null,null,null,null];
               if (!PHASES_VALIDEES[displayCode]) PHASES_VALIDEES[displayCode] = [false,false,false,false,false,false,false,false,false,false,false,false];
               if (org.date_rendu_prev) {
-                var orgDateStr = String(org.date_rendu_prev);
+                var orgDateStr = normDateISO(org.date_rendu_prev);
                 var orgYear = parseInt(orgDateStr.substring(0,4));
                 var m2 = parseInt(orgDateStr.substring(5,7)) - 1;
                 if (m2 >= 0 && m2 < 12) {
@@ -1939,7 +1970,7 @@
       var usePost = payload.length > 4000;
       var fetchPromise;
       if (usePost) {
-        fetchPromise = fetch(apiUrl, {
+        fetchPromise = gasFetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
           redirect: 'follow',
@@ -1947,7 +1978,7 @@
         });
       } else {
         var url = apiUrl + '?action=write&data=' + encodeURIComponent(payload);
-        fetchPromise = fetch(url);
+        fetchPromise = gasFetch(url);
       }
       fetchPromise
       .then(function(r) { return r.json(); })
@@ -2026,7 +2057,7 @@
       if (dataMode !== 'live' || !apiUrl) return;
       setInterval(function() {
         if (dataMode !== 'live' || !apiUrl) return;
-        fetch(apiUrl + '?action=get_user')
+        gasFetch(apiUrl + '?action=get_user')
           .then(function(r) { return r.json(); })
           .then(function(res) {
             if (res.ok) {
@@ -2062,6 +2093,25 @@
       if (!s) return '';
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+    // P2 : détection centralisée du statut "Facturé" (insensible à la casse).
+    // Vrai pour 'Facturé', 'Facture', 'facturé'… Faux pour 'À facturer', 'Prévisionnel', etc.
+    // Même logique que le backend (Code.gs isFacture) pour garantir la cohérence front/back.
+    function isFactureStatut(statut) {
+      var st = String(statut || '').toLowerCase();
+      return st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+    }
+    // P5 : normalisation des dates a l'ingestion. Convertit JJ/MM/AAAA (saisie
+    // manuelle dans le Sheet) vers AAAA-MM-JJ attendu par tous les parsings.
+    // Les formats deja ISO ou inconnus sont retournes tels quels (zero regression).
+    function normDateISO(s) {
+      if (!s) return '';
+      s = String(s).trim();
+      var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (m && parseInt(m[2], 10) >= 1 && parseInt(m[2], 10) <= 12) {
+        return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+      }
+      return s;
+    }
 
     function loadParams() {
       try {
@@ -2074,7 +2124,7 @@
             coefficients: p.coefficients && p.coefficients.length === 12 ? p.coefficients : DEFAULT_PARAMS.coefficients.slice()
           };
         }
-      } catch(e) {}
+      } catch(e) { Logger.warn('PARAMS', 'Params localStorage illisibles, valeurs par defaut', { error: String(e) }); }
       return {
         objectif_ca: DEFAULT_PARAMS.objectif_ca,
         seuil_rentabilite: DEFAULT_PARAMS.seuil_rentabilite,
@@ -2138,7 +2188,7 @@
           var st = String(e.statut || '').toLowerCase();
           if (st.indexOf('hypo') >= 0) return; // exclure les hypothetiques
           // Pour les Facturés, utiliser date_facture > FACTURES table > date_prev_facturation
-          var isFacture = st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+          var isFacture = isFactureStatut(e.statut);
           var dp = isFacture
             ? String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '')
             : String(e.date_prev_facturation || '');
@@ -2206,8 +2256,7 @@
     function getFactureReel(code, annee) {
       var sum = 0;
       (echeancierData[code] || []).forEach(function(e) {
-        var st = String(e.statut || '').toLowerCase();
-        if (st.indexOf('factur') !== 0 || st.indexOf('a fac') >= 0) return;
+        if (!isFactureStatut(e.statut)) return;
         var dp = String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '');
         if (dp.length >= 4 && parseInt(dp.substring(0,4)) === annee) {
           sum += parseFloat(e.montant) || 0;
@@ -2269,8 +2318,7 @@
 
       // 5. Phase sans date previsionnelle
       echs.forEach(function(e) {
-        var st = String(e.statut || '').toLowerCase();
-        if (st.indexOf('factur') === 0 && st.indexOf('a fac') < 0) return; // facturee = ok
+        if (isFactureStatut(e.statut)) return; // facturee = ok
         if (!e.date_prev_facturation) {
           issues.push({ severity: 'warning', code: 'ECH_NO_DATE', message: (e.phase || '?') + ' : \u00e9ch\u00e9ance de ' + fmtEuro(parseFloat(e.montant) || 0) + ' sans date pr\u00e9visionnelle' });
         }
@@ -2295,8 +2343,7 @@
       if (totalContrat > 0) {
         var totalFacture = 0;
         echs.forEach(function(e) {
-          var st = String(e.statut || '').toLowerCase();
-          if (st.indexOf('factur') === 0 && st.indexOf('a fac') < 0) totalFacture += parseFloat(e.montant) || 0;
+          if (isFactureStatut(e.statut)) totalFacture += parseFloat(e.montant) || 0;
         });
         if (totalFacture > totalContrat * 1.02) {
           issues.push({ severity: 'error', code: 'SURFACT', message: 'Surfacturation : ' + fmtEuro(totalFacture) + ' factur\u00e9 vs ' + fmtEuro(totalContrat) + ' contrat' });
@@ -2319,8 +2366,7 @@
       var sum = 0;
       PROJETS.forEach(function(p) {
         (echeancierData[p.code] || []).forEach(function(e) {
-          var st = String(e.statut || '').toLowerCase();
-          if (st.indexOf('factur') !== 0 || st.indexOf('a fac') >= 0) return;
+          if (!isFactureStatut(e.statut)) return;
           var dp = String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '');
           if (dp.length >= 4 && parseInt(dp.substring(0,4)) === selectedYear) {
             sum += parseFloat(e.montant) || 0;
@@ -3010,6 +3056,10 @@
             '<label class="form-label">URL du Google Sheet de production</label>' +
             '<input type="url" class="form-input" id="paramSheetUrl" value="' + (localStorage.getItem(SHEET_URL_KEY) || '') + '" placeholder="https://docs.google.com/spreadsheets/d/XXXXXX/edit" onchange="localStorage.setItem(\'' + SHEET_URL_KEY + '\', this.value)">' +
           '</div>' +
+          '<div class="form-group full-width">' +
+            '<label class="form-label">Token API (optionnel \u2014 requis si configur\u00e9 c\u00f4t\u00e9 Apps Script)</label>' +
+            '<input type="password" class="form-input" id="paramApiToken" value="' + escapeHtml(apiToken || '') + '" placeholder="Laisser vide si non configur\u00e9" onchange="setApiToken(this.value)" autocomplete="off">' +
+          '</div>' +
         '</div>' +
         '<div style="display:flex;gap:1.5rem;align-items:center">' +
           '<label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-size:0.85rem">' +
@@ -3562,8 +3612,7 @@
         // Calculs avancement — facture reel depuis echeancierData
         var facture = 0;
         (echeancierData[p.code] || []).forEach(function(e) {
-          var st = String(e.statut || '').toLowerCase();
-          if (st.indexOf('factur') !== 0 || st.indexOf('a fac') >= 0) return;
+          if (!isFactureStatut(e.statut)) return;
           var dp = String(e.date_prev_facturation || e.date_facture || '');
           if (dp.length >= 4 && parseInt(dp.substring(0,4)) === forecastYear) {
             facture += parseFloat(e.montant) || 0;
@@ -3605,7 +3654,7 @@
           var isFactured = false;
           var pEch = echeancierData[p.code] || [];
           pEch.forEach(function(ech) {
-            if (ech.statut === 'Factur\u00e9') {
+            if (isFactureStatut(ech.statut)) {
               var echDate = String(ech.date_facture || facturesByNum[String(ech.n_facture || '').trim()] || ech.date_prev_facturation || '');
               if (!echDate || echDate.length < 7) return;
               var echMonth = parseInt(echDate.substring(5,7)) - 1;
@@ -3718,7 +3767,7 @@
        ============================================================== */
     var DELIVERY_KEY = 'cockpit-acte1-v2-deliveries';
     var deliveryDates = {};
-    try { deliveryDates = JSON.parse(localStorage.getItem(DELIVERY_KEY)) || {}; } catch(e) {}
+    try { deliveryDates = JSON.parse(localStorage.getItem(DELIVERY_KEY)) || {}; } catch(e) { Logger.warn('PARAMS', 'Dates de rendu localStorage illisibles, reset', { error: String(e) }); }
 
     window.setDeliveryDate = function(code, phase, value) {
       var key = code + '_' + phase;
@@ -4230,7 +4279,7 @@
         var echs = echeancierData[code] || [];
         echs.forEach(function(e) {
           var ph = (e.phase || '').toUpperCase();
-          if (ph && phaseData[ph] && (e.statut === 'Factur\u00e9' || e.statut === 'Facture')) {
+          if (ph && phaseData[ph] && isFactureStatut(e.statut)) {
             phaseData[ph].factAmount += parseFloat(e.montant) || 0;
           }
         });
@@ -4369,7 +4418,9 @@
           var orgPh = ORGANISATION[p.code] || [];
           var pipeSeen2 = {};
           for (var opi = 0; opi < orgPh.length; opi++) {
-            if (orgPh[opi]) { var phU = orgPh[opi].toUpperCase(); if (!pipeSeen2[phU]) { pipePhases.push(phU); pipeSeen2[phU] = true; } }
+            // P7 : entrees polymorphes (string ou {phase, year}) — passer par getOrgaPhase
+            var opPhase = getOrgaPhase(orgPh[opi]);
+            if (opPhase) { var phU = String(opPhase).toUpperCase(); if (!pipeSeen2[phU]) { pipePhases.push(phU); pipeSeen2[phU] = true; } }
           }
         }
         if (pipePhases.length > 0) {
@@ -4377,7 +4428,7 @@
           // Vérifier les phases facturées
           var factPhases = {};
           (echeancierData[p.code] || []).forEach(function(e) {
-            if (e.statut === 'Factur\u00e9' || e.statut === 'Facture') factPhases[(e.phase||'').toUpperCase()] = true;
+            if (isFactureStatut(e.statut)) factPhases[(e.phase||'').toUpperCase()] = true;
           });
           phasePipeline = '<div style="display:flex;align-items:center;gap:2px;margin-top:0.2rem">';
           pipePhases.forEach(function(ph) {
@@ -4558,8 +4609,7 @@
         // Calculer le facture reel depuis echeancierData (pas depuis p.mois)
         var facture_det = 0;
         (echeancierData[p.code] || []).forEach(function(e) {
-          var st = String(e.statut || '').toLowerCase();
-          if (st.indexOf('factur') === 0 && st.indexOf('a fac') < 0) {
+          if (isFactureStatut(e.statut)) {
             facture_det += parseFloat(e.montant) || 0;
           }
         });
@@ -4630,7 +4680,7 @@
         var orgPhasesPreCalc = ORGANISATION[p.code] || [];
         var preCalcPhases = [];
         var preCalcSeen = {};
-        orgPhasesPreCalc.forEach(function(ph) { if (ph && !preCalcSeen[ph]) { preCalcPhases.push(ph); preCalcSeen[ph] = true; } });
+        orgPhasesPreCalc.forEach(function(ph) { var phN = getOrgaPhase(ph); if (phN && !preCalcSeen[phN]) { preCalcPhases.push(phN); preCalcSeen[phN] = true; } });
         if (preCalcPhases.length === 0) preCalcPhases = ['APS','APD','PRO','ACT','DET','AOR'];
         // Fallback : utiliser le total prevu (echeancier), pas le budget travaux client
         var preCalcTotal = p.mois.reduce(function(a,b){return a+b;},0);
@@ -4769,7 +4819,7 @@
           // Fallback : créer depuis ORGANISATION
           var orgPhasesC = ORGANISATION[p.code] || [];
           var usedPhases = [];
-          orgPhasesC.forEach(function(ph){ if (ph && usedPhases.indexOf(ph)<0) usedPhases.push(ph); });
+          orgPhasesC.forEach(function(ph){ var phN = getOrgaPhase(ph); if (phN && usedPhases.indexOf(phN)<0) usedPhases.push(phN); });
           if (usedPhases.length === 0) usedPhases = ['APS','APD','PRO','ACT','DET','AOR'];
           var totalProjet = p.montant_contrat || p.mois.reduce(function(a,b){return a+b;},0);
           var fallbackPhases = usedPhases.map(function(ph) { return { phase: ph, montant: Math.round(totalProjet / usedPhases.length) }; });
@@ -4898,7 +4948,7 @@
                 var eDateFact = ech.date_facture || '';
                 var eStatut = ech.statut || 'Pr\u00e9visionnel';
                 var eNFact = ech.n_facture || '';
-                var isLocked = (eStatut === 'Factur\u00e9' || eStatut === 'Facture');
+                var isLocked = isFactureStatut(eStatut);
                 var lockAttr = isLocked ? ' readonly style="width:90px;text-align:right;font-size:0.78rem;padding:0.2rem 0.3rem;background:var(--grey-bg);cursor:not-allowed"' : ' style="width:90px;text-align:right;font-size:0.78rem;padding:0.2rem 0.3rem"';
                 var lockAttrTxt = isLocked ? ' readonly style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center;background:var(--grey-bg);cursor:not-allowed"' : ' style="width:100px;font-size:0.78rem;padding:0.2rem 0.3rem;text-align:center"';
                 var lockAttrNf = isLocked ? ' readonly style="width:90px;font-size:0.78rem;padding:0.2rem 0.3rem;background:var(--grey-bg);cursor:not-allowed"' : ' style="width:90px;font-size:0.78rem;padding:0.2rem 0.3rem"';
@@ -4927,7 +4977,6 @@
               html += '<tr style="font-weight:600"><td></td><td id="ech_sum_' + docIdx + '_' + phIdx + '" style="text-align:right;font-size:0.8rem">' + fmtEuro(echTotalPhase) + '</td><td colspan="5"></td></tr>';
               html += '</table></div>'; // fermer echDetail div (U11)
             } else {
-              var phaseMontant = parseFloat((document.getElementById ? '' : '') || m || 0);
             html += '<div style="font-size:0.75rem;display:flex;align-items:center;gap:0.5rem">' +
               '<span style="color:var(--red);font-weight:600">\u26a0 \u00c9ch\u00e9ancier manquant</span>' +
               '<span style="color:var(--text-muted);font-style:italic">Ajoutez un versement ci-dessous</span></div>';
@@ -5036,7 +5085,6 @@
             html += '<tr style="font-weight:600"><td></td><td id="ech_sum_0_' + phIdx + '" style="text-align:right;font-size:0.8rem">' + fmtEuro(fallbackSum) + '</td><td colspan="5"></td></tr>';
             html += '</table>';
           } else {
-            var phaseMontant = parseFloat((document.getElementById ? '' : '') || m || 0);
             html += '<div style="font-size:0.75rem;display:flex;align-items:center;gap:0.5rem">' +
               '<span style="color:var(--red);font-weight:600">\u26a0 \u00c9ch\u00e9ancier manquant</span>' +
               '<span style="color:var(--text-muted);font-style:italic">Ajoutez un versement ci-dessous</span></div>';
@@ -5096,7 +5144,7 @@
         var existingInvoices = [];
         var echData = echeancierData[p.code] || [];
         echData.forEach(function(e) {
-          if (e.statut === 'Factur\u00e9' || e.statut === 'Facture') {
+          if (isFactureStatut(e.statut)) {
             existingInvoices.push({
               n_facture: e.n_facture || '',
               date_facture: e.date_facture || '',
@@ -5282,9 +5330,9 @@
         var phases3 = ORGANISATION[p.code];
         var valids3 = PHASES_VALIDEES[p.code] || [];
         for (var om = 0; om < 12; om++) {
-          if (phases3[om]) {
+          if (getOrgaPhase(phases3[om])) {
             orgaSourcePhases.push({
-              phase: phases3[om],
+              phase: getOrgaPhase(phases3[om]),
               dateRendu: selectedYear + '-' + String(om+1).padStart(2,'0') + '-15',
               isVal: valids3[om] || false,
               comment: ''
@@ -5402,18 +5450,18 @@
             var resp = JSON.parse(xhr.responseText);
             handleClaudeResponse(resp, statusEl, projetCode);
           } catch(e) {
-            // Si le POST échoue (redirect GAS), essayer en découpant en GET
-            statusEl.innerHTML = '<span style="color:var(--red)">Erreur POST. Essai alternatif...</span>';
-            // Fallback : appeler Claude directement depuis le navigateur
-            callClaudeDirectFromBrowser(base64, mimeType, file.name, statusEl, projetCode);
+            // P4 : plus de fallback direct navigateur (la cle API ne doit jamais transiter cote client)
+            Logger.error('IA', 'Reponse proxy GAS illisible : ' + e);
+            statusEl.innerHTML = '<span style="color:var(--red)">Erreur : le proxy IA (GAS) a renvoy\u00e9 une r\u00e9ponse illisible. R\u00e9essayez ou v\u00e9rifiez le d\u00e9ploiement GAS.</span>';
           }
         };
         xhr.onerror = function() {
-          // POST échoué → appeler Claude directement
-          callClaudeDirectFromBrowser(base64, mimeType, file.name, statusEl, projetCode);
+          Logger.error('IA', 'Echec reseau vers le proxy GAS (claude_analyze)');
+          statusEl.innerHTML = '<span style="color:var(--red)">Erreur r\u00e9seau : impossible de joindre le proxy IA (GAS). V\u00e9rifiez la connexion et l\'URL API dans Param\u00e8tres.</span>';
         };
         xhr.send(JSON.stringify({
           action: 'claude_analyze',
+          token: apiToken || undefined, // P3 : token API partage
           fileBase64: base64,
           mimeType: mimeType,
           fileName: file.name
@@ -5435,63 +5483,10 @@
         remplirDepuisIA(resp.data, projetCode);
     }
 
-    // Appel direct à Claude API depuis le navigateur (fallback si GAS POST échoue)
-    function callClaudeDirectFromBrowser(base64, mimeType, fileName, statusEl, projetCode) {
-      // Récupérer la clé API depuis le proxy GAS
-      showIALoader(statusEl, 'Analyse directe via Claude API...', 'Le proxy GAS ne supporte pas les gros fichiers en POST. Appel direct.');
-
-      // Construire le message Claude
-      var content = [];
-      if (mimeType === 'application/pdf') {
-        content.push({ type: 'document', source: { type: 'base64', media_type: mimeType, data: base64 } });
-      } else if (mimeType.indexOf('image/') === 0) {
-        content.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } });
-      }
-      content.push({ type: 'text', text: 'Tu es un AMO expert pour ACTE 1 (bureau d\'\u00e9tudes audiovisuel/sc\u00e9nographie, Paris). Analyse ce document et extrais TOUT.\n\nR\u00e8gles :\n- Les phases MOP doivent \u00eatre : ESQ, DIAG, APS, APD, AVP, PRO, DCE, ACT, VISA, DET, AOR, GPA, CONSEIL\n- "Programme/Avant Projet" \u2192 AVP. "PRO/DCE" \u2192 splitter en PRO + DCE. "ACT sur APD" \u2192 ACT. "Suivi op\u00e9rations" \u2192 VISA + DET.\n- Dates TOUJOURS en YYYY-MM-DD. Si "fin Mars" \u2192 2026-03-31. D\u00e9duire les dates manquantes.\n- Si c\'est une FACTURE : extrais n\u00b0, date, montants par phase factur\u00e9e.\n- RESUME OBLIGATOIRE : 2-3 phrases professionnelles d\u00e9crivant le projet.\n\nJSON :\n{"nom_projet":"","ville":"","ref_devis":"","client":"","contact_nom":"","contact_email":"","contact_tel":"","type_client":"Public|Priv\u00e9","architecte":"","type_marche":"","type_secteur":"","type_mission":"MOE|AMO","budget_total_ht":0,"phases":[{"phase":"AVP","nom_devis":"","montant":0,"date_prevue":"YYYY-MM-DD","option":false,"livrables":""}],"date_debut":"","date_fin":"","date_travaux":"","resume":"OBLIGATOIRE","type_document":"devis|facture","factures":[{"numero":"","date":"","montant_total":0,"phases_facturees":[{"phase":"AVP","montant":0,"pourcentage":50}],"revision":0}],"confiance":"haute|moyenne|basse","notes":""}' });
-
-      // Appel direct Claude API
-      var claudeKey = localStorage.getItem('cockpit-claude-api-key') || '';
-      if (!claudeKey) {
-        // Demander la clé
-        claudeKey = prompt('Cl\u00e9 API Claude requise pour l\'analyse directe (le proxy GAS ne g\u00e8re pas les gros fichiers) :\n\nCollez votre cl\u00e9 sk-ant-...');
-        if (claudeKey) localStorage.setItem('cockpit-claude-api-key', claudeKey);
-      }
-      if (!claudeKey) { statusEl.innerHTML = '<span style="color:var(--red)">Cl\u00e9 API requise</span>'; return; }
-
-      fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': claudeKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4000,
-          messages: [{ role: 'user', content: content }]
-        })
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(resp) {
-        if (resp.error) {
-          statusEl.innerHTML = '<span style="color:var(--red)">Erreur Claude : ' + (resp.error.message || JSON.stringify(resp.error)) + '</span>';
-          return;
-        }
-        var text = resp.content && resp.content[0] ? resp.content[0].text : '';
-        var jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          handleClaudeResponse({ ok: true, data: JSON.parse(jsonMatch[0]) }, statusEl, projetCode);
-        } else {
-          statusEl.innerHTML = '<span style="color:var(--red)">R\u00e9ponse non structur\u00e9e</span>';
-        }
-      })
-      .catch(function(err) {
-        statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + err + '</span>';
-      });
-    }
-
-    // analyserDocument cleanup done
+    // P4 : l'appel direct Claude depuis le navigateur a été supprimé (la clé API
+    // transitait par localStorage — fuite). Toute analyse IA passe par le proxy GAS
+    // (ClaudeProxy.gs), seul détenteur de la clé. Purge de l'ancienne clé stockée :
+    try { localStorage.removeItem('cockpit-claude-api-key'); } catch(e) {}
 
     // Données IA en attente de validation
     var iaDataPending = null;
@@ -6140,7 +6135,7 @@
         if (folderId) extraKW += ' ' + folderId[1];
       }
       var url = apiUrl + '?action=drive_search&projet=' + encodeURIComponent(projetCode) + '&keywords=' + encodeURIComponent(extraKW);
-      fetch(url)
+      gasFetch(url)
       .then(function(r) { return r.json(); })
       .then(function(resp) {
         if (!resp.ok) { el.innerHTML = '<span style="color:var(--red)">' + (resp.error || 'Erreur') + '</span>'; return; }
@@ -6206,7 +6201,7 @@
       el.innerHTML = '<span style="color:var(--blue)">Recherche live dans les 3 Drives (ACTIF + ARCHIVES + COMMERCIAL)...</span>';
 
       var url = apiUrl + '?action=drive_search_live&q=' + encodeURIComponent(query);
-      fetch(url)
+      gasFetch(url)
       .then(function(r) { return r.json(); })
       .then(function(resp) {
         if (!resp.ok) { el.innerHTML = '<span style="color:var(--red)">' + (resp.error || 'Erreur') + '</span>'; return; }
@@ -6283,7 +6278,7 @@
         statusEl.innerHTML = '<span style="color:var(--blue)">Analyse fichier ' + done + '/' + total + '...</span>';
 
         var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId);
-        fetch(url)
+        gasFetch(url)
         .then(function(r) { return r.json(); })
         .then(function(resp) {
           if (resp.ok && resp.data) {
@@ -6365,7 +6360,7 @@
 
       // Appel direct avec le folder ID
       var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(folderId) + '&mode=folder_direct';
-      fetch(url)
+      gasFetch(url)
       .then(function(r) { return r.json(); })
       .then(function(resp) {
         if (!resp.ok) {
@@ -6600,7 +6595,7 @@
         if (folderUrlEl) folderUrlEl.value = driveUrl;
         showIALoader(statusEl, 'Analyse du dossier Drive...', 'L\'IA explore le dossier et analyse les fichiers pertinents. 1-2 minutes.');
         var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(folderId) + '&mode=folder_direct';
-        fetch(url).then(function(r) { return r.json(); }).then(function(resp) {
+        gasFetch(url).then(function(r) { return r.json(); }).then(function(resp) {
           if (!resp.ok) { statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || '') + '</span>'; return; }
           if (!resp.data) { statusEl.innerHTML = '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>'; return; }
           statusEl.innerHTML = '<span style="color:var(--green)">Analyse termin\u00e9e \u2014 ' + (resp.filesAnalyzed || '?') + ' fichiers analys\u00e9s</span>';
@@ -6612,7 +6607,7 @@
         var fileId = fileMatch[1];
         showIALoader(statusEl, 'Analyse du fichier Drive...', 'Lecture et extraction des donn\u00e9es. ~30 secondes.');
         var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId) + '&mode=file';
-        fetch(url).then(function(r) { return r.json(); }).then(function(resp) {
+        gasFetch(url).then(function(r) { return r.json(); }).then(function(resp) {
           if (!resp.ok) { statusEl.innerHTML = '<span style="color:var(--red)">Erreur : ' + (resp.error || '') + '</span>'; return; }
           if (!resp.data) { statusEl.innerHTML = '<span style="color:var(--red)">Pas de donn\u00e9es extraites</span>'; return; }
           statusEl.innerHTML = '<span style="color:var(--green)">Analyse de <strong>' + (resp.fileName || 'fichier') + '</strong> termin\u00e9e</span>';
@@ -6632,7 +6627,7 @@
       showIALoader(statusEl, 'Analyse du dossier complet...', 'L\'IA remonte au dossier racine, s\u00e9lectionne les fichiers cl\u00e9s et les analyse. 1-2 minutes.');
 
       var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId) + '&mode=folder';
-      fetch(url)
+      gasFetch(url)
       .then(function(r) { return r.json(); })
       .then(function(resp) {
         if (!resp.ok) {
@@ -6676,7 +6671,7 @@
       showIALoader(statusEl, 'Analyse du fichier en cours...', 'Lecture et extraction des donn\u00e9es. ~30 secondes.');
 
       var url = apiUrl + '?action=drive_analyze&fileId=' + encodeURIComponent(fileId);
-      fetch(url)
+      gasFetch(url)
       .then(function(r) { return r.json(); })
       .then(function(resp) {
         if (!resp.ok) {
@@ -6710,7 +6705,7 @@
         var montant = parseFloat((document.getElementById(rowId + '_montant') || {}).value) || 0;
         var statut = (document.getElementById(rowId + '_statut') || {}).value || '';
         total += montant;
-        if (statut === 'Factur\u00e9') facture += montant;
+        if (isFactureStatut(statut)) facture += montant;
       });
       var reste = total - facture;
       var sumEl = document.getElementById('contrat_doc_sum_' + docIdx);
@@ -6799,7 +6794,9 @@
 
     // Monter/descendre une phase dans le tableau contrat
     // Sauvegarder l'echeancier complet d'un projet vers le Sheet
-    window.saveEcheancier = function(code) {
+    // isAuto = true quand declenche par l'auto-save : on n'impose PAS de
+    // re-render (il refermait les lignes en cours de saisie, cf. DEM-1779366807518)
+    window.saveEcheancier = function(code, isAuto) {
       if (!code) { showToast('Code projet manquant'); return; }
       var lignes = [];
 
@@ -6860,11 +6857,16 @@
       if (dataMode === 'live' && apiUrl) {
         postToSheet('replace_echeancier_projet', { code_projet: code, lignes: lignes }, function(ok) {
           if (ok) {
-            showToast(lignes.length + ' \u00e9ch\u00e9ance(s) enregistr\u00e9e(s) — rafra\u00eechissement...');
-            setTimeout(function() {
-              renderProjetDetail(PROJETS.find(function(p) { return p.code === code; }) || null);
-              switchVolet('contrat');
-            }, 600);
+            if (isAuto) {
+              // Auto-save : pas de re-render pour ne pas interrompre la saisie
+              showToast('\u00c9ch\u00e9ancier enregistr\u00e9');
+            } else {
+              showToast(lignes.length + ' \u00e9ch\u00e9ance(s) enregistr\u00e9e(s) — rafra\u00eechissement...');
+              setTimeout(function() {
+                renderProjetDetail(PROJETS.find(function(p) { return p.code === code; }) || null);
+                switchVolet('contrat');
+              }, 600);
+            }
           }
         });
       } else {
@@ -6891,7 +6893,7 @@
       clearTimeout(_contratAutoSaveTimer);
       _contratAutoSaveTimer = setTimeout(function() {
         showLoadingToast('Sauvegarde contrat...');
-        saveContrat(currentProjetCode);
+        saveContrat(currentProjetCode, true); // true = auto-save, sans re-render
       }, 1500);
     }
 
@@ -6900,7 +6902,7 @@
       clearTimeout(_echAutoSaveTimer);
       _echAutoSaveTimer = setTimeout(function() {
         showLoadingToast('Sauvegarde \u00e9ch\u00e9ancier...');
-        saveEcheancier(currentProjetCode);
+        saveEcheancier(currentProjetCode, true); // true = auto-save, sans re-render
       }, 1500);
     }
 
@@ -6953,7 +6955,7 @@
       if (!apiUrl) return;
       Logger.debug('DRIVE', 'Loading ' + type + ' folders...');
 
-      fetch(apiUrl + '?action=list_drive_folders&type=' + type)
+      gasFetch(apiUrl + '?action=list_drive_folders&type=' + type)
         .then(function(r) { return r.json(); })
         .then(function(res) {
           if (res.ok && res.data) {
@@ -7165,8 +7167,7 @@
       var totalFacture = 0;
       var lastNonFacture = null;
       phEchs.forEach(function(e) {
-        var st = String(e.statut || '').toLowerCase();
-        var isFacture = st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+        var isFacture = isFactureStatut(e.statut);
         if (isFacture) {
           totalFacture += parseFloat(e.montant) || 0;
         } else {
@@ -7318,7 +7319,9 @@
     };
 
     // Save all contrat data to Sheet (CONTRATS + ECHEANCIER + ORGANISATION) and update in-memory
-    window.saveContrat = function(code) {
+    // isAuto = true quand declenche par l'auto-save : pas de re-render
+    // (il refermait les lignes en cours de saisie, cf. DEM-1779366807518)
+    window.saveContrat = function(code, isAuto) {
       var docCount = parseInt((document.getElementById('contrat_doc_count') || {}).value) || 1;
       var saved = 0;
 
@@ -7332,8 +7335,7 @@
       // C4: Collecter les montants deja factures par phase pour eviter les doublons
       var facturéParPhase = {};
       (echeancierData[code] || []).forEach(function(e) {
-        var st = String(e.statut || '').toLowerCase();
-        var isFacture = st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+        var isFacture = isFactureStatut(e.statut);
         if (isFacture) {
           var ph = (e.phase || '').toUpperCase();
           facturéParPhase[ph] = (facturéParPhase[ph] || 0) + (parseFloat(e.montant) || 0);
@@ -7441,8 +7443,7 @@
       contratsData[code] = newContrats;
       // Garder les echeances facturees existantes + ajouter les nouvelles previsionnelles
       var existingFactures = (echeancierData[code] || []).filter(function(e) {
-        var st = String(e.statut || '').toLowerCase();
-        return st.indexOf('factur') === 0 && st.indexOf('a fac') < 0;
+        return isFactureStatut(e.statut);
       });
       echeancierData[code] = existingFactures.concat(newEcheancier);
       if (!prevParAnnee[yr]) prevParAnnee[yr] = {};
@@ -7460,11 +7461,16 @@
           organisation: newOrga
         }, function(ok) {
           if (ok) {
-            showToast(saved + ' phase(s) sauvegard\u00e9e(s) \u2014 rafra\u00eechissement...');
-            setTimeout(function() {
-              renderProjetDetail(PROJETS.find(function(p2) { return p2.code === code; }) || null);
-              switchVolet('contrat');
-            }, 600);
+            if (isAuto) {
+              // Auto-save : pas de re-render pour ne pas interrompre la saisie
+              showToast('Contrat enregistr\u00e9');
+            } else {
+              showToast(saved + ' phase(s) sauvegard\u00e9e(s) \u2014 rafra\u00eechissement...');
+              setTimeout(function() {
+                renderProjetDetail(PROJETS.find(function(p2) { return p2.code === code; }) || null);
+                switchVolet('contrat');
+              }, 600);
+            }
           }
         });
       } else if (dataMode !== 'live') {
@@ -7624,8 +7630,7 @@
         var idxToRemove = -1;
         for (var ei = 0; ei < echs.length; ei++) {
           var e = echs[ei];
-          var stLow = (e.statut || '').toLowerCase();
-          var isFacture = stLow.indexOf('factur') === 0 && stLow.indexOf('a fac') < 0;
+          var isFacture = isFactureStatut(e.statut);
           if (nFacture && String(e.n_facture) === String(nFacture) && (e.phase || '').toUpperCase() === phase.toUpperCase()) {
             idxToRemove = ei; break;
           } else if (!nFacture && (e.phase || '').toUpperCase() === phase.toUpperCase() && isFacture) {
@@ -7705,7 +7710,7 @@
       // Index des factures deja connues dans echeancierData (pour eviter doublons)
       var knownInvoices = {};
       echs.forEach(function(e) {
-        if (e.n_facture && (e.statut === 'Factur\u00e9' || e.statut === 'Facture')) {
+        if (e.n_facture && isFactureStatut(e.statut)) {
           knownInvoices[e.n_facture + '|' + (e.phase||'').toUpperCase()] = true;
         }
       });
@@ -7722,7 +7727,23 @@
         var revision = parseFloat((tr.querySelector('[id^="fact_rev_"]') || {}).value) || 0;
         var commentaire = (tr.querySelector('[id^="fact_comment_"]') || {}).value || '';
 
-        if (!phase || montant <= 0) continue;
+        // DEM-1779457618446 : si seul le % est renseigne, calculer le montant
+        // depuis le montant contrat de la phase (comme onFactAvancChange)
+        if (montant <= 0 && phase && avancement) {
+          var pctVal = parseFloat(String(avancement).replace('%', '').replace(',', '.')) || 0;
+          var phMontantSave = getContratMontants()[phase.toUpperCase()] || 0;
+          if (pctVal > 0 && phMontantSave > 0) {
+            montant = Math.round(phMontantSave * pctVal / 100);
+          }
+        }
+
+        if (!phase || montant <= 0) {
+          // Ne plus ignorer en silence : prevenir si la ligne semblait remplie
+          if (nFacture && phase) {
+            showToast('Facture ' + nFacture + ' non enregistr\u00e9e : montant introuvable (saisissez le montant HT, ou un % avec une phase pr\u00e9sente au contrat)');
+          }
+          continue;
+        }
 
         // Ignorer les factures deja enregistrees dans l'echeancier
         if (nFacture && knownInvoices[nFacture + '|' + phase.toUpperCase()]) continue;
@@ -7846,7 +7867,7 @@
             var totalFact = 0;
             echs.forEach(function(e2) {
               if ((e2.phase||'').toUpperCase() === phase.toUpperCase() &&
-                  (e2.statut === 'Factur\u00e9' || e2.statut === 'Facture')) {
+                  isFactureStatut(e2.statut)) {
                 totalFact += parseFloat(e2.montant) || 0;
               }
             });
@@ -8893,7 +8914,7 @@
       showLoadingToast('Envoi en cours...');
       setSaveState(+1);
       var t0 = performance.now();
-      fetch(apiUrl, {
+      gasFetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         redirect: 'follow',
@@ -8978,7 +8999,7 @@
     window.loadGasLogs = function() {
       if (!apiUrl) { showToast('URL API non configur\u00e9e'); return; }
       showToast('Chargement logs serveur...');
-      fetch(apiUrl + '?action=get_logs')
+      gasFetch(apiUrl + '?action=get_logs')
         .then(function(r) { return r.json(); })
         .then(function(res) {
           if (res.ok && res.data) {
