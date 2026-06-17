@@ -3613,8 +3613,8 @@
         var facture = 0;
         (echeancierData[p.code] || []).forEach(function(e) {
           if (!isFactureStatut(e.statut)) return;
-          var dp = String(e.date_prev_facturation || e.date_facture || '');
-          if (dp.length >= 4 && parseInt(dp.substring(0,4)) === forecastYear) {
+          var dp = String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '');
+          if (dp.length >= 7 && parseInt(dp.substring(0,4)) === forecastYear) {
             facture += parseFloat(e.montant) || 0;
           }
         });
@@ -4162,7 +4162,9 @@
         var projetContribs = {}; // { mois: { etudes: X, travaux: Y, conseil: Z } }
 
         echs.forEach(function(e) {
-          var dp = String(e.date_prev_facturation || e.date_facture || '');
+          var dp = isFactureStatut(e.statut)
+            ? String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '')
+            : String(e.date_prev_facturation || '');
           if (dp.length < 7) return;
           var eYear = parseInt(dp.substring(0, 4));
           var eMonth = parseInt(dp.substring(5, 7)) - 1;
@@ -8202,7 +8204,9 @@
         var echs = echeancierData[p.code] || [];
         // Filtrer par annee
         var echsYear = echs.filter(function(e) {
-          var dp = String(e.date_prev_facturation || e.date_facture || '');
+          var dp = isFactureStatut(e.statut)
+            ? String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '')
+            : String(e.date_prev_facturation || '');
           if (!dp || dp.length < 4) return false;
           return parseInt(dp.substring(0,4)) === year;
         });
