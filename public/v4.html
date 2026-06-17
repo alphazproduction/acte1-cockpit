@@ -1746,6 +1746,7 @@
           }
 
           // 3. Fallback : construire le prévisionnel depuis l'échéancier (par année)
+          // Uniquement pour les projets/années ABSENTS du PREVISIONNEL (sinon doublon)
           // Pour les facturés : utiliser date_facture ; sinon date_prev_facturation
           if (data.echeancier && data.echeancier.length > 0) {
             data.echeancier.forEach(function(ech) {
@@ -1760,6 +1761,8 @@
               if (mIdx < 0 || mIdx > 11) return;
               if (!prevParAnnee[yr]) prevParAnnee[yr] = {};
               var key = String(ech.code_projet);
+              // Ne pas ecraser si deja present depuis PREVISIONNEL (evite doublon)
+              if (prevParAnnee[yr][key]) return;
               if (!prevParAnnee[yr][key]) prevParAnnee[yr][key] = [0,0,0,0,0,0,0,0,0,0,0,0];
               prevParAnnee[yr][key][mIdx] += parseFloat(ech.montant) || 0;
             });
@@ -4031,7 +4034,9 @@
             // Priorite echeancier : placer les phases au bon mois selon la date
             phases = [null,null,null,null,null,null,null,null,null,null,null,null];
             ePh.forEach(function(e) {
-              var dp = String(e.date_prev_facturation || '');
+              var dp = isFactureStatut(e.statut)
+                ? String(e.date_facture || facturesByNum[String(e.n_facture || '').trim()] || e.date_prev_facturation || '')
+                : String(e.date_prev_facturation || '');
               if (dp.length >= 7) {
                 var eYear = parseInt(dp.substring(0,4));
                 var eMonth = parseInt(dp.substring(5,7)) - 1;
