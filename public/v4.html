@@ -7741,11 +7741,17 @@
           }
         }
 
-        if (!phase || montant <= 0) {
-          // Ne plus ignorer en silence : prevenir si la ligne semblait remplie
-          if (nFacture && phase) {
-            showToast('Facture ' + nFacture + ' non enregistr\u00e9e : montant introuvable (saisissez le montant HT, ou un % avec une phase pr\u00e9sente au contrat)');
+        // Validation numero de facture : doit etre au format F + chiffres (ex: F2070)
+        if (!nFacture || !/^F\d+$/i.test(nFacture.trim())) {
+          if (phase && montant > 0) {
+            showToast('Ligne ' + (fi+1) + ' non enregistr\u00e9e : num\u00e9ro de facture manquant ou invalide (format attendu : F1234)');
           }
+          continue;
+        }
+        nFacture = nFacture.trim().toUpperCase();
+
+        if (!phase || montant <= 0) {
+          showToast('Facture ' + nFacture + ' non enregistr\u00e9e : montant introuvable (saisissez le montant HT, ou un % avec une phase pr\u00e9sente au contrat)');
           continue;
         }
 
