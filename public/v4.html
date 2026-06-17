@@ -1746,10 +1746,15 @@
           }
 
           // 3. Fallback : construire le prévisionnel depuis l'échéancier (par année)
+          // Pour les facturés : utiliser date_facture ; sinon date_prev_facturation
           if (data.echeancier && data.echeancier.length > 0) {
             data.echeancier.forEach(function(ech) {
-              if (!ech.code_projet || !ech.date_prev_facturation) return;
-              var dateStr = String(ech.date_prev_facturation);
+              if (!ech.code_projet) return;
+              var isFacture = isFactureStatut(ech.statut);
+              var dateStr = isFacture
+                ? String(ech.date_facture || ech.date_prev_facturation || '')
+                : String(ech.date_prev_facturation || '');
+              if (!dateStr || dateStr.length < 7) return;
               var yr = dateStr.substring(0, 4);
               var mIdx = parseInt(dateStr.substring(5, 7)) - 1;
               if (mIdx < 0 || mIdx > 11) return;
@@ -1760,8 +1765,7 @@
             });
           }
 
-          // 4. Appliquer les données de l'année sélectionnée
-          applyYearData(selectedYear);
+          // 4. (deplace apres chargement echeancierData/facturesByNum)
 
           // 5a. Charger CONTRATS par projet
           contratsData = {};
@@ -1814,6 +1818,9 @@
               }
             });
           }
+
+          // 4. Appliquer les données de l'année (après echeancierData + facturesByNum)
+          applyYearData(selectedYear);
 
           // 5b2. Charger SOUSTRAITANCE par projet
           soustraitanceData = {};
