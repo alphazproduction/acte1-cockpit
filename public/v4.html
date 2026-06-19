@@ -5254,7 +5254,7 @@
           // FIX1: Detail par phase (tarif / deja facture / reste)
           var phaseKeys = Object.keys(contratMontants).sort();
           if (phaseKeys.length > 1) {
-            html += '<div style="font-size:0.78rem;margin-bottom:0.75rem;display:flex;flex-wrap:wrap;gap:0.3rem 1.2rem">';
+            html += '<div style="font-size:0.78rem;margin-bottom:0.75rem;display:flex;flex-direction:column;gap:0.15rem">';
             phaseKeys.forEach(function(ph) {
               var tarif = contratMontants[ph] || 0;
               var deja = factureParPhase[ph] || 0;
