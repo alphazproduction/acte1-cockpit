@@ -7278,12 +7278,19 @@
       if (!lastNonFacture) {
         var solde = montantContrat - totalFacture;
         if (Math.abs(solde) < 0.01) return; // pas d'ecart reel
+        // Demander la date prevue
+        var dateSolde = prompt('Date pr\u00e9vue de facturation pour le solde ' + phase + ' (' + fmtEuro(solde) + ') :\n\nFormat : AAAA-MM-JJ (ex: 2026-09-15)');
+        if (!dateSolde) return; // annule
+        dateSolde = dateSolde.trim();
+        // Ordre apres toutes les echeances existantes de la phase
+        var maxOrdre = 0;
+        phEchs.forEach(function(e) { var o = parseInt(e.ordre_affichage) || 0; if (o > maxOrdre) maxOrdre = o; });
         var newEch = {
           code_projet: code, phase: phase, montant: solde,
-          date_prev_facturation: '', n_facture: '', date_facture: '',
+          date_prev_facturation: dateSolde, n_facture: '', date_facture: '',
           statut: 'Pr\u00e9visionnel',
           commentaire: 'Solde restant (Corriger)',
-          ordre_affichage: (echs.length + 1) * 10
+          ordre_affichage: maxOrdre + 10
         };
         echs.push(newEch);
         showToast(phase + ' : \u00e9ch\u00e9ance pr\u00e9visionnelle cr\u00e9\u00e9e pour ' + fmtEuro(solde));
