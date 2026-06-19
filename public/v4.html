@@ -7278,35 +7278,55 @@
       if (!lastNonFacture) {
         var solde = montantContrat - totalFacture;
         if (Math.abs(solde) < 0.01) return; // pas d'ecart reel
-        // Demander la date prevue
-        var dateSolde = prompt('Date pr\u00e9vue de facturation pour le solde ' + phase + ' (' + fmtEuro(solde) + ') :\n\nFormat : AAAA-MM-JJ (ex: 2026-09-15)');
-        if (!dateSolde) return; // annule
-        dateSolde = dateSolde.trim();
-        // Ordre apres toutes les echeances existantes de la phase
-        var maxOrdre = 0;
-        phEchs.forEach(function(e) { var o = parseInt(e.ordre_affichage) || 0; if (o > maxOrdre) maxOrdre = o; });
-        var newEch = {
-          code_projet: code, phase: phase, montant: solde,
-          date_prev_facturation: dateSolde, n_facture: '', date_facture: '',
-          statut: 'Pr\u00e9visionnel',
-          commentaire: 'Solde restant (Corriger)',
-          ordre_affichage: maxOrdre + 10
+        // Modale calendrier pour choisir la date prevue
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:10000;display:flex;align-items:center;justify-content:center;';
+        var box = document.createElement('div');
+        box.style.cssText = 'background:#fff;border-radius:12px;padding:24px 28px;box-shadow:0 8px 32px rgba(0,0,0,0.25);min-width:300px;text-align:center;font-family:inherit;';
+        box.innerHTML = '<div style="font-weight:600;font-size:15px;margin-bottom:12px;">Date pr\u00e9vue de facturation</div>'
+          + '<div style="font-size:13px;color:#555;margin-bottom:16px;">Solde ' + phase + ' : ' + fmtEuro(solde) + '</div>'
+          + '<input type="date" id="corriger-date-input" style="font-size:15px;padding:8px 12px;border:1px solid #ccc;border-radius:6px;width:100%;box-sizing:border-box;" />'
+          + '<div style="margin-top:16px;display:flex;gap:10px;justify-content:center;">'
+          + '<button id="corriger-date-cancel" style="padding:8px 20px;border:1px solid #ccc;border-radius:6px;background:#f5f5f5;cursor:pointer;font-size:14px;">Annuler</button>'
+          + '<button id="corriger-date-ok" style="padding:8px 20px;border:none;border-radius:6px;background:#1a73e8;color:#fff;cursor:pointer;font-size:14px;">Valider</button>'
+          + '</div>';
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        var dateInput = document.getElementById('corriger-date-input');
+        dateInput.focus();
+        function cleanupDateModal() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+        document.getElementById('corriger-date-cancel').onclick = function() { cleanupDateModal(); };
+        overlay.addEventListener('click', function(ev) { if (ev.target === overlay) cleanupDateModal(); });
+        document.getElementById('corriger-date-ok').onclick = function() {
+          var dateSolde = dateInput.value;
+          if (!dateSolde) { dateInput.style.borderColor = '#d93025'; return; }
+          cleanupDateModal();
+          // Ordre apres toutes les echeances existantes de la phase
+          var maxOrdre = 0;
+          phEchs.forEach(function(e) { var o = parseInt(e.ordre_affichage) || 0; if (o > maxOrdre) maxOrdre = o; });
+          var newEch = {
+            code_projet: code, phase: phase, montant: solde,
+            date_prev_facturation: dateSolde, n_facture: '', date_facture: '',
+            statut: 'Pr\u00e9visionnel',
+            commentaire: 'Solde restant (Corriger)',
+            ordre_affichage: maxOrdre + 10
+          };
+          echs.push(newEch);
+          showToast(phase + ' : \u00e9ch\u00e9ance pr\u00e9visionnelle cr\u00e9\u00e9e pour ' + fmtEuro(solde));
+          if (dataMode === 'live' && apiUrl) {
+            postToSheet('upsert_echeancier', newEch, function(ok) {
+              if (ok) {
+                reloadEcheancierProjet(code, function() {
+                  var p = PROJETS.find(function(pr) { return pr.code === code; });
+                  if (p) { renderProjetDetail(p); switchVolet('contrat'); }
+                });
+              }
+            });
+          } else {
+            var p = PROJETS.find(function(pr) { return pr.code === code; });
+            if (p) { renderProjetDetail(p); switchVolet('contrat'); }
+          }
         };
-        echs.push(newEch);
-        showToast(phase + ' : \u00e9ch\u00e9ance pr\u00e9visionnelle cr\u00e9\u00e9e pour ' + fmtEuro(solde));
-        if (dataMode === 'live' && apiUrl) {
-          postToSheet('upsert_echeancier', newEch, function(ok) {
-            if (ok) {
-              reloadEcheancierProjet(code, function() {
-                var p = PROJETS.find(function(pr) { return pr.code === code; });
-                if (p) { renderProjetDetail(p); switchVolet('contrat'); }
-              });
-            }
-          });
-        } else {
-          var p = PROJETS.find(function(pr) { return pr.code === code; });
-          if (p) { renderProjetDetail(p); switchVolet('contrat'); }
-        }
         return;
       }
 
