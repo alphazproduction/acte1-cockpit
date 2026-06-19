@@ -7274,8 +7274,32 @@
         }
       });
 
+      // FIX6: Si aucune echeance non-facturee, creer une previsionnelle pour le solde
       if (!lastNonFacture) {
-        showToast('Aucune \u00e9ch\u00e9ance modifiable pour ' + phase);
+        var solde = montantContrat - totalFacture;
+        if (Math.abs(solde) < 0.01) return; // pas d'ecart reel
+        var newEch = {
+          code_projet: code, phase: phase, montant: solde,
+          date_prev_facturation: '', n_facture: '', date_facture: '',
+          statut: 'Pr\u00e9visionnel',
+          commentaire: 'Solde restant (Corriger)',
+          ordre_affichage: (echs.length + 1) * 10
+        };
+        echs.push(newEch);
+        showToast(phase + ' : \u00e9ch\u00e9ance pr\u00e9visionnelle cr\u00e9\u00e9e pour ' + fmtEuro(solde));
+        if (dataMode === 'live' && apiUrl) {
+          postToSheet('upsert_echeancier', newEch, function(ok) {
+            if (ok) {
+              reloadEcheancierProjet(code, function() {
+                var p = PROJETS.find(function(pr) { return pr.code === code; });
+                if (p) { renderProjetDetail(p); switchVolet('contrat'); }
+              });
+            }
+          });
+        } else {
+          var p = PROJETS.find(function(pr) { return pr.code === code; });
+          if (p) { renderProjetDetail(p); switchVolet('contrat'); }
+        }
         return;
       }
 
