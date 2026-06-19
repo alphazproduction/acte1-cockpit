@@ -7885,12 +7885,32 @@
 
         // Validation numero de facture : doit etre au format F + chiffres (ex: F2070)
         if (!nFacture || !/^F\d+$/i.test(nFacture.trim())) {
-          if (phase && montant > 0) {
+          if (phase && (montant > 0 || revision > 0)) {
             showToast('Ligne ' + (fi+1) + ' non enregistr\u00e9e : num\u00e9ro de facture manquant ou invalide (format attendu : F1234)');
           }
           continue;
         }
         nFacture = nFacture.trim().toUpperCase();
+
+        // Ligne revision-only (montant HT = 0, revision > 0) : sauter la partie echeance, traiter la revision
+        if (montant <= 0 && revision > 0) {
+          // Ignorer si deja enregistree comme revision
+          if (knownInvoices[nFacture + '|R\u00c9VISION']) { continue; }
+          // Creer directement la ligne revision
+          var revOnlyLine = {
+            code_projet: code, phase: 'R\u00e9vision', montant: revision,
+            date_prev_facturation: dateFacture, n_facture: nFacture,
+            date_facture: dateFacture, statut: 'Factur\u00e9',
+            commentaire: commentaire || ('R\u00e9vision - Facture ' + nFacture),
+            ordre_affichage: (echs.length + 1) * 10
+          };
+          echs.push(revOnlyLine);
+          if (dataMode === 'live' && apiUrl) {
+            postToSheet('upsert_echeancier', revOnlyLine);
+            saved++;
+          }
+          continue;
+        }
 
         if (!phase || montant <= 0) {
           showToast('Facture ' + nFacture + ' non enregistr\u00e9e : montant introuvable (saisissez le montant HT, ou un % avec une phase pr\u00e9sente au contrat)');
