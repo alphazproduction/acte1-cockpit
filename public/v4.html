@@ -5226,12 +5226,18 @@
             var montantVal = inv.phase === 'R\u00e9vision' ? 0 : (parseFloat(inv.montant) || 0);
             var revVal = inv.phase === 'R\u00e9vision' ? (parseFloat(inv.montant) || 0) : (parseFloat(inv.revision) || 0);
             grandFactTotal += montantVal + revVal;
+            // Calculer le % avancement reel depuis montant / contrat phase
+            var invPhase = (inv.phase || '').toUpperCase();
+            var phaseContratMontant = contratMontants[invPhase] || 0;
+            var computedAvanc = (phaseContratMontant > 0 && montantVal > 0)
+              ? Math.round(montantVal / phaseContratMontant * 100) + '%'
+              : (inv.avancement || '');
             html += '<tr data-fact-idx="' + fIdx + '">';
             html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_num_' + fIdx + '" style="width:90px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + (inv.n_facture || '') + '"></td>';
             html += '<td style="text-align:center"><input type="date" class="form-input" id="fact_date_' + fIdx + '" style="width:115px;font-size:0.78rem;padding:0.25rem 0.4rem;text-align:center" value="' + (inv.date_facture || '') + '"></td>';
             html += '<td style="text-align:center"><select class="form-select" id="fact_phase_' + fIdx + '" style="font-size:0.8rem;padding:0.3rem;width:100px" onchange="onFactPhaseChange(' + fIdx + ')">' + factPhaseOpts.replace('value="' + inv.phase + '"', 'value="' + inv.phase + '" selected') + '</select></td>';
             html += '<td style="text-align:right"><input type="number" class="form-input" id="fact_montant_' + fIdx + '" style="width:100px;font-size:0.82rem;padding:0.3rem;text-align:right" value="' + (montantVal || '') + '" placeholder="0" oninput="onFactMontantChange(' + fIdx + ')" onchange="onFactMontantChange(' + fIdx + ')"></td>';
-            html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_avanc_' + fIdx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + (inv.avancement || '') + '" placeholder="50%" oninput="onFactAvancChange(' + fIdx + ')" onchange="onFactAvancChange(' + fIdx + ')"></td>';
+            html += '<td style="text-align:center"><input type="text" class="form-input" id="fact_avanc_' + fIdx + '" style="width:80px;font-size:0.82rem;padding:0.3rem;text-align:center" value="' + computedAvanc + '" placeholder="50%" oninput="onFactAvancChange(' + fIdx + ')" onchange="onFactAvancChange(' + fIdx + ')"></td>';
             html += '<td style="text-align:right"><input type="number" class="form-input" id="fact_rev_' + fIdx + '" style="width:90px;font-size:0.82rem;padding:0.3rem;text-align:right" value="' + (revVal || '') + '" placeholder="0" onchange="recalcFactTotal()"></td>';
             html += '<td><input type="text" class="form-input" id="fact_comment_' + fIdx + '" style="width:100%;font-size:0.82rem;padding:0.3rem" value="' + (inv.commentaire || '').replace(/"/g, '&quot;') + '" placeholder="Commentaire\u2026"></td>';
             html += '<td style="text-align:center;white-space:nowrap">' +
@@ -7799,6 +7805,9 @@
           ech.date_facture = dateFacture;
           ech.date_prev_facturation = ech.date_prev_facturation || dateFacture;
           ech.commentaire = commentaire || ('Facture ' + nFacture);
+          // Calculer avancement reel = montant / montant contrat phase
+          var phContrat = getContratMontants()[phase.toUpperCase()] || 0;
+          ech.avancement = phContrat > 0 ? Math.round(montant / phContrat * 100) + '%' : avancement;
 
           if (dataMode === 'live' && apiUrl) {
             postToSheet('upsert_echeancier', {
@@ -7806,6 +7815,7 @@
               date_prev_facturation: ech.date_prev_facturation,
               n_facture: nFacture, date_facture: dateFacture,
               statut: 'Factur\u00e9', commentaire: ech.commentaire,
+              avancement: ech.avancement,
               ordre_affichage: ech.ordre_affichage || ((echIdx + 1) * 10)
             });
             saved++;
