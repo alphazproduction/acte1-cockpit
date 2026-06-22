@@ -6096,7 +6096,7 @@
         }
 
         if (fac.revision) {
-          html += '<div style="margin-top:0.5rem;font-size:0.82rem">R\u00e9vision : <strong>' + fac.revision.toLocaleString('fr-FR') + ' \u20ac</strong></div>';
+          html += '<div style="margin-top:0.5rem;font-size:0.82rem">R\u00e9vision : <strong>' + fmtEuro(fac.revision) + '</strong></div>';
         }
         html += '</div>';
       });
@@ -6173,7 +6173,7 @@
         });
 
         // R\u00e9vision: add a separate line if present
-        if (fac.revision && fac.revision > 0) {
+        if (fac.revision && parseFloat(fac.revision) > 0) {
           if (typeof addFactRow === 'function') addFactRow(projetCode);
           var table2 = document.getElementById('factTable');
           if (!table2) return;
@@ -8019,11 +8019,17 @@
             if (result.action === 'repartir' && diff > 1) {
               // Repartir le solde sur les echeances restantes non-facturees
               if (echRestantes.length > 0) {
-                // Redistribuer proportionnellement
+                // Redistribuer proportionnellement (au centime, derniere absorbe le residu)
                 var totalRestant = echRestantes.reduce(function(s, er) { return s + (parseFloat(er.montant) || 0); }, 0);
-                echRestantes.forEach(function(er) {
+                var sommeAttribuee = 0;
+                echRestantes.forEach(function(er, erIdx) {
                   var proportion = totalRestant > 0 ? (parseFloat(er.montant) || 0) / totalRestant : 1 / echRestantes.length;
-                  er.montant = Math.round(diff * proportion);
+                  if (erIdx === echRestantes.length - 1) {
+                    er.montant = Math.round((diff - sommeAttribuee) * 100) / 100;
+                  } else {
+                    er.montant = Math.round(diff * proportion * 100) / 100;
+                    sommeAttribuee += er.montant;
+                  }
                   if (dataMode === 'live' && apiUrl) {
                     postToSheet('upsert_echeancier', {
                       code_projet: code, phase: er.phase, montant: er.montant,
