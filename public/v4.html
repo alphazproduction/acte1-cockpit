@@ -2321,10 +2321,10 @@
         issues.push({ severity: 'error', code: 'NO_ECH', message: 'Contrat de ' + fmtEuro(totalContrat) + ' sans \u00e9ch\u00e9ancier' });
       }
 
-      // 3. Ecart contrat vs echeancier
+      // 3. Ecart contrat vs echeancier (hors revisions = supplements)
       if (totalContrat > 0 && echs.length > 0) {
         var totalEch = 0;
-        echs.forEach(function(e) { totalEch += parseFloat(e.montant) || 0; });
+        echs.forEach(function(e) { if ((e.phase || '').toUpperCase() !== 'R\u00c9VISION') totalEch += parseFloat(e.montant) || 0; });
         if (Math.abs(totalContrat - totalEch) > totalContrat * 0.02 && Math.abs(totalContrat - totalEch) > 50) {
           var pct = Math.round(((totalEch - totalContrat) / totalContrat) * 100);
           issues.push({ severity: 'error', code: 'ECART_ECH', message: '\u00c9cart contrat/\u00e9ch\u00e9ancier : ' + fmtEuro(totalContrat) + ' vs ' + fmtEuro(totalEch) + ' (' + (pct > 0 ? '+' : '') + pct + '%)' });
@@ -2341,7 +2341,7 @@
         var phaseEch = {};
         echs.forEach(function(e) {
           var ph = (e.phase || '').toUpperCase();
-          if (ph) phaseEch[ph] = (phaseEch[ph] || 0) + (parseFloat(e.montant) || 0);
+          if (ph && ph !== 'R\u00c9VISION') phaseEch[ph] = (phaseEch[ph] || 0) + (parseFloat(e.montant) || 0);
         });
         for (var ph in phaseContrat) {
           var mc = phaseContrat[ph];
@@ -2375,11 +2375,11 @@
         issues.push({ severity: 'info', code: 'NO_DATES', message: 'Dates de d\u00e9but et fin manquantes' });
       }
 
-      // 9. Facture > contrat (surfacturation)
+      // 9. Facture > contrat (surfacturation, hors revisions = supplements)
       if (totalContrat > 0) {
         var totalFacture = 0;
         echs.forEach(function(e) {
-          if (isFactureStatut(e.statut)) totalFacture += parseFloat(e.montant) || 0;
+          if (isFactureStatut(e.statut) && (e.phase || '').toUpperCase() !== 'R\u00c9VISION') totalFacture += parseFloat(e.montant) || 0;
         });
         if (totalFacture > totalContrat * 1.02) {
           issues.push({ severity: 'error', code: 'SURFACT', message: 'Surfacturation : ' + fmtEuro(totalFacture) + ' factur\u00e9 vs ' + fmtEuro(totalContrat) + ' contrat' });
@@ -2849,9 +2849,9 @@
           // Calculer le total contrat
           var totalContrat = 0;
           contrats.forEach(function(c) { totalContrat += parseFloat(c.montant) || 0; });
-          // Calculer le total echeancier (toutes annees)
+          // Calculer le total echeancier (toutes annees, hors revisions = supplements)
           var totalEch = 0;
-          echs.forEach(function(e) { totalEch += parseFloat(e.montant) || 0; });
+          echs.forEach(function(e) { if ((e.phase || '').toUpperCase() !== 'R\u00c9VISION') totalEch += parseFloat(e.montant) || 0; });
           if (totalContrat > 0) {
             var ecart = Math.abs(totalEch - totalContrat);
             var pctEcart = ecart / totalContrat;
